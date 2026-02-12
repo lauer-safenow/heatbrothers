@@ -57,41 +57,40 @@ function rowToCached(row: EventRow): CachedEvent {
   };
 }
 
-function appendRows(rows: EventRow[], log = false) {
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const list = eventCache.get(row.event_type);
-    if (list) {
-      list.push(rowToCached(row));
-    } else {
-      eventCache.set(row.event_type, [rowToCached(row)]);
-    }
-    if (row.id > maxId) maxId = row.id;
-    if (log && (i + 1) % 50_000 === 0) {
-      console.log(`[cache]   ...${(i + 1).toLocaleString()} / ${rows.length.toLocaleString()} rows processed`);
-    }
+function appendRow(row: EventRow) {
+  const list = eventCache.get(row.event_type);
+  if (list) {
+    list.push(rowToCached(row));
+  } else {
+    eventCache.set(row.event_type, [rowToCached(row)]);
   }
+  if (row.id > maxId) maxId = row.id;
 }
 
 export function loadCache() {
   console.log("[cache] Starting cache load from SQLite...");
   const start = Date.now();
 
-  console.log("[cache] Querying all events...");
-  const rows = sqlite
-    .prepare(`SELECT ${SELECT_COLS} FROM events ORDER BY id ASC`)
-    .all() as EventRow[];
-  console.log(`[cache] Query complete: ${rows.length.toLocaleString()} rows in ${Date.now() - start}ms`);
-
   eventCache.clear();
   maxId = 0;
 
-  console.log("[cache] Building in-memory map...");
-  appendRows(rows, true);
+  console.log("[cache] Streaming rows with iterate()...");
+  const iter = sqlite
+    .prepare(`SELECT ${SELECT_COLS} FROM events ORDER BY id ASC`)
+    .iterate() as IterableIterator<EventRow>;
+
+  let count = 0;
+  for (const row of iter) {
+    appendRow(row);
+    count++;
+    if (count % 50_000 === 0) {
+      console.log(`[cache]   ...${count.toLocaleString()} rows loaded (${Date.now() - start}ms)`);
+    }
+  }
 
   const elapsed = Date.now() - start;
   const types = [...eventCache.entries()].map(([t, es]) => `${t}: ${es.length.toLocaleString()}`).join(", ");
-  console.log(`[cache] Done: ${rows.length.toLocaleString()} events in ${elapsed}ms (${types})`);
+  console.log(`[cache] Done: ${count.toLocaleString()} events in ${elapsed}ms (${types})`);
 }
 
 export function refreshCache() {
