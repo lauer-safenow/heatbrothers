@@ -12,7 +12,7 @@
     "sync": "pnpm --filter @heatbrothers/api run sync",
     "seed": "pnpm --filter @heatbrothers/api run seed",
     "bootstrap": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm dev",
-    "prodbs": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm serve"
+    "prodbs": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm --filter @heatbrothers/web build && pnpm serve"
   },
   "devDependencies": {
     "typescript": "^5.7.0"
