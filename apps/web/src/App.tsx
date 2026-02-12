@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./App.css";
 
 interface Stats {
@@ -7,6 +8,7 @@ interface Stats {
 }
 
 export function App() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
@@ -46,6 +48,10 @@ export function App() {
           <span className="sunglasses">😎</span>
           <span className="brothers">BROTHERS</span>
         </div>
+
+        <button className="enter-btn" onClick={() => navigate("/map")}>
+          ENTER
+        </button>
       </div>
 
       {stats && (

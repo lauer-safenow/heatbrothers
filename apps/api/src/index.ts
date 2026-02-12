@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import { syncRouter } from "./routes/sync.js";
 import { startCronSync } from "./sync/cron.js";
+import { loadCache } from "./cache.js";
 
 const WEB_ROOT = path.resolve(ROOT_DIR, "apps/web");
 
@@ -36,6 +37,7 @@ if (isDev) {
   });
 }
 
+loadCache();
 startCronSync();
 
 app.listen(port, () => {

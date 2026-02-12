@@ -298,6 +298,49 @@ body {
 }
 
 /* ═══════════════════════════════════════
+   ENTER button
+   ═══════════════════════════════════════ */
+.enter-btn {
+  margin-top: 2rem;
+  padding: 0.8rem 3rem;
+  font-family: "Arial Black", "Impact", sans-serif;
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  z-index: 10;
+
+  background: linear-gradient(
+    180deg,
+    #ffdd33 0%,
+    #ff8800 50%,
+    #ff4400 100%
+  );
+
+  box-shadow:
+    0 0 20px rgba(255, 100, 0, 0.6),
+    0 0 60px rgba(255, 60, 0, 0.3);
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.enter-btn:hover {
+  transform: scale(1.05);
+  box-shadow:
+    0 0 30px rgba(255, 120, 0, 0.8),
+    0 0 80px rgba(255, 80, 0, 0.5);
+}
+
+.enter-btn:active {
+  transform: scale(0.97);
+}
+
+/* ═══════════════════════════════════════
    Stats panel
    ═══════════════════════════════════════ */
 .stats {
