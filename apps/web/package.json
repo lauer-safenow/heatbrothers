@@ -8,6 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@deck.gl/mapbox": "^9.2.6",
+    "deck.gl": "^9.2.6",
     "maplibre-gl": "^5.18.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
