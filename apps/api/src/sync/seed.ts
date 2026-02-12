@@ -19,8 +19,25 @@ const cities = [
 const eventTypes = [
   "FIRST_TIME_PHONE_STATUS_SENT",
   "DETAILED_ALARM_STARTED_PRIVATE_GROUP",
-  "DETAILED_ALARM_STARTED_PRIVATE_ZONE",
+  "DETAILED_ALARM_STARTED_ZONE",
 ];
+
+const pssTypes = ["ZONE", "PRIVATE_GROUP", null];
+const eventSources = ["PERSON_EVENT", "CONTAINMENT", null];
+const companies = ["TUM", "Daniel's Testfirma", "SafeNow GmbH", null];
+
+function randomGeohash(): string {
+  const chars = "0123456789bcdefghjkmnpqrstuvwxyz";
+  let hash = "";
+  for (let i = 0; i < 6; i++) hash += chars[Math.floor(Math.random() * chars.length)];
+  return hash;
+}
+
+function randomHex(len: number): string {
+  return Array.from({ length: len }, () =>
+    Math.floor(Math.random() * 16).toString(16).toUpperCase(),
+  ).join("");
+}
 
 // Clean previous seed data
 await prisma.event.deleteMany({
@@ -39,16 +56,26 @@ for (const city of cities) {
       const lng = city.lng + (Math.random() - 0.5) * 0.6;
       const timestamp =
         ninetyDaysAgo + Math.floor(Math.random() * (now - ninetyDaysAgo));
+      const pssType = pssTypes[Math.floor(Math.random() * pssTypes.length)];
+      const eventSource = eventSources[Math.floor(Math.random() * eventSources.length)];
+      const company = companies[Math.floor(Math.random() * companies.length)];
 
       records.push({
         posthogId: `seed_${city.name}_${eventType}_${i}`,
         eventType,
         latitude: lat,
         longitude: lng,
+        geohash: randomGeohash(),
         timestamp,
-        city: city.name,
-        country: "Seed",
-        properties: JSON.stringify({ latitude: lat, longitude: lng }),
+        distinctId: randomHex(64),
+        env: "prod",
+        eventSource,
+        pssId: pssType ? crypto.randomUUID() : null,
+        pssName: pssType ? `${city.name} ${pssType}` : null,
+        pssType,
+        companyName: company,
+        alarmSource: eventType.includes("ALARM") ? "app" : null,
+        properties: JSON.stringify({ latitude: lat, longitude: lng, env: "prod" }),
       });
     }
   }

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import Database from "better-sqlite3";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../prisma/generated/prisma/client";
 
@@ -10,8 +11,11 @@ const dbPath = path.resolve(dataDir, "heatbrothers.db");
 
 fs.mkdirSync(dataDir, { recursive: true });
 
+export const sqlite = new Database(dbPath);
+sqlite.pragma("journal_mode = WAL");
+
 const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
 export const prisma = new PrismaClient({ adapter });
 
 export { PrismaClient } from "../prisma/generated/prisma/client";
-export type { Event, SyncState } from "../prisma/generated/prisma/client";
+export type { Event } from "../prisma/generated/prisma/client";

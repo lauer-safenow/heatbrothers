@@ -9,26 +9,31 @@ generator client {
 }
 
 model Event {
-  id         Int     @id @default(autoincrement())
-  posthogId  String  @unique @map("posthog_id")
-  eventType  String  @map("event_type")
-  latitude   Float
-  longitude  Float
-  timestamp  Int
-  city       String?
-  country    String?
-  properties String?
-  createdAt  Int     @default(dbgenerated("(unixepoch())")) @map("created_at")
+  id          Int     @id @default(autoincrement())
+  posthogId   String  @unique @map("posthog_id")
+  eventType   String  @map("event_type")
+  latitude    Float
+  longitude   Float
+  geohash     String?
+  timestamp   Int
+  posthogTs   String  @map("posthog_ts")
+  distinctId  String  @map("distinct_id")
+  env         String  @default("prod")
+  eventSource String? @map("event_source")
+  pssId       String? @map("pss_id")
+  pssName     String? @map("pss_name")
+  pssType     String? @map("pss_type")
+  companyName String? @map("company_name")
+  alarmSource String? @map("alarm_source")
+  properties  String?
+  createdAt   Int     @default(dbgenerated("(unixepoch())")) @map("created_at")
 
   @@index([eventType], name: "idx_event_type")
   @@index([timestamp], name: "idx_timestamp")
   @@index([latitude, longitude], name: "idx_geo")
+  @@index([geohash], name: "idx_geohash")
+  @@index([distinctId], name: "idx_distinct_id")
+  @@index([pssId], name: "idx_pss_id")
+  @@index([eventSource], name: "idx_event_source")
   @@map("events")
-}
-
-model SyncState {
-  key   String  @id
-  value String?
-
-  @@map("sync_state")
 }

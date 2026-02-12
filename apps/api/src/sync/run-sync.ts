@@ -1,6 +1,5 @@
 import "../env.js";
 import { runSync } from "./sync-service.js";
 
-const eventType = process.argv[2] || undefined;
-await runSync({ eventType });
+await runSync();
 process.exit(0);
