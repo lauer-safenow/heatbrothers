@@ -70,18 +70,24 @@ function appendRows(rows: EventRow[]) {
 }
 
 export function loadCache() {
+  console.log("[cache] Starting cache load from SQLite...");
   const start = Date.now();
+
+  console.log("[cache] Querying all events...");
   const rows = sqlite
     .prepare(`SELECT ${SELECT_COLS} FROM events ORDER BY id ASC`)
     .all() as EventRow[];
+  console.log(`[cache] Query complete: ${rows.length.toLocaleString()} rows in ${Date.now() - start}ms`);
 
   eventCache.clear();
   maxId = 0;
+
+  console.log("[cache] Building in-memory map...");
   appendRows(rows);
 
   const elapsed = Date.now() - start;
   const types = [...eventCache.entries()].map(([t, es]) => `${t}: ${es.length.toLocaleString()}`).join(", ");
-  console.log(`Cache loaded: ${rows.length.toLocaleString()} events in ${elapsed}ms (${types})`);
+  console.log(`[cache] Done: ${rows.length.toLocaleString()} events in ${elapsed}ms (${types})`);
 }
 
 export function refreshCache() {
