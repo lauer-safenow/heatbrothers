@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../env.js";
 import { prisma } from "@heatbrothers/db";
 
 const cities = [

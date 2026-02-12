@@ -1,13 +1,11 @@
-import "dotenv/config";
+import { ROOT_DIR } from "./env.js";
 import path from "path";
-import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
 import { syncRouter } from "./routes/sync.js";
 import { startCronSync } from "./sync/cron.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const WEB_ROOT = path.resolve(__dirname, "../../web");
+const WEB_ROOT = path.resolve(ROOT_DIR, "apps/web");
 
 const app = express();
 const port = parseInt(process.env.PORT || "3001");
@@ -23,7 +21,6 @@ app.get("/api/health", (_req, res) => {
 });
 
 if (isDev) {
-  // In dev: Vite middleware with HMR
   const { createServer } = await import("vite");
   const vite = await createServer({
     root: WEB_ROOT,
@@ -32,7 +29,6 @@ if (isDev) {
   });
   app.use(vite.middlewares);
 } else {
-  // In prod: serve built static files
   const distPath = path.join(WEB_ROOT, "dist");
   app.use(express.static(distPath));
   app.get("*", (_req, res) => {

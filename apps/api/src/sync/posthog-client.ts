@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../env.js";
 
 const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY!;
 const POSTHOG_HOST = process.env.POSTHOG_HOST || "https://app.posthog.com";
