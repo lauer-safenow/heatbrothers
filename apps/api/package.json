@@ -1,0 +1,28 @@
+{
+  "name": "@heatbrothers/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --ignore '../web/node_modules/**' src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "sync": "tsx src/sync/run-sync.ts",
+    "seed": "tsx src/sync/seed.ts"
+  },
+  "dependencies": {
+    "@heatbrothers/db": "workspace:*",
+    "express": "^5.0.0",
+    "cors": "^2.8.5",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/node-cron": "^3.0.11",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "vite": "^6.1.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  }
+}

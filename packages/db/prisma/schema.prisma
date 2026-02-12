@@ -1,0 +1,34 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/prisma"
+  runtime  = "nodejs"
+}
+
+model Event {
+  id         Int     @id @default(autoincrement())
+  posthogId  String  @unique @map("posthog_id")
+  eventType  String  @map("event_type")
+  latitude   Float
+  longitude  Float
+  timestamp  Int
+  city       String?
+  country    String?
+  properties String?
+  createdAt  Int     @default(dbgenerated("(unixepoch())")) @map("created_at")
+
+  @@index([eventType], name: "idx_event_type")
+  @@index([timestamp], name: "idx_timestamp")
+  @@index([latitude, longitude], name: "idx_geo")
+  @@map("events")
+}
+
+model SyncState {
+  key   String  @id
+  value String?
+
+  @@map("sync_state")
+}

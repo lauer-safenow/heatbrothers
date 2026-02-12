@@ -1,0 +1,25 @@
+{
+  "name": "heatbrothers",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @heatbrothers/api run dev",
+    "build": "pnpm -r run build",
+    "db:generate": "pnpm --filter @heatbrothers/db run db:generate",
+    "db:migrate": "pnpm --filter @heatbrothers/db run db:migrate",
+    "db:studio": "pnpm --filter @heatbrothers/db run db:studio",
+    "sync": "pnpm --filter @heatbrothers/api run sync",
+    "seed": "pnpm --filter @heatbrothers/api run seed"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "better-sqlite3"
+    ]
+  }
+}
