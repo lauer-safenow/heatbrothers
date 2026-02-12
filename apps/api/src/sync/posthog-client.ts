@@ -32,7 +32,8 @@ export interface PostHogEvent {
   properties: string;
 }
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
+const INITIAL_BACKOFF_MS = 2_000;
 
 async function hogqlQuery(query: string): Promise<{
   columns: string[];
@@ -61,9 +62,11 @@ async function hogqlQuery(query: string): Promise<{
 
     if (!response.ok) {
       const text = await response.text();
-      if (response.status >= 500 && attempt < MAX_RETRIES) {
-        console.warn(`[PostHog] ${response.status} error (${elapsed}s), retrying in 5s... (${attempt}/${MAX_RETRIES})`);
-        await new Promise((r) => setTimeout(r, 5000));
+      const retryable = response.status === 429 || response.status >= 500;
+      if (retryable && attempt < MAX_RETRIES) {
+        const backoff = INITIAL_BACKOFF_MS * 2 ** (attempt - 1);
+        console.warn(`[PostHog] ${response.status} error (${elapsed}s), retrying in ${backoff / 1000}s... (${attempt}/${MAX_RETRIES})`);
+        await new Promise((r) => setTimeout(r, backoff));
         continue;
       }
       throw new Error(`HogQL query failed (${response.status}, ${elapsed}s): ${text}`);
