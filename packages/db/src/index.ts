@@ -5,7 +5,7 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../prisma/generated/prisma/client";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.resolve(__dirname, "../../data");
+const dataDir = path.resolve(__dirname, "../../../data");
 const dbPath = path.resolve(dataDir, "heatbrothers.db");
 
 fs.mkdirSync(dataDir, { recursive: true });
