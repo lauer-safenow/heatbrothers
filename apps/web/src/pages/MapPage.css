@@ -59,15 +59,15 @@
 
 .city-search {
   background: rgba(20, 20, 20, 0.85);
-  backdrop-filter: blur(12px);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
   font-family: "Arial", sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   outline: none;
-  width: 160px;
+  width: 130px;
+  align-self: flex-end;
 }
 
 .city-search::placeholder {
@@ -153,11 +153,38 @@
 
 /* ── bottom panel (histogram, shown only when polygon complete) ── */
 .bottom-panel {
-  height: 180px;
-  background: #111;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  background: rgba(17, 17, 17, 0.95);
+  backdrop-filter: blur(8px);
   border-top: 1px solid rgba(255, 140, 0, 0.15);
-  padding: 0.75rem 1.5rem;
+  padding: 0 1.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-drag-handle {
+  height: 18px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.panel-drag-handle::after {
+  content: "";
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.panel-drag-handle:hover::after {
+  background: rgba(255, 140, 0, 0.4);
 }
 
 /* ── date filters ── */

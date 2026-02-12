@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
@@ -82,6 +82,32 @@ export function MapPage() {
       })
       .catch(() => {});
   };
+
+  // histogram panel resize
+  const [panelHeight, setPanelHeight] = useState(180);
+  const dragging = useRef(false);
+  const dragStartY = useRef(0);
+  const dragStartH = useRef(0);
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    dragStartY.current = e.clientY;
+    dragStartH.current = panelHeight;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const delta = dragStartY.current - ev.clientY;
+      setPanelHeight(Math.max(100, Math.min(500, dragStartH.current + delta)));
+    };
+    const onUp = () => {
+      dragging.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [panelHeight]);
 
   // ---------- filtering pipeline ----------
   const filteredEvents = useMemo(() => {
@@ -275,7 +301,7 @@ export function MapPage() {
     overlay.current.setProps({ layers });
   }, [filteredEvents, drawingState, vertices, zoom]);
 
-  // resize map after mount (bottom panel reduces available space)
+  // resize map after mount
   useEffect(() => {
     const t = setTimeout(() => map.current?.resize(), 100);
     return () => clearTimeout(t);
@@ -298,6 +324,20 @@ export function MapPage() {
               </option>
             ))}
           </select>
+          {loading && <span className="loading-badge">Loading...</span>}
+        </div>
+
+        <div
+          className="event-count-badge"
+          style={drawingState === "complete" ? { bottom: panelHeight + 56 } : undefined}
+        >
+          {filteredEvents.length.toLocaleString()} events
+        </div>
+
+        <div
+          className="bottom-toolbar"
+          style={drawingState === "complete" ? { bottom: panelHeight + 16 } : undefined}
+        >
           <input
             className="city-search"
             type="text"
@@ -311,14 +351,6 @@ export function MapPage() {
               }
             }}
           />
-          {loading && <span className="loading-badge">Loading...</span>}
-        </div>
-
-        <div className="event-count-badge">
-          {filteredEvents.length.toLocaleString()} events
-        </div>
-
-        <div className="bottom-toolbar">
           <PolygonToolbar
             drawingState={drawingState}
             vertexCount={vertices.length}
@@ -366,20 +398,21 @@ export function MapPage() {
             )}
           </div>
         </div>
-      </div>
 
-      {drawingState === "complete" && (
-        <div className="bottom-panel">
-          <TimeHistogram
-            events={allEvents}
-            filteredEvents={filteredEvents}
-            onClose={() => {
-              setVertices([]);
-              setDrawingState("idle");
-            }}
-          />
-        </div>
-      )}
+        {drawingState === "complete" && (
+          <div className="bottom-panel" style={{ height: panelHeight }}>
+            <div className="panel-drag-handle" onMouseDown={onDragStart} />
+            <TimeHistogram
+              events={allEvents}
+              filteredEvents={filteredEvents}
+              onClose={() => {
+                setVertices([]);
+                setDrawingState("idle");
+              }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
