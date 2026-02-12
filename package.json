@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter @heatbrothers/api run dev",
+    "serve": "pnpm --filter @heatbrothers/api run serve",
     "build": "pnpm -r run build",
     "db:generate": "pnpm --filter @heatbrothers/db run db:generate",
     "db:migrate": "pnpm --filter @heatbrothers/db run db:migrate",
@@ -10,7 +11,8 @@
     "db:studio": "pnpm --filter @heatbrothers/db run db:studio",
     "sync": "pnpm --filter @heatbrothers/api run sync",
     "seed": "pnpm --filter @heatbrothers/api run seed",
-    "bootstrap": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm dev"
+    "bootstrap": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm dev",
+    "prodbs": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm serve"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

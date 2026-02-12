@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --ignore '../web/node_modules/**' src/index.ts",
+    "serve": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "sync": "tsx src/sync/run-sync.ts",
