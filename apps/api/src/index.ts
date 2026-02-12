@@ -39,9 +39,8 @@ if (isDev) {
   });
 }
 
-loadCache();
-startCronSync();
-
 app.listen(port, () => {
   console.log(`Heatbrothers running on http://localhost:${port}`);
+  loadCache();
+  startCronSync();
 });
