@@ -1,12 +1,25 @@
-.map-container {
+/* ── layout ── */
+.map-page {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
+.map-section {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.map-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── top controls (dropdown) ── */
 .map-controls {
-  position: fixed;
+  position: absolute;
   top: 1rem;
   left: 50%;
   transform: translateX(-50%);
@@ -52,4 +65,130 @@
   padding: 0.3rem 0.6rem;
   border-radius: 6px;
   letter-spacing: 0.05em;
+}
+
+/* ── bottom toolbar (polygon + dates + count) ── */
+.bottom-toolbar {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.25rem;
+}
+
+.polygon-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.poly-btn {
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-family: "Arial", sans-serif;
+  font-size: 0.8rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.poly-btn:hover:not(:disabled) {
+  border-color: rgba(255, 140, 0, 0.5);
+}
+
+.poly-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.poly-btn-cancel {
+  border-color: rgba(255, 60, 60, 0.3);
+}
+
+.poly-btn-cancel:hover {
+  border-color: rgba(255, 60, 60, 0.6);
+}
+
+.poly-info {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+/* ── bottom panel (histogram, shown only when polygon complete) ── */
+.bottom-panel {
+  height: 180px;
+  background: #111;
+  border-top: 1px solid rgba(255, 140, 0, 0.15);
+  padding: 0.75rem 1.5rem;
+  flex-shrink: 0;
+}
+
+/* ── date filters ── */
+.date-filters {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.date-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.7rem;
+  font-family: Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.date-filters input[type="date"] {
+  background: rgba(20, 20, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  font-family: monospace;
+  outline: none;
+  width: 140px;
+  color-scheme: dark;
+}
+
+.date-filters input[type="date"]:focus {
+  border-color: #ff8800;
+  box-shadow: 0 0 8px rgba(255, 100, 0, 0.3);
+}
+
+.time-reset-btn {
+  align-self: flex-end;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-family: Arial, sans-serif;
+  cursor: pointer;
+  outline: none;
+}
+
+.time-reset-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 140, 0, 0.5);
+}
+
+/* ── event count ── */
+.event-count {
+  color: #ff8800;
+  font-size: 0.85rem;
+  font-weight: bold;
+  font-family: monospace;
+  margin-left: auto;
+  align-self: center;
 }

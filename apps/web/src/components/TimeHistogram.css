@@ -1,0 +1,116 @@
+.time-histogram-wrapper {
+  display: flex;
+  height: 100%;
+  gap: 0.75rem;
+}
+
+.histogram-sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.histogram-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.histogram-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.65rem;
+  font-family: monospace;
+  padding: 3px 8px;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+}
+
+.histogram-toggle:hover {
+  color: #fff;
+  border-color: rgba(255, 140, 0, 0.4);
+}
+
+.histogram-toggle.active {
+  color: #ff8800;
+  border-color: rgba(255, 140, 0, 0.35);
+  background: rgba(255, 140, 0, 0.08);
+}
+
+.histogram-chart-area {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  gap: 4px;
+}
+
+.y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: monospace;
+  padding: 2px 0;
+  flex-shrink: 0;
+  min-width: 28px;
+}
+
+.time-histogram {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.time-histogram-labels {
+  position: relative;
+  height: 18px;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+}
+
+.time-histogram-labels span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* tooltip */
+.histogram-tooltip {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  background: rgba(10, 10, 10, 0.92);
+  border: 1px solid rgba(255, 140, 0, 0.3);
+  border-radius: 6px;
+  padding: 4px 10px;
+  pointer-events: none;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.histogram-tooltip strong {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.65rem;
+  font-family: monospace;
+  font-weight: normal;
+}
+
+.histogram-tooltip span {
+  color: #ff8800;
+  font-size: 0.8rem;
+  font-family: monospace;
+  font-weight: bold;
+}

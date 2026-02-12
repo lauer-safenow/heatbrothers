@@ -7,6 +7,6 @@ eventsRouter.get("/events/:type", (req, res) => {
   const events = getEventsByType(req.params.type);
   res.json({
     count: events.length,
-    events: events.map((e) => [e.longitude, e.latitude, 1]),
+    events: events.map((e) => [e.longitude, e.latitude, e.timestamp]),
   });
 });
