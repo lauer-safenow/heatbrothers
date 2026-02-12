@@ -138,7 +138,10 @@ export function MapPage() {
       .then((r) => r.json())
       .then((data: { byType: EventType[] }) => {
         setEventTypes(data.byType);
-        if (data.byType.length > 0) setSelected(data.byType[0].event_type);
+        const preferred = data.byType.find(
+          (t) => t.event_type === "FIRST_TIME_PHONE_STATUS_SENT",
+        );
+        setSelected(preferred?.event_type ?? data.byType[0]?.event_type ?? "");
       })
       .catch(() => {});
   }, []);
