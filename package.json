@@ -10,7 +10,7 @@
     "db:studio": "pnpm --filter @heatbrothers/db run db:studio",
     "sync": "pnpm --filter @heatbrothers/api run sync",
     "seed": "pnpm --filter @heatbrothers/api run seed",
-    "setup": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm dev"
+    "bootstrap": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm dev"
   },
   "devDependencies": {
     "typescript": "^5.7.0"
