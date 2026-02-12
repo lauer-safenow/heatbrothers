@@ -57,6 +57,32 @@
   color: #fff;
 }
 
+.city-search {
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-family: "Arial", sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+  width: 160px;
+}
+
+.city-search::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.city-search:hover {
+  border-color: rgba(255, 140, 0, 0.5);
+}
+
+.city-search:focus {
+  border-color: #ff8800;
+  box-shadow: 0 0 12px rgba(255, 100, 0, 0.3);
+}
+
 .loading-badge {
   background: rgba(255, 140, 0, 0.2);
   color: #ffcc33;
@@ -72,11 +98,15 @@
   position: absolute;
   bottom: 1rem;
   left: 1rem;
-  right: 1rem;
   z-index: 10;
-  display: flex;
+  display: inline-flex;
   align-items: flex-end;
   gap: 1.25rem;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
 }
 
 .polygon-toolbar {
@@ -183,12 +213,19 @@
   border-color: rgba(255, 140, 0, 0.5);
 }
 
-/* ── event count ── */
-.event-count {
+/* ── event count badge (above toolbar) ── */
+.event-count-badge {
+  position: absolute;
+  bottom: 5.5rem;
+  left: 1rem;
+  z-index: 10;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 140, 0, 0.2);
+  border-radius: 8px;
+  padding: 0.35rem 0.9rem;
   color: #ff8800;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: bold;
   font-family: monospace;
-  margin-left: auto;
-  align-self: center;
 }

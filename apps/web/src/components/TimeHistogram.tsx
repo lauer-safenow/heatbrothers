@@ -7,6 +7,7 @@ type BinSize = "day" | "week" | "month";
 interface TimeHistogramProps {
   events: EventTuple[];
   filteredEvents: EventTuple[];
+  onClose?: () => void;
 }
 
 function chooseBinSize(events: EventTuple[]): BinSize {
@@ -45,7 +46,7 @@ function bucket(events: EventTuple[], binSize: BinSize): Map<string, number> {
 }
 
 
-export function TimeHistogram({ events, filteredEvents }: TimeHistogramProps) {
+export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogramProps) {
   const [showComparison, setShowComparison] = useState(false);
   const [hover, setHover] = useState<{
     x: number;
@@ -76,6 +77,11 @@ export function TimeHistogram({ events, filteredEvents }: TimeHistogramProps) {
 
   return (
     <div className="time-histogram-wrapper">
+      {onClose && (
+        <button className="histogram-close" onClick={onClose}>
+          X
+        </button>
+      )}
       <div className="histogram-sidebar">
         <button
           className={`histogram-toggle ${!showComparison ? "active" : ""}`}

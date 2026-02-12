@@ -2,6 +2,29 @@
   display: flex;
   height: 100%;
   gap: 0.75rem;
+  position: relative;
+}
+
+.histogram-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.7rem;
+  font-family: monospace;
+  padding: 2px 7px;
+  cursor: pointer;
+  outline: none;
+  z-index: 1;
+}
+
+.histogram-close:hover {
+  color: #fff;
+  border-color: rgba(255, 60, 60, 0.5);
+  background: rgba(255, 60, 60, 0.15);
 }
 
 .histogram-sidebar {

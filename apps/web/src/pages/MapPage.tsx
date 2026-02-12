@@ -63,6 +63,26 @@ export function MapPage() {
   const [timeFrom, setTimeFrom] = useState("");
   const [timeUntil, setTimeUntil] = useState("");
 
+  // city search
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const flyToCity = (query: string) => {
+    if (!query.trim() || !map.current) return;
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+    )
+      .then((r) => r.json())
+      .then((results: { lat: string; lon: string }[]) => {
+        if (results.length === 0) return;
+        map.current?.flyTo({
+          center: [parseFloat(results[0].lon), parseFloat(results[0].lat)],
+          zoom: 12,
+          duration: 2000,
+        });
+      })
+      .catch(() => {});
+  };
+
   // ---------- filtering pipeline ----------
   const filteredEvents = useMemo(() => {
     let events = allEvents;
@@ -278,7 +298,24 @@ export function MapPage() {
               </option>
             ))}
           </select>
+          <input
+            className="city-search"
+            type="text"
+            placeholder="Search city..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                flyToCity(searchQuery);
+                setSearchQuery("");
+              }
+            }}
+          />
           {loading && <span className="loading-badge">Loading...</span>}
+        </div>
+
+        <div className="event-count-badge">
+          {filteredEvents.length.toLocaleString()} events
         </div>
 
         <div className="bottom-toolbar">
@@ -328,16 +365,19 @@ export function MapPage() {
               </button>
             )}
           </div>
-
-          <div className="event-count">
-            {filteredEvents.length.toLocaleString()} events
-          </div>
         </div>
       </div>
 
       {drawingState === "complete" && (
         <div className="bottom-panel">
-          <TimeHistogram events={allEvents} filteredEvents={filteredEvents} />
+          <TimeHistogram
+            events={allEvents}
+            filteredEvents={filteredEvents}
+            onClose={() => {
+              setVertices([]);
+              setDrawingState("idle");
+            }}
+          />
         </div>
       )}
     </div>
