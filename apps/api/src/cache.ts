@@ -67,39 +67,48 @@ function appendRow(row: EventRow) {
   if (row.id > maxId) maxId = row.id;
 }
 
+const BATCH_SIZE = 50_000;
+
+const batchStmt = () =>
+  sqlite.prepare(`SELECT ${SELECT_COLS} FROM events WHERE id > @maxId ORDER BY id ASC LIMIT @limit`);
+
 export function loadCache() {
   console.log("[cache] Starting cache load from SQLite...");
   const start = Date.now();
 
   eventCache.clear();
   maxId = 0;
+  let total = 0;
 
-  console.log("[cache] Streaming rows with iterate()...");
-  const iter = sqlite
-    .prepare(`SELECT ${SELECT_COLS} FROM events ORDER BY id ASC`)
-    .iterate() as IterableIterator<EventRow>;
+  function loadBatch() {
+    const rows = batchStmt().all({ maxId, limit: BATCH_SIZE }) as EventRow[];
+    for (const row of rows) {
+      appendRow(row);
+    }
+    total += rows.length;
 
-  let count = 0;
-  for (const row of iter) {
-    appendRow(row);
-    count++;
-    if (count % 50_000 === 0) {
-      console.log(`[cache]   ...${count.toLocaleString()} rows loaded (${Date.now() - start}ms)`);
+    if (rows.length > 0) {
+      console.log(`[cache]   ...${total.toLocaleString()} rows loaded (${Date.now() - start}ms)`);
+    }
+
+    if (rows.length === BATCH_SIZE) {
+      // yield to event loop so Express can serve requests, then continue
+      setImmediate(loadBatch);
+    } else {
+      const elapsed = Date.now() - start;
+      const types = [...eventCache.entries()].map(([t, es]) => `${t}: ${es.length.toLocaleString()}`).join(", ");
+      console.log(`[cache] Done: ${total.toLocaleString()} events in ${elapsed}ms (${types})`);
     }
   }
 
-  const elapsed = Date.now() - start;
-  const types = [...eventCache.entries()].map(([t, es]) => `${t}: ${es.length.toLocaleString()}`).join(", ");
-  console.log(`[cache] Done: ${count.toLocaleString()} events in ${elapsed}ms (${types})`);
+  loadBatch();
 }
 
 export function refreshCache() {
-  const rows = sqlite
-    .prepare(`SELECT ${SELECT_COLS} FROM events WHERE id > @maxId ORDER BY id ASC`)
-    .all({ maxId }) as EventRow[];
+  const rows = batchStmt().all({ maxId, limit: -1 }) as EventRow[];
 
   if (rows.length > 0) {
-    appendRows(rows);
+    for (const row of rows) appendRow(row);
     console.log(`Cache refreshed: +${rows.length} events (maxId=${maxId})`);
   }
 }
