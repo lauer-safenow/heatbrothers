@@ -57,8 +57,9 @@ function rowToCached(row: EventRow): CachedEvent {
   };
 }
 
-function appendRows(rows: EventRow[]) {
-  for (const row of rows) {
+function appendRows(rows: EventRow[], log = false) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     const list = eventCache.get(row.event_type);
     if (list) {
       list.push(rowToCached(row));
@@ -66,6 +67,9 @@ function appendRows(rows: EventRow[]) {
       eventCache.set(row.event_type, [rowToCached(row)]);
     }
     if (row.id > maxId) maxId = row.id;
+    if (log && (i + 1) % 50_000 === 0) {
+      console.log(`[cache]   ...${(i + 1).toLocaleString()} / ${rows.length.toLocaleString()} rows processed`);
+    }
   }
 }
 
@@ -83,7 +87,7 @@ export function loadCache() {
   maxId = 0;
 
   console.log("[cache] Building in-memory map...");
-  appendRows(rows);
+  appendRows(rows, true);
 
   const elapsed = Date.now() - start;
   const types = [...eventCache.entries()].map(([t, es]) => `${t}: ${es.length.toLocaleString()}`).join(", ");
