@@ -12,5 +12,5 @@ export function startCronSync() {
     }
   });
 
-  console.log("PostHog cron sync scheduled -> (every 60 seconds)");
+  console.log("PostHog cron sync scheduled (every 60 seconds)");
 }
