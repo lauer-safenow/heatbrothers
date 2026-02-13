@@ -80,8 +80,6 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
     [keys, filtBuckets],
   );
 
-  if (keys.length === 0) return null;
-
   const n = keys.length;
   const maxFilt = filtBuckets.size > 0 ? Math.max(...filtBuckets.values()) : 1;
   const maxCum = cumValues.length > 0 ? cumValues[cumValues.length - 1] : 1;
@@ -102,6 +100,8 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
     if (cumValues.length === 0) return "";
     return `${linePath} L${n - 0.6},${maxCum} L0.4,${maxCum} Z`;
   }, [linePath, n, maxCum]);
+
+  if (keys.length === 0) return null;
 
   return (
     <div className="time-histogram-wrapper">

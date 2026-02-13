@@ -149,6 +149,7 @@ export function MapPage() {
   useEffect(() => {
     if (!selected) return;
     setLoading(true);
+    setAllEvents([]);
     fetch(`/api/events/${encodeURIComponent(selected)}`)
       .then((r) => r.json())
       .then((data: { events: EventTuple[] }) => setAllEvents(data.events))
