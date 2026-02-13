@@ -3,7 +3,6 @@ type DrawingState = "idle" | "drawing" | "complete";
 interface PolygonToolbarProps {
   drawingState: DrawingState;
   vertexCount: number;
-  filteredCount: number;
   onStartDraw: () => void;
   onFinishDraw: () => void;
   onClear: () => void;
@@ -12,7 +11,6 @@ interface PolygonToolbarProps {
 export function PolygonToolbar({
   drawingState,
   vertexCount,
-  filteredCount,
   onStartDraw,
   onFinishDraw,
   onClear,
@@ -40,14 +38,9 @@ export function PolygonToolbar({
         </>
       )}
       {drawingState === "complete" && (
-        <>
-          <span className="poly-info">
-            {filteredCount.toLocaleString()} events in area
-          </span>
-          <button className="poly-btn poly-btn-cancel" onClick={onClear}>
-            Clear Polygon
-          </button>
-        </>
+        <button className="poly-btn poly-btn-cancel" onClick={onClear}>
+          Clear Polygon
+        </button>
       )}
     </div>
   );

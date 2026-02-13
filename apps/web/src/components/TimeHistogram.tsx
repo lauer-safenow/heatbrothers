@@ -3,6 +3,7 @@ import "./TimeHistogram.css";
 
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type BinSize = "day" | "week" | "month";
+type ViewMode = "daily" | "aggregated";
 
 interface TimeHistogramProps {
   events: EventTuple[];
@@ -29,7 +30,6 @@ function bucketKey(ts: number, binSize: BinSize): string {
   if (binSize === "day") return d.toISOString().slice(0, 10);
   if (binSize === "week") {
     const day = new Date(d);
-    // Use UTC consistently (toISOString is UTC, so day-of-week must be too)
     day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
     return day.toISOString().slice(0, 10);
   }
@@ -45,35 +45,63 @@ function bucket(events: EventTuple[], binSize: BinSize): Map<string, number> {
   return m;
 }
 
+function cumulative(keys: string[], buckets: Map<string, number>): number[] {
+  const result: number[] = [];
+  let sum = 0;
+  for (const k of keys) {
+    sum += buckets.get(k) ?? 0;
+    result.push(sum);
+  }
+  return result;
+}
+
 
 export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogramProps) {
-  const [showComparison, setShowComparison] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [hover, setHover] = useState<{
     x: number;
     y: number;
+    dotY?: number;
+    idx: number;
     key: string;
-    all: number;
-    filtered: number;
+    value: number;
   } | null>(null);
 
   const binSize = useMemo(() => chooseBinSize(events), [events]);
-  const allBuckets = useMemo(() => bucket(events, binSize), [events, binSize]);
   const filtBuckets = useMemo(
     () => bucket(filteredEvents, binSize),
     [filteredEvents, binSize],
   );
 
-  const keys = useMemo(() => [...allBuckets.keys()].sort(), [allBuckets]);
+  const keys = useMemo(() => [...filtBuckets.keys()].sort(), [filtBuckets]);
+
+  const cumValues = useMemo(
+    () => cumulative(keys, filtBuckets),
+    [keys, filtBuckets],
+  );
 
   if (keys.length === 0) return null;
 
-  const maxAll = Math.max(...allBuckets.values());
-  const maxFilt =
-    filtBuckets.size > 0 ? Math.max(...filtBuckets.values()) : 0;
-  const maxCount = showComparison ? maxAll : maxFilt || 1;
   const n = keys.length;
+  const maxFilt = filtBuckets.size > 0 ? Math.max(...filtBuckets.values()) : 1;
+  const maxCum = cumValues.length > 0 ? cumValues[cumValues.length - 1] : 1;
+  const maxCount = viewMode === "daily" ? maxFilt || 1 : maxCum || 1;
 
   const labelInterval = Math.max(1, Math.floor(n / 8));
+
+  // build SVG path for cumulative line
+  const linePath = useMemo(() => {
+    if (cumValues.length === 0) return "";
+    return cumValues
+      .map((v, i) => `${i === 0 ? "M" : "L"}${i + 0.4},${maxCum - v}`)
+      .join(" ");
+  }, [cumValues, maxCum]);
+
+  // area fill path (line + close to bottom)
+  const areaPath = useMemo(() => {
+    if (cumValues.length === 0) return "";
+    return `${linePath} L${n - 0.6},${maxCum} L0.4,${maxCum} Z`;
+  }, [linePath, n, maxCum]);
 
   return (
     <div className="time-histogram-wrapper">
@@ -84,16 +112,16 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
       )}
       <div className="histogram-sidebar">
         <button
-          className={`histogram-toggle ${!showComparison ? "active" : ""}`}
-          onClick={() => setShowComparison(false)}
+          className={`histogram-toggle ${viewMode === "daily" ? "active" : ""}`}
+          onClick={() => { setViewMode("daily"); setHover(null); }}
         >
-          filtered
+          daily
         </button>
         <button
-          className={`histogram-toggle ${showComparison ? "active" : ""}`}
-          onClick={() => setShowComparison(true)}
+          className={`histogram-toggle ${viewMode === "aggregated" ? "active" : ""}`}
+          onClick={() => { setViewMode("aggregated"); setHover(null); }}
         >
-          vs total
+          aggregate
         </button>
       </div>
       <div className="histogram-main">
@@ -109,28 +137,28 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
           className="time-histogram"
           onMouseLeave={() => setHover(null)}
         >
-          {keys.map((key, i) => {
-            const allCount = allBuckets.get(key) ?? 0;
+          <defs>
+            <linearGradient id="fire-bar" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#fff7a0" />
+              <stop offset="15%" stopColor="#ffdd33" />
+              <stop offset="40%" stopColor="#ff8800" />
+              <stop offset="70%" stopColor="#ff4400" />
+              <stop offset="100%" stopColor="#cc2200" />
+            </linearGradient>
+          </defs>
+
+          {viewMode === "daily" && keys.map((key, i) => {
             const filtCount = filtBuckets.get(key) ?? 0;
+            const isHovered = hover?.idx === i;
             return (
               <g key={key}>
-                {showComparison && (
-                  <rect
-                    x={i}
-                    y={maxCount - allCount}
-                    width={0.85}
-                    height={allCount}
-                    fill="rgba(255,255,255,0.08)"
-                  />
-                )}
                 <rect
                   x={i}
                   y={maxCount - filtCount}
                   width={0.85}
                   height={filtCount}
-                  fill="rgb(255,140,0)"
+                  fill={isHovered ? "url(#fire-bar)" : "rgb(255,140,0)"}
                 />
-                {/* invisible hit area for hover */}
                 <rect
                   x={i}
                   y={0}
@@ -138,21 +166,63 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
                   height={maxCount}
                   fill="transparent"
                   onMouseEnter={(e) => {
-                    const rect = (
-                      e.currentTarget.ownerSVGElement as SVGSVGElement
-                    ).getBoundingClientRect();
+                    const svg = e.currentTarget.ownerSVGElement as SVGSVGElement;
+                    const svgRect = svg.getBoundingClientRect();
+                    const areaRect = (svg.parentElement as HTMLElement).getBoundingClientRect();
                     setHover({
-                      x: rect.left + ((i + 0.4) / n) * rect.width,
-                      y: rect.top - 8,
+                      x: svgRect.left - areaRect.left + ((i + 0.4) / n) * svgRect.width,
+                      y: svgRect.top - areaRect.top,
+                      idx: i,
                       key,
-                      all: allCount,
-                      filtered: filtCount,
+                      value: filtCount,
                     });
                   }}
                 />
               </g>
             );
           })}
+
+          {viewMode === "aggregated" && (
+            <>
+              <path
+                d={areaPath}
+                fill="rgba(255,140,0,0.1)"
+                vectorEffect="non-scaling-stroke"
+              />
+              <path
+                d={linePath}
+                fill="none"
+                stroke="rgb(255,140,0)"
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+              />
+              {/* invisible hit areas per bucket */}
+              {keys.map((key, i) => (
+                <rect
+                  key={key}
+                  x={i}
+                  y={0}
+                  width={1}
+                  height={maxCount}
+                  fill="transparent"
+                  onMouseEnter={(e) => {
+                    const svg = e.currentTarget.ownerSVGElement as SVGSVGElement;
+                    const svgRect = svg.getBoundingClientRect();
+                    const areaRect = (svg.parentElement as HTMLElement).getBoundingClientRect();
+                    const frac = 1 - cumValues[i] / maxCum;
+                    setHover({
+                      x: svgRect.left - areaRect.left + ((i + 0.4) / n) * svgRect.width,
+                      y: svgRect.top - areaRect.top,
+                      dotY: svgRect.top - areaRect.top + frac * svgRect.height,
+                      idx: i,
+                      key,
+                      value: cumValues[i],
+                    });
+                  }}
+                />
+              ))}
+            </>
+          )}
         </svg>
         {hover && (
           <div
@@ -160,11 +230,14 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
             style={{ left: hover.x, top: hover.y }}
           >
             <strong>{hover.key}</strong>
-            <span>
-              {hover.filtered.toLocaleString()}
-              {showComparison && ` / ${hover.all.toLocaleString()}`}
-            </span>
+            <span>{hover.value.toLocaleString()}</span>
           </div>
+        )}
+        {hover && viewMode === "aggregated" && hover.dotY != null && (
+          <div
+            className="histogram-dot"
+            style={{ left: hover.x, top: hover.dotY }}
+          />
         )}
       </div>
       <div className="time-histogram-labels">

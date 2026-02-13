@@ -332,7 +332,7 @@ export function MapPage() {
 
         <div
           className="event-count-badge"
-          style={drawingState === "complete" ? { bottom: panelHeight + 56 } : undefined}
+          style={drawingState === "complete" ? { bottom: `calc(${panelHeight + 16}px + 4.5rem)` } : undefined}
         >
           {filteredEvents.length.toLocaleString()} events
         </div>
@@ -357,7 +357,6 @@ export function MapPage() {
           <PolygonToolbar
             drawingState={drawingState}
             vertexCount={vertices.length}
-            filteredCount={filteredEvents.length}
             onStartDraw={() => {
               setVertices([]);
               setDrawingState("drawing");
