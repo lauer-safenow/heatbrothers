@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
 import { pointInPolygon } from "../utils/pointInPolygon";
+import { geohashEncode, geohashNeighbors, geohashToPolygon } from "../utils/geohash";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import { TimeHistogram } from "../components/TimeHistogram";
 import "./MapPage.css";
@@ -140,6 +141,10 @@ export function MapPage() {
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
   const zoneDropdownRef = useRef<HTMLDivElement>(null);
   const zoneLabelRef = useRef<HTMLDivElement>(null);
+
+  // geohash hover
+  const [geohashEnabled, setGeohashEnabled] = useState(false);
+  const [hoveredGeohash, setHoveredGeohash] = useState<string | null>(null);
 
   const visibleZones = zones.filter((z) => selectedZoneIds.has(z.data.id));
 
@@ -282,6 +287,20 @@ export function MapPage() {
       const z = map.current?.getZoom();
       if (z !== undefined) setZoom(z);
     });
+
+    map.current.on("mousemove", (e) => {
+      const z = map.current?.getZoom() ?? 5.5;
+      if (z < 10) { setHoveredGeohash(null); return; }
+      const hash = geohashEncode(e.lngLat.lat, e.lngLat.lng, 5);
+      setHoveredGeohash((prev) => prev === hash ? prev : hash);
+    });
+
+    map.current.on("mouseout", () => {
+      setHoveredGeohash(null);
+    });
+
+    // Note: geohashEnabled gating happens at render/layer level, not here,
+    // so we always compute but only display when enabled.
 
     return () => {
       map.current?.remove();
@@ -486,8 +505,34 @@ export function MapPage() {
       );
     }
 
+    // geohash grid on hover
+    if (geohashEnabled && hoveredGeohash) {
+      const allCells = geohashNeighbors(hoveredGeohash);
+      const cellData = allCells.map((h) => ({
+        hash: h,
+        polygon: geohashToPolygon(h),
+        isCenter: h === hoveredGeohash,
+      }));
+
+      layers.push(
+        new PolygonLayer({
+          id: "geohash-cells",
+          data: cellData,
+          getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
+          getFillColor: (d: { isCenter: boolean }) =>
+            d.isCenter ? [255, 255, 255, 25] : [255, 255, 255, 8],
+          getLineColor: (d: { isCenter: boolean }) =>
+            d.isCenter ? [255, 255, 255, 120] : [255, 255, 255, 40],
+          getLineWidth: (d: { isCenter: boolean }) => d.isCenter ? 2 : 1,
+          lineWidthUnits: "pixels" as const,
+          filled: true,
+          stroked: true,
+        }),
+      );
+    }
+
     overlay.current.setProps({ layers });
-  }, [filteredEvents, drawingState, vertices, zoom, visibleZones]);
+  }, [filteredEvents, drawingState, vertices, zoom, visibleZones, geohashEnabled, hoveredGeohash]);
 
   // resize map after mount
   useEffect(() => {
@@ -524,6 +569,12 @@ export function MapPage() {
             </div>
           ))}
         </div>
+
+        {geohashEnabled && hoveredGeohash && drawingState !== "drawing" && (
+          <div className="geohash-label">
+            {hoveredGeohash}
+          </div>
+        )}
 
         {zoneHover && (() => {
           const z = zoneHover.zone.data;
@@ -653,6 +704,14 @@ export function MapPage() {
               </div>
             )}
           </div>
+          <label className="geohash-toggle">
+            <input
+              type="checkbox"
+              checked={geohashEnabled}
+              onChange={(e) => setGeohashEnabled(e.target.checked)}
+            />
+            Geohashes
+          </label>
         </div>
 
         <div

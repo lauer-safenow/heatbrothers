@@ -283,6 +283,50 @@
   background: rgba(255, 255, 255, 0.9);
 }
 
+/* ── geohash toggle ── */
+.geohash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.geohash-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.geohash-toggle input[type="checkbox"] {
+  accent-color: #ff8800;
+  cursor: pointer;
+}
+
+/* ── geohash hover label ── */
+.geohash-label {
+  position: absolute;
+  top: 1rem;
+  right: 4rem;
+  z-index: 10;
+  background: rgba(20, 20, 20, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: monospace;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
 /* ── bottom toolbar (polygon + dates + count) ── */
 .bottom-toolbar {
   position: absolute;
