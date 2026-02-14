@@ -4,6 +4,7 @@
   min-height: 0;
   gap: 0.75rem;
   position: relative;
+  user-select: none;
 }
 
 .histogram-close {
@@ -137,6 +138,30 @@
   font-size: 0.8rem;
   font-family: monospace;
   font-weight: bold;
+}
+
+/* brush range labels */
+.brush-range-label {
+  position: absolute;
+  top: 2px;
+  background: rgba(255, 140, 0, 0.85);
+  color: #fff;
+  font-size: 0.6rem;
+  font-family: monospace;
+  font-weight: bold;
+  padding: 2px 5px;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 101;
+  white-space: nowrap;
+}
+
+.brush-range-left {
+  transform: translateX(-100%);
+}
+
+.brush-range-right {
+  /* default: left edge at the right boundary */
 }
 
 /* hover dot for line chart */

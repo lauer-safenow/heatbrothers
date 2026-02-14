@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import "./TimeHistogram.css";
 
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
@@ -9,6 +9,7 @@ interface TimeHistogramProps {
   events: EventTuple[];
   filteredEvents: EventTuple[];
   onClose?: () => void;
+  onTimeRangeSelect?: (from: string, until: string) => void;
 }
 
 function chooseBinSize(events: EventTuple[]): BinSize {
@@ -56,7 +57,26 @@ function cumulative(keys: string[], buckets: Map<string, number>): number[] {
 }
 
 
-export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogramProps) {
+function bucketStartDate(key: string, binSize: BinSize): string {
+  if (binSize === "month") return key + "-01";
+  return key;
+}
+
+function bucketEndDate(key: string, binSize: BinSize): string {
+  if (binSize === "day") return key;
+  if (binSize === "week") {
+    const d = new Date(key + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + 6);
+    return d.toISOString().slice(0, 10);
+  }
+  // month: last day
+  const d = new Date(key + "-01T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSelect }: TimeHistogramProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [hover, setHover] = useState<{
     x: number;
@@ -67,7 +87,12 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
     value: number;
   } | null>(null);
 
-  const binSize = useMemo(() => chooseBinSize(events), [events]);
+  // brush selection state
+  const [brush, setBrush] = useState<{ startIdx: number; endIdx: number; svgLeft: number; svgWidth: number } | null>(null);
+  const brushRef = useRef<{ startIdx: number; endIdx: number } | null>(null);
+  const brushing = useRef(false);
+
+  const binSize = useMemo(() => chooseBinSize(filteredEvents), [filteredEvents]);
   const filtBuckets = useMemo(
     () => bucket(filteredEvents, binSize),
     [filteredEvents, binSize],
@@ -135,7 +160,47 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
           viewBox={`0 0 ${n} ${maxCount}`}
           preserveAspectRatio="none"
           className="time-histogram"
-          onMouseLeave={() => setHover(null)}
+          style={onTimeRangeSelect ? { cursor: "crosshair" } : undefined}
+          onMouseLeave={() => {
+            setHover(null);
+            if (brushing.current) {
+              brushing.current = false;
+              brushRef.current = null;
+              setBrush(null);
+            }
+          }}
+          onMouseDown={onTimeRangeSelect ? (e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const areaRect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+            const idx = Math.max(0, Math.min(n - 1, Math.floor(((e.clientX - rect.left) / rect.width) * n)));
+            brushRef.current = { startIdx: idx, endIdx: idx };
+            setBrush({ ...brushRef.current, svgLeft: rect.left - areaRect.left, svgWidth: rect.width });
+            brushing.current = true;
+          } : undefined}
+          onMouseMove={(e) => {
+            if (!brushing.current) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const areaRect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+            const idx = Math.max(0, Math.min(n - 1, Math.floor(((e.clientX - rect.left) / rect.width) * n)));
+            brushRef.current = { startIdx: brushRef.current!.startIdx, endIdx: idx };
+            setBrush({ ...brushRef.current, svgLeft: rect.left - areaRect.left, svgWidth: rect.width });
+            setHover(null);
+          }}
+          onMouseUp={() => {
+            if (!brushing.current) return;
+            brushing.current = false;
+            const b = brushRef.current;
+            brushRef.current = null;
+            setBrush(null);
+            if (b && onTimeRangeSelect) {
+              const lo = Math.min(b.startIdx, b.endIdx);
+              const hi = Math.max(b.startIdx, b.endIdx);
+              if (lo !== hi) {
+                onTimeRangeSelect(bucketStartDate(keys[lo], binSize), bucketEndDate(keys[hi], binSize));
+              }
+            }
+            setHover(null);
+          }}
         >
           <defs>
             <linearGradient id="fire-bar" x1="0" x2="0" y1="0" y2="1">
@@ -166,6 +231,7 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
                   height={maxCount}
                   fill="transparent"
                   onMouseEnter={(e) => {
+                    if (brushing.current) return;
                     const svg = e.currentTarget.ownerSVGElement as SVGSVGElement;
                     const svgRect = svg.getBoundingClientRect();
                     const areaRect = (svg.parentElement as HTMLElement).getBoundingClientRect();
@@ -206,6 +272,7 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
                   height={maxCount}
                   fill="transparent"
                   onMouseEnter={(e) => {
+                    if (brushing.current) return;
                     const svg = e.currentTarget.ownerSVGElement as SVGSVGElement;
                     const svgRect = svg.getBoundingClientRect();
                     const areaRect = (svg.parentElement as HTMLElement).getBoundingClientRect();
@@ -223,6 +290,19 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
               ))}
             </>
           )}
+
+          {brush && Math.abs(brush.endIdx - brush.startIdx) > 0 && (
+            <rect
+              x={Math.min(brush.startIdx, brush.endIdx)}
+              y={0}
+              width={Math.abs(brush.endIdx - brush.startIdx) + 0.85}
+              height={maxCount}
+              fill="rgba(255, 255, 255, 0.12)"
+              stroke="rgba(255, 140, 0, 0.8)"
+              strokeWidth="0.15"
+              pointerEvents="none"
+            />
+          )}
         </svg>
         {hover && (
           <div
@@ -239,6 +319,28 @@ export function TimeHistogram({ events, filteredEvents, onClose }: TimeHistogram
             style={{ left: hover.x, top: hover.dotY }}
           />
         )}
+        {brush && Math.abs(brush.endIdx - brush.startIdx) > 0 && (() => {
+          const lo = Math.min(brush.startIdx, brush.endIdx);
+          const hi = Math.max(brush.startIdx, brush.endIdx);
+          const leftPx = brush.svgLeft + (lo / n) * brush.svgWidth;
+          const rightPx = brush.svgLeft + ((hi + 0.85) / n) * brush.svgWidth;
+          return (
+            <>
+              <div
+                className="brush-range-label brush-range-left"
+                style={{ left: leftPx }}
+              >
+                {bucketStartDate(keys[lo], binSize)}
+              </div>
+              <div
+                className="brush-range-label brush-range-right"
+                style={{ left: rightPx }}
+              >
+                {bucketEndDate(keys[hi], binSize)}
+              </div>
+            </>
+          );
+        })()}
       </div>
       <div className="time-histogram-labels">
         {keys.map((key, i) =>

@@ -28,6 +28,73 @@ function displayName(eventType: string): string {
   return DISPLAY_NAMES[eventType] ?? eventType;
 }
 
+interface ZoneData {
+  id: string;
+  name: string;
+  pss_image: { s3_location: string } | null;
+  area_json: unknown;
+  created_at: string;
+  description: string | null;
+  is_active: boolean;
+  is_public: boolean;
+  max_number_of_members_allowed: number | null;
+  modified_at: string;
+  number_of_members: number;
+  number_of_members_reachable: number;
+  safe_spot_type: string;
+  valid_until: string | null;
+  about: string | null;
+}
+
+interface ParsedZone {
+  data: ZoneData;
+  polygon: LngLat[];
+}
+
+function parseAreaJson(raw: unknown): LngLat[] | null {
+  let parsed = raw;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { return null; }
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+
+  const obj = parsed as Record<string, unknown>;
+  if (obj.type === "Feature") {
+    const geom = obj.geometry as Record<string, unknown>;
+    return (geom.coordinates as number[][][])[0] as LngLat[];
+  }
+  if (obj.type === "Polygon") {
+    return (obj.coordinates as number[][][])[0] as LngLat[];
+  }
+  if (Array.isArray(parsed)) {
+    return parsed as LngLat[];
+  }
+  return null;
+}
+
+function labelLeader(polygon: LngLat[]): {
+  label: LngLat; path: LngLat[];
+} {
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const [lng, lat] of polygon) {
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  const h = maxLat - minLat;
+  const cx = (minLng + maxLng) / 2;
+  const anchor: LngLat = [cx, maxLat];
+  const label: LngLat = [cx, maxLat + h * 0.5];
+
+  return { label, path: [label, anchor] };
+}
+
+function s3Url(location: string): string {
+  if (location.startsWith("http")) return location;
+  return `https://${location}`;
+}
+
 function getHeatmapParams(zoom: number) {
   const REF_ZOOM = 5.5;
   const delta = REF_ZOOM - zoom; // positive = zoomed out
@@ -62,6 +129,26 @@ export function MapPage() {
   // time filter
   const [timeFrom, setTimeFrom] = useState("");
   const [timeUntil, setTimeUntil] = useState("");
+
+  // zone overlays
+  const [zones, setZones] = useState<ParsedZone[]>([]);
+  const [zoneHover, setZoneHover] = useState<{ x: number; y: number; zone: ParsedZone } | null>(null);
+  const [selectedZoneIds, setSelectedZoneIds] = useState<Set<string>>(new Set());
+  const [zoneSearch, setZoneSearch] = useState("");
+  const [zoneDropdownOpen, setZoneDropdownOpen] = useState(false);
+  const [zoneFilterActive, setZoneFilterActive] = useState<boolean | null>(null);
+  const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
+  const zoneDropdownRef = useRef<HTMLDivElement>(null);
+  const zoneLabelRef = useRef<HTMLDivElement>(null);
+
+  const visibleZones = zones.filter((z) => selectedZoneIds.has(z.data.id));
+
+  const filteredZoneList = zones.filter((z) => {
+    if (!z.data.name.toLowerCase().includes(zoneSearch.toLowerCase())) return false;
+    if (zoneFilterActive !== null && z.data.is_active !== zoneFilterActive) return false;
+    if (zoneFilterPublic !== null && z.data.is_public !== zoneFilterPublic) return false;
+    return true;
+  });
 
   // city search
   const [searchQuery, setSearchQuery] = useState("");
@@ -157,6 +244,24 @@ export function MapPage() {
       .finally(() => setLoading(false));
   }, [selected]);
 
+  // ---------- zone data fetching ----------
+  useEffect(() => {
+    fetch("/api/zones")
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json() as Promise<{ zones: ZoneData[] }>;
+      })
+      .then(({ zones: list }) => {
+        const parsed: ParsedZone[] = [];
+        for (const data of list) {
+          const polygon = parseAreaJson(data.area_json);
+          if (polygon) parsed.push({ data, polygon });
+        }
+        setZones(parsed);
+      })
+      .catch((err) => console.warn("Zones fetch failed:", err));
+  }, []);
+
   // ---------- map init ----------
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -232,6 +337,42 @@ export function MapPage() {
     return () => document.removeEventListener("keydown", handleKey);
   }, [drawingState]);
 
+  // close zone dropdown on outside click
+  useEffect(() => {
+    if (!zoneDropdownOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (zoneDropdownRef.current && !zoneDropdownRef.current.contains(e.target as Node)) {
+        setZoneDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [zoneDropdownOpen]);
+
+  // zone HTML labels – position via map.project() on every frame
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+
+    const update = () => {
+      const container = zoneLabelRef.current;
+      if (!container) return;
+      const children = container.children;
+      visibleZones.forEach((z, i) => {
+        const el = children[i] as HTMLElement | undefined;
+        if (!el) return;
+        const leader = labelLeader(z.polygon);
+        const pos = m.project(new maplibregl.LngLat(leader.label[0], leader.label[1]));
+        el.style.left = `${pos.x}px`;
+        el.style.top = `${pos.y}px`;
+      });
+    };
+
+    m.on("move", update);
+    update();
+    return () => { m.off("move", update); };
+  }, [visibleZones]);
+
   // cursor style
   useEffect(() => {
     if (!map.current) return;
@@ -258,6 +399,49 @@ export function MapPage() {
         threshold,
       }),
     );
+
+    // zone overlays
+    for (const z of visibleZones) {
+      const zId = z.data.id;
+      layers.push(
+        new PolygonLayer({
+          id: `zone-fill-${zId}`,
+          data: [{ polygon: z.polygon, zone: z }],
+          getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
+          getFillColor: [0, 150, 255, 30],
+          getLineColor: [0, 150, 255, 180],
+          getLineWidth: 2,
+          lineWidthUnits: "pixels" as const,
+          filled: true,
+          stroked: true,
+          pickable: true,
+          onHover: (info: { x: number; y: number; picked: boolean; object?: { zone: ParsedZone } }) => {
+            setZoneHover(info.picked && info.object ? { x: info.x, y: info.y, zone: info.object.zone } : null);
+          },
+        }),
+      );
+    }
+
+    // zone name labels with straight leader lines
+    if (visibleZones.length > 0) {
+      const labelData = visibleZones.map((z) => {
+        const leader = labelLeader(z.polygon);
+        return { ...leader, text: z.data.name };
+      });
+
+      layers.push(
+        new PathLayer({
+          id: "zone-leader-lines",
+          data: labelData,
+          getPath: (d: { path: LngLat[] }) => d.path,
+          getColor: [255, 255, 255, 210],
+          getWidth: 2,
+          widthUnits: "pixels" as const,
+          capRounded: true,
+        }),
+      );
+
+    }
 
     // completed polygon
     if (drawingState === "complete" && vertices.length >= 3) {
@@ -303,7 +487,7 @@ export function MapPage() {
     }
 
     overlay.current.setProps({ layers });
-  }, [filteredEvents, drawingState, vertices, zoom]);
+  }, [filteredEvents, drawingState, vertices, zoom, visibleZones]);
 
   // resize map after mount
   useEffect(() => {
@@ -315,6 +499,65 @@ export function MapPage() {
     <div className="map-page">
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
+
+        <div ref={zoneLabelRef} className="zone-label-container">
+          {visibleZones.map((z) => (
+            <div
+              key={z.data.id}
+              className="zone-html-label"
+              onClick={() => {
+                if (!map.current) return;
+                let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+                for (const [lng, lat] of z.polygon) {
+                  if (lng < minLng) minLng = lng;
+                  if (lng > maxLng) maxLng = lng;
+                  if (lat < minLat) minLat = lat;
+                  if (lat > maxLat) maxLat = lat;
+                }
+                map.current.fitBounds(
+                  [[minLng, minLat], [maxLng, maxLat]],
+                  { padding: 80, duration: 1500, maxZoom: 14 },
+                );
+              }}
+            >
+              {z.data.name}
+            </div>
+          ))}
+        </div>
+
+        {zoneHover && (() => {
+          const z = zoneHover.zone.data;
+          return (
+            <div
+              className="zone-tooltip"
+              style={{ left: zoneHover.x + 12, top: zoneHover.y - 12 }}
+            >
+              <div className="zone-tooltip-name">{z.name}</div>
+              {z.pss_image?.s3_location && (
+                <img
+                  className="zone-tooltip-img"
+                  src={s3Url(z.pss_image.s3_location)}
+                  alt={z.name}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+              <div className="zone-tooltip-meta">
+                {z.description && <div className="zt-row"><span className="zt-label">Description</span> {z.description}</div>}
+                {z.about && <div className="zt-row"><span className="zt-label">About</span> {z.about}</div>}
+                <div className="zt-row"><span className="zt-label">Members</span> {z.number_of_members}{z.max_number_of_members_allowed ? ` / ${z.max_number_of_members_allowed}` : ""}</div>
+                <div className="zt-row"><span className="zt-label">Reachable</span> {z.number_of_members_reachable}</div>
+                <div className="zt-row"><span className="zt-label">Active</span> {z.is_active ? "Yes" : "No"}</div>
+                <div className="zt-row"><span className="zt-label">Public</span> {z.is_public ? "Yes" : "No"}</div>
+                <div className="zt-row"><span className="zt-label">Type</span> {z.safe_spot_type}</div>
+                <div className="zt-row"><span className="zt-label">Created</span> {new Date(z.created_at).toLocaleDateString()}</div>
+                <div className="zt-row"><span className="zt-label">Modified</span> {new Date(z.modified_at).toLocaleDateString()}</div>
+                {z.valid_until && <div className="zt-row"><span className="zt-label">Valid until</span> {new Date(z.valid_until).toLocaleDateString()}</div>}
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="map-controls">
           <select
@@ -329,6 +572,87 @@ export function MapPage() {
             ))}
           </select>
           {loading && <span className="loading-badge">Loading...</span>}
+          <div className="zone-dropdown" ref={zoneDropdownRef}>
+            <button
+              className="zone-dropdown-btn"
+              onClick={() => setZoneDropdownOpen((o) => !o)}
+            >
+              Zones{selectedZoneIds.size > 0 ? ` (${selectedZoneIds.size})` : ""}
+            </button>
+            {zoneDropdownOpen && (
+              <div className="zone-dropdown-panel">
+                <input
+                  className="zone-dropdown-search"
+                  type="text"
+                  placeholder="Search zones..."
+                  value={zoneSearch}
+                  onChange={(e) => setZoneSearch(e.target.value)}
+                  autoFocus
+                />
+                <div className="zone-dropdown-filters">
+                  <button
+                    className={`zone-filter-btn${zoneFilterActive === true ? " active" : ""}`}
+                    onClick={() => setZoneFilterActive((v) => v === true ? null : true)}
+                  >Active</button>
+                  <button
+                    className={`zone-filter-btn${zoneFilterActive === false ? " active" : ""}`}
+                    onClick={() => setZoneFilterActive((v) => v === false ? null : false)}
+                  >Inactive</button>
+                  <button
+                    className={`zone-filter-btn${zoneFilterPublic === true ? " active" : ""}`}
+                    onClick={() => setZoneFilterPublic((v) => v === true ? null : true)}
+                  >Public</button>
+                  <button
+                    className={`zone-filter-btn${zoneFilterPublic === false ? " active" : ""}`}
+                    onClick={() => setZoneFilterPublic((v) => v === false ? null : false)}
+                  >Not Public</button>
+                </div>
+                <div className="zone-dropdown-actions">
+                  <button onClick={() => setSelectedZoneIds(new Set(filteredZoneList.map((z) => z.data.id)))}>All</button>
+                  <button onClick={() => setSelectedZoneIds(new Set())}>None</button>
+                </div>
+                <div className="zone-dropdown-list">
+                  {filteredZoneList.map((z) => {
+                    const checked = selectedZoneIds.has(z.data.id);
+                    return (
+                      <label key={z.data.id} className="zone-dropdown-item">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            if (!checked && map.current) {
+                              let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+                              for (const [lng, lat] of z.polygon) {
+                                if (lng < minLng) minLng = lng;
+                                if (lng > maxLng) maxLng = lng;
+                                if (lat < minLat) minLat = lat;
+                                if (lat > maxLat) maxLat = lat;
+                              }
+                              map.current.fitBounds(
+                                [[minLng, minLat], [maxLng, maxLat]],
+                                { padding: 80, duration: 1500, maxZoom: 14 },
+                              );
+                            }
+                            setSelectedZoneIds((prev) => {
+                              const next = new Set(prev);
+                              if (checked) next.delete(z.data.id);
+                              else next.add(z.data.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="zone-item-name">{z.data.name}</span>
+                        <span className="zone-item-badge">{z.data.is_active ? "active" : "inactive"}</span>
+                      </label>
+                    );
+                  })}
+                  {filteredZoneList.length === 0 && (
+                    <div className="zone-dropdown-empty">No zones match</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div
@@ -408,6 +732,10 @@ export function MapPage() {
             <TimeHistogram
               events={allEvents}
               filteredEvents={filteredEvents}
+              onTimeRangeSelect={(from, until) => {
+                setTimeFrom(from);
+                setTimeUntil(until);
+              }}
               onClose={() => {
                 setVertices([]);
                 setDrawingState("idle");
