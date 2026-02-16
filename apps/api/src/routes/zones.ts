@@ -6,7 +6,9 @@ export const zonesRouter = Router();
 const ZONES_QUERY = `
   query {
     alarmdata_person_safe_spot(
-      where: {safe_spot_type: {_in: ["ZONE", "PSEUDO_ZONE"]}, is_public: {_eq: true}},
+      where: {safe_spot_type: {_in: ["ZONE", "PSEUDO_ZONE"]}
+     # , is_public: {_eq: true}
+      },
     ) {
       id
       name
