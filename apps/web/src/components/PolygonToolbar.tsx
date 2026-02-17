@@ -6,6 +6,7 @@ interface PolygonToolbarProps {
   onStartDraw: () => void;
   onFinishDraw: () => void;
   onClear: () => void;
+  onExport?: () => void;
 }
 
 export function PolygonToolbar({
@@ -14,6 +15,7 @@ export function PolygonToolbar({
   onStartDraw,
   onFinishDraw,
   onClear,
+  onExport,
 }: PolygonToolbarProps) {
   return (
     <div className="polygon-toolbar">
@@ -38,9 +40,16 @@ export function PolygonToolbar({
         </>
       )}
       {drawingState === "complete" && (
-        <button className="poly-btn poly-btn-cancel" onClick={onClear}>
-          Clear Polygon
-        </button>
+        <>
+          <button className="poly-btn poly-btn-cancel" onClick={onClear}>
+            Clear Polygon
+          </button>
+          {onExport && (
+            <button className="poly-btn poly-btn-export" onClick={onExport}>
+              Export PDF
+            </button>
+          )}
+        </>
       )}
     </div>
   );

@@ -11,6 +11,8 @@
     "@deck.gl/mapbox": "^9.2.6",
     "@heatbrothers/shared": "workspace:*",
     "deck.gl": "^9.2.6",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.1.0",
     "maplibre-gl": "^5.18.0",
     "react": "^19.0.0",
     "react-datepicker": "^9.1.0",
