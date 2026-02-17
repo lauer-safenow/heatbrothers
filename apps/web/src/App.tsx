@@ -45,13 +45,22 @@ export function App() {
 
         {/* ── BROTHERS with cool chrome + sunglasses ── */}
         <div className="brothers-wrapper">
-          <span className="sunglasses">😎</span>
+          <span className="fist fist-left">🤜</span>
+          <span className="fist fist-right">🤛</span>
+          <span className="sunglasses sunglasses-left">😎</span>
           <span className="brothers">BROTHERS</span>
+          <span className="sunglasses sunglasses-right">😎</span>
         </div>
 
-        <button className="enter-btn" onClick={() => navigate("/map")}>
-          ENTER
-        </button>
+        <div className="splash-actions">
+          <button className="enter-btn" onClick={() => navigate("/map")}>
+            ENTER
+          </button>
+          <button className="live-btn" onClick={() => navigate("/live")}>
+            <span className="live-dot" />
+            LIVE
+          </button>
+        </div>
       </div>
 
       {stats && (

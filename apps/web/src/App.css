@@ -252,29 +252,75 @@ body {
   display: inline-block;
 }
 
-.sunglasses {
+/* ── fist bump animation ── */
+.fist {
   position: absolute;
   top: -1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
   font-size: 2.2rem;
-  z-index: 10;
-  animation: glassesSlide 0.8s ease-out 0.5s both;
+  z-index: 12;
+  opacity: 0;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
 }
 
-@keyframes glassesSlide {
-  0% {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-30px) rotate(-10deg);
-  }
-  70% {
-    transform: translateX(-50%) translateY(3px) rotate(2deg);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) rotate(0deg);
-  }
+.fist-left {
+  left: 28%;
+  transform: translateX(-50%);
+  animation: fistbumpLeft 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.4s forwards;
+}
+
+.fist-right {
+  right: 28%;
+  transform: translateX(50%);
+  animation: fistbumpRight 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.4s forwards;
+}
+
+@keyframes fistbumpLeft {
+  0%   { left: 28%; transform: translateX(-50%); opacity: 1; }
+  38%  { left: 47%; transform: translateX(-50%); opacity: 1; }
+  50%  { left: 45%; transform: translateX(-50%); opacity: 1; }
+  65%  { left: 46%; transform: translateX(-50%); opacity: 1; }
+  80%  { left: 46%; transform: translateX(-50%); opacity: 1; }
+  100% { left: 46%; transform: translateX(-50%); opacity: 0; }
+}
+
+@keyframes fistbumpRight {
+  0%   { right: 28%; transform: translateX(50%); opacity: 1; }
+  38%  { right: 47%; transform: translateX(50%); opacity: 1; }
+  50%  { right: 45%; transform: translateX(50%); opacity: 1; }
+  65%  { right: 46%; transform: translateX(50%); opacity: 1; }
+  80%  { right: 46%; transform: translateX(50%); opacity: 1; }
+  100% { right: 46%; transform: translateX(50%); opacity: 0; }
+}
+
+/* ── sunglasses load in after fistbump ── */
+.sunglasses {
+  position: absolute;
+  top: -1.5rem;
+  font-size: 2.2rem;
+  z-index: 10;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+
+.sunglasses-left {
+  left: 28%;
+  animation: glassesSlideLeft 0.8s ease-out 0.5s both;
+}
+
+.sunglasses-right {
+  right: 28%;
+  animation: glassesSlideRight 0.8s ease-out 0.5s both;
+}
+
+@keyframes glassesSlideLeft {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-30px) rotate(-15deg); }
+  70%  { transform: translateX(-50%) translateY(3px) rotate(2deg); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) rotate(0deg); }
+}
+
+@keyframes glassesSlideRight {
+  0%   { opacity: 0; transform: translateX(50%) translateY(-30px) rotate(15deg); }
+  70%  { transform: translateX(50%) translateY(3px) rotate(-2deg); }
+  100% { opacity: 1; transform: translateX(50%) translateY(0) rotate(0deg); }
 }
 
 /* ── ambient background heat distortion ── */
@@ -298,10 +344,20 @@ body {
 }
 
 /* ═══════════════════════════════════════
+   Splash actions row
+   ═══════════════════════════════════════ */
+.splash-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* ═══════════════════════════════════════
    ENTER button
    ═══════════════════════════════════════ */
 .enter-btn {
-  margin-top: 2rem;
+  margin-top: 0;
   padding: 0.8rem 3rem;
   font-family: "Arial Black", "Impact", sans-serif;
   font-size: 1.4rem;
@@ -338,6 +394,47 @@ body {
 
 .enter-btn:active {
   transform: scale(0.97);
+}
+
+/* ═══════════════════════════════════════
+   LIVE button
+   ═══════════════════════════════════════ */
+.live-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  font-family: "Arial Black", "Impact", sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff3333;
+  background: transparent;
+  border: 2px solid rgba(255, 50, 50, 0.5);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.live-btn:hover {
+  border-color: rgba(255, 50, 50, 0.9);
+  color: #ff5555;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3333;
+  box-shadow: 0 0 6px #ff3333;
+  animation: livePulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
 }
 
 /* ═══════════════════════════════════════
