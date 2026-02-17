@@ -25,6 +25,11 @@ const ZONES_QUERY = `
       safe_spot_type
       valid_until
       about
+      person {
+        person_account {
+        display_name
+      }
+    }
     }
   }
 `;
