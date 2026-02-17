@@ -25,7 +25,6 @@ model Event {
   pssType     String? @map("pss_type")
   companyName String? @map("company_name")
   alarmSource String? @map("alarm_source")
-  properties  String?
   createdAt   Int     @default(dbgenerated("(unixepoch())")) @map("created_at")
 
   @@index([eventType], name: "idx_event_type")
