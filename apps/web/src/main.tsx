@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { App } from "./App";
 import { MapPage } from "./pages/MapPage";
 import { LivePage } from "./pages/LivePage";
+import { FeatureRequestPage } from "./pages/FeatureRequestPage";
 
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
@@ -10,6 +11,7 @@ createRoot(document.getElementById("root")!).render(
       <Route path="/" element={<App />} />
       <Route path="/map" element={<MapPage />} />
       <Route path="/live" element={<LivePage />} />
+      <Route path="/feature-request" element={<FeatureRequestPage />} />
     </Routes>
   </BrowserRouter>,
 );

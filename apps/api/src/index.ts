@@ -5,6 +5,7 @@ import cors from "cors";
 import { syncRouter } from "./routes/sync.js";
 import { eventsRouter } from "./routes/events.js";
 import { zonesRouter } from "./routes/zones.js";
+import { featureRequestsRouter } from "./routes/feature-requests.js";
 import { startCronSync } from "./sync/cron.js";
 import { loadCache } from "./cache.js";
 
@@ -27,6 +28,7 @@ if (isDev) {
 app.use("/api", syncRouter);
 app.use("/api", eventsRouter);
 app.use("/api", zonesRouter);
+app.use("/api", featureRequestsRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
