@@ -2,14 +2,43 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { MapboxOverlay } from "@deck.gl/mapbox";
+import { PolygonLayer } from "deck.gl";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "../datepicker-dark.css";
-import { LIVE_EVENT_TYPE } from "@heatbrothers/shared";
+import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import { CITIES } from "../data/cities";
+import { pointInPolygon } from "../utils/pointInPolygon";
 import "./LivePage.css";
 
 type EventTuple = [number, number, number, number]; // [lng, lat, unixSeconds, id]
+type LngLat = [number, number];
+
+interface ZoneData {
+  id: string;
+  name: string;
+  area_json: unknown;
+  is_active: boolean;
+  is_public: boolean;
+  description: string | null;
+  about: string | null;
+  number_of_members: number;
+  number_of_members_reachable: number;
+  max_number_of_members_allowed: number | null;
+  safe_spot_type: string;
+  created_at: string;
+  modified_at: string;
+  valid_until: string | null;
+  pss_image: { s3_location: string } | null;
+  person: { person_account: { display_name: string } | null } | null;
+}
+
+interface ParsedZone {
+  data: ZoneData;
+  polygon: LngLat[];
+}
+
 
 interface QueueItem {
   id: number;
@@ -34,10 +63,49 @@ function countryFlag(code: string): string {
   );
 }
 
+function s3Url(location: string): string {
+  if (location.startsWith("http")) return location;
+  return `https://${location}`;
+}
+
 // Format Date → "YYYY-MM-DDTHH:MM" for URL params
 function dateToParam(d: Date): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseAreaJson(raw: unknown): LngLat[] | null {
+  let parsed = raw;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { return null; }
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const obj = parsed as Record<string, unknown>;
+  if (obj.type === "Feature") {
+    const geom = obj.geometry as Record<string, unknown>;
+    return (geom.coordinates as number[][][])[0] as LngLat[];
+  }
+  if (obj.type === "Polygon") {
+    return (obj.coordinates as number[][][])[0] as LngLat[];
+  }
+  if (Array.isArray(parsed)) return parsed as LngLat[];
+  return null;
+}
+
+function computePolygonBounds(polygon: LngLat[]): [[number, number], [number, number]] {
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const [lng, lat] of polygon) {
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return [[minLng, minLat], [maxLng, maxLat]];
+}
+
+function computePolygonCenter(polygon: LngLat[]): LngLat {
+  const [[minLng, minLat], [maxLng, maxLat]] = computePolygonBounds(polygon);
+  return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
 }
 
 // Parse URL param string "YYYY-MM-DDTHH:MM" → Date (or null)
@@ -74,8 +142,10 @@ export function LivePage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const cityLabelRef = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const overlay = useRef<MapboxOverlay | null>(null);
   const queue = useRef<EventTuple[]>([]);
   const processing = useRef(false);
+  const replayGen = useRef(0); // incremented on clearQueue; stale timeout callbacks check this and bail
   const lastSeenTs = useRef(0);
   const [activeEvent, setActiveEvent] = useState<EventTuple | null>(null);
   const [queueSize, setQueueSize] = useState(0);
@@ -109,6 +179,7 @@ export function LivePage() {
   const initFrom = useRef(paramToDate(searchParams.get("from")) ?? new Date(Date.now() - 60 * 60 * 1000));
   const initTo = useRef(paramToDate(searchParams.get("to")) ?? new Date());
   const autoPlay = useRef(initMode.current === "replay" && !!searchParams.get("from") && !!searchParams.get("to"));
+  const initZoneId = useRef<string | null>(searchParams.get("zoneid"));
 
   // mode state
   const [mode, setMode] = useState<Mode>(initMode.current);
@@ -119,6 +190,15 @@ export function LivePage() {
   const [replayInfo, setReplayInfo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"from" | "to">("from");
   const [pickerOpen, setPickerOpen] = useState(true);
+
+  // Zone replay state
+  const [zones, setZones] = useState<ParsedZone[]>([]);
+  const [selectedZone, setSelectedZone] = useState<ParsedZone | null>(null);
+  const [zoneSearch, setZoneSearch] = useState("");
+  const [zoneDropdownOpen, setZoneDropdownOpen] = useState(false);
+  const zoneDropdownRef = useRef<HTMLDivElement>(null);
+  const selectedZoneRef = useRef<ParsedZone | null>(null);
+  const [zoneTooltipPos, setZoneTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
   const activeDate = activeTab === "from" ? replayFrom : replayTo;
   function setActiveDate(d: Date) {
@@ -133,7 +213,13 @@ export function LivePage() {
 
   function updateUrl(m: Mode, from?: Date, to?: Date) {
     if (m === "replay") {
-      setSearchParams({ mode: "replay", from: dateToParam(from || replayFrom), to: dateToParam(to || replayTo) }, { replace: true });
+      const params: Record<string, string> = {
+        mode: "replay",
+        from: dateToParam(from || replayFrom),
+        to: dateToParam(to || replayTo),
+      };
+      if (selectedZoneRef.current) params.zoneid = selectedZoneRef.current.data.id;
+      setSearchParams(params, { replace: true });
     } else {
       setSearchParams({}, { replace: true });
     }
@@ -152,6 +238,14 @@ export function LivePage() {
 
   function syncQueueSize() {
     setQueueSize(queue.current.length);
+  }
+
+  function updateZoneTooltipPos() {
+    const zone = selectedZoneRef.current;
+    if (!map.current || !zone) { setZoneTooltipPos(null); return; }
+    const center = computePolygonCenter(zone.polygon);
+    const px = map.current.project(center as [number, number]);
+    setZoneTooltipPos({ x: px.x, y: px.y });
   }
 
   // Reverse geocode events using Nominatim (1 req/s), with cache
@@ -241,6 +335,9 @@ export function LivePage() {
       fadeDuration: 300,
     });
 
+    overlay.current = new MapboxOverlay({ layers: [] });
+    map.current.addControl(overlay.current);
+
     map.current.on("load", () => {
       map.current?.setProjection({ type: "globe" });
 
@@ -261,6 +358,7 @@ export function LivePage() {
     });
 
     map.current.on("move", updateBlinkPosition);
+    map.current.on("moveend", updateZoneTooltipPos);
 
     // Position HTML city labels
     map.current.on("move", () => {
@@ -325,8 +423,44 @@ export function LivePage() {
       clearInterval(tickTimer);
       map.current?.remove();
       map.current = null;
+      overlay.current = null;
     };
   }, []);
+
+  // Fetch zones once on mount
+  useEffect(() => {
+    fetch("/api/zones")
+      .then((r) => r.json())
+      .then(({ zones: list }: { zones: ZoneData[] }) => {
+        const parsed: ParsedZone[] = [];
+        for (const data of list) {
+          const polygon = parseAreaJson(data.area_json);
+          if (polygon) parsed.push({ data, polygon });
+        }
+        setZones(parsed);
+        if (initZoneId.current) {
+          const found = parsed.find((z) => z.data.id === initZoneId.current);
+          if (found) {
+            setSelectedZone(found);
+            selectedZoneRef.current = found;
+          }
+          initZoneId.current = null;
+        }
+      })
+      .catch((err) => console.warn("Zones fetch failed:", err));
+  }, []);
+
+  // Close zone dropdown on outside click
+  useEffect(() => {
+    if (!zoneDropdownOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (zoneDropdownRef.current && !zoneDropdownRef.current.contains(e.target as Node)) {
+        setZoneDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [zoneDropdownOpen]);
 
   async function fetchNewEvents() {
     if (modeRef.current !== "live") return;
@@ -358,7 +492,51 @@ export function LivePage() {
     }
   }
 
+  // Enable map interaction only in zone replay mode
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    const zoneMode = mode === "replay" && selectedZone !== null;
+    if (zoneMode) {
+      m.scrollZoom.enable();
+      m.doubleClickZoom.enable();
+      m.dragPan.enable();
+      m.touchZoomRotate.enable();
+    } else {
+      m.scrollZoom.disable();
+      m.doubleClickZoom.disable();
+      m.dragPan.disable();
+      m.touchZoomRotate.disable();
+    }
+  }, [mode, selectedZone]);
+
+  // Render zone polygon via deck.gl (same approach as MapPage)
+  useEffect(() => {
+    if (!overlay.current) return;
+    if (!selectedZone) {
+      overlay.current.setProps({ layers: [] });
+      return;
+    }
+    const polygon = selectedZone.polygon;
+    overlay.current.setProps({
+      layers: [
+        new PolygonLayer({
+          id: "zone-fill",
+          data: [{ polygon }],
+          getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
+          getFillColor: [0, 150, 255, 20],
+          getLineColor: [0, 150, 255, 180],
+          getLineWidth: 2,
+          lineWidthUnits: "pixels" as const,
+          filled: true,
+          stroked: true,
+        }),
+      ],
+    });
+  }, [selectedZone]);
+
   function clearQueue() {
+    replayGen.current++;
     queue.current = [];
     processing.current = false;
     syncQueueSize();
@@ -386,6 +564,9 @@ export function LivePage() {
     idleSpin.current = true;
     setReplayInfo(null);
     updateUrl("live");
+    selectedZoneRef.current = null;
+    setSelectedZone(null);
+    setZoneTooltipPos(null);
     // Resume live: last 10 minutes
     lastSeenTs.current = Math.floor(Date.now() / 1000) - 10 * 60;
     if (countdownRef.current) countdownRef.current.textContent = `${POLL_INTERVAL / 1000}s`;
@@ -400,28 +581,51 @@ export function LivePage() {
       return;
     }
 
+    // Snapshot zone at play-time so processQueue closure has a stable reference
+    const zone = selectedZone;
+    selectedZoneRef.current = zone;
+
     clearQueue();
     setReplayLoading(true);
     setReplayInfo(null);
     updateUrl("replay", replayFrom, replayTo);
 
+    if (zone) {
+      const bounds = computePolygonBounds(zone.polygon);
+      map.current?.fitBounds(bounds, { padding: 120, duration: 1200, maxZoom: 13 });
+    }
+
     try {
+      const eventType = zone ? ZONE_EVENT_TYPE : LIVE_EVENT_TYPE;
       const res = await fetch(
-        `/api/events/${encodeURIComponent(LIVE_EVENT_TYPE)}/between/${fromEpoch}/${toEpoch}`,
+        `/api/events/${encodeURIComponent(eventType)}/between/${fromEpoch}/${toEpoch}`,
       );
       if (!res.ok) { setReplayInfo("Fetch failed"); return; }
       const data = await res.json();
-      const events: EventTuple[] = data.events;
+      let events: EventTuple[] = data.events;
 
-      const info = data.capped
-        ? `${data.count.toLocaleString()} of ${data.total.toLocaleString()} events (capped)`
-        : `${data.count.toLocaleString()} events`;
-      setReplayInfo(info);
+      if (zone) {
+        events = events.filter(([lng, lat]) => pointInPolygon([lng, lat], zone.polygon));
+        setReplayInfo(`${events.length.toLocaleString()} events in zone`);
+      } else {
+        const info = data.capped
+          ? `${data.count.toLocaleString()} of ${data.total.toLocaleString()} events (capped)`
+          : `${data.count.toLocaleString()} events`;
+        setReplayInfo(info);
+      }
 
-      if (events.length === 0) return;
+      if (events.length === 0) {
+        idleSpin.current = true;
+        return;
+      }
 
       idleSpin.current = false;
-      enqueueEvents(events);
+      if (zone) {
+        // Delay start so fitBounds animation finishes before blinking begins
+        setTimeout(() => { enqueueEvents(events); updateZoneTooltipPos(); }, 1300);
+      } else {
+        enqueueEvents(events);
+      }
     } catch (err) {
       console.error("[replay] fetch error:", err);
       setReplayInfo("Fetch error");
@@ -480,6 +684,7 @@ export function LivePage() {
 
     processing.current = true;
     idleSpin.current = false;
+    const gen = replayGen.current; // capture generation — stale if clearQueue is called before timeout fires
     const event = queue.current.shift()!;
     syncQueueSize();
     setActiveEvent(event);
@@ -495,51 +700,72 @@ export function LivePage() {
     );
 
     if (map.current) {
-      const onArrival = () => {
-        map.current?.off("moveend", onArrival);
+      const isZoneMode = selectedZoneRef.current !== null;
 
+      if (isZoneMode) {
+        // Zone mode: no map navigation, blink immediately at event location
         showBlink(lng, lat, event[2]);
-
-        // Mark as exiting when blink starts
         setDisplayQueue((prev) =>
           prev.map((item) =>
             item.id === eventId ? { ...item, exiting: true, active: false } : item,
           ),
         );
-
-        // Remove after exit animation completes
         setTimeout(() => {
+          if (gen !== replayGen.current) return; // stale: clearQueue was called, bail
           hideBlink();
           setActiveEvent(null);
           setDisplayQueue((prev) => prev.filter((item) => item.id !== eventId));
           requestAnimationFrame(() => processQueue());
         }, DISPLAY_DURATION);
-      };
-
-      // Adapt to distance: short = easeTo (no zoom arc), long = flyTo (gentle arc)
-      const center = map.current.getCenter();
-      const dist = Math.hypot(lng - center.lng, lat - center.lat);
-      const duration = Math.min(8000, 2000 + dist * 60); // 2s–8s based on distance
-
-      map.current.once("moveend", onArrival);
-
-      if (dist < 15) {
-        // Short hop: smooth pan, no zoom change
-        map.current.easeTo({
-          center: [lng, lat],
-          zoom: 6,
-          duration,
-          essential: true,
-        });
       } else {
-        // Long flight: gentle arc
-        map.current.flyTo({
-          center: [lng, lat],
-          zoom: 6,
-          duration,
-          curve: 1,
-          essential: true,
-        });
+        const onArrival = () => {
+          map.current?.off("moveend", onArrival);
+          if (gen !== replayGen.current) return; // stale: clearQueue was called, bail
+
+          showBlink(lng, lat, event[2]);
+
+          // Mark as exiting when blink starts
+          setDisplayQueue((prev) =>
+            prev.map((item) =>
+              item.id === eventId ? { ...item, exiting: true, active: false } : item,
+            ),
+          );
+
+          // Remove after exit animation completes
+          setTimeout(() => {
+            if (gen !== replayGen.current) return; // stale: clearQueue was called, bail
+            hideBlink();
+            setActiveEvent(null);
+            setDisplayQueue((prev) => prev.filter((item) => item.id !== eventId));
+            requestAnimationFrame(() => processQueue());
+          }, DISPLAY_DURATION);
+        };
+
+        // Adapt to distance: short = easeTo (no zoom arc), long = flyTo (gentle arc)
+        const center = map.current.getCenter();
+        const dist = Math.hypot(lng - center.lng, lat - center.lat);
+        const duration = Math.min(8000, 2000 + dist * 60); // 2s–8s based on distance
+
+        map.current.once("moveend", onArrival);
+
+        if (dist < 15) {
+          // Short hop: smooth pan, no zoom change
+          map.current.easeTo({
+            center: [lng, lat],
+            zoom: 6,
+            duration,
+            essential: true,
+          });
+        } else {
+          // Long flight: gentle arc
+          map.current.flyTo({
+            center: [lng, lat],
+            zoom: 6,
+            duration,
+            curve: 1,
+            essential: true,
+          });
+        }
       }
     }
   }
@@ -655,6 +881,81 @@ export function LivePage() {
             {pickerOpen ? "Hide" : "Change date"}
           </button>
           {replayInfo && <span className="replay-info">{replayInfo}</span>}
+          <div className="replay-zone-selector" ref={zoneDropdownRef}>
+            <button
+              className="replay-zone-btn"
+              onClick={() => setZoneDropdownOpen((o) => !o)}
+            >
+              <span className="replay-zone-btn-label">
+                {selectedZone ? selectedZone.data.name : "No zone"}
+              </span>
+              {selectedZone && (
+                <span
+                  className="replay-zone-clear"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedZone(null);
+                    selectedZoneRef.current = null;
+                    setZoneTooltipPos(null);
+                    updateUrl("replay");
+                  }}
+                >
+                  ×
+                </span>
+              )}
+            </button>
+            {zoneDropdownOpen && (
+              <div className="replay-zone-dropdown">
+                <input
+                  className="replay-zone-search"
+                  type="text"
+                  placeholder="Search zones…"
+                  value={zoneSearch}
+                  onChange={(e) => setZoneSearch(e.target.value)}
+                  autoFocus
+                />
+                <div className="replay-zone-list">
+                  <div
+                    className={`replay-zone-item${!selectedZone ? " selected" : ""}`}
+                    onClick={() => {
+                      setSelectedZone(null);
+                      selectedZoneRef.current = null;
+                      setZoneTooltipPos(null);
+                      setZoneDropdownOpen(false);
+                      updateUrl("replay");
+                    }}
+                  >
+                    No zone
+                  </div>
+                  {zones
+                    .filter((z) => z.data.name.toLowerCase().includes(zoneSearch.toLowerCase()))
+                    .map((z) => (
+                      <div
+                        key={z.data.id}
+                        className={`replay-zone-item${selectedZone?.data.id === z.data.id ? " selected" : ""}`}
+                        onClick={() => {
+                          setSelectedZone(z);
+                          selectedZoneRef.current = z;
+                          setZoneDropdownOpen(false);
+                          setZoneSearch("");
+                          updateUrl("replay");
+                        }}
+                      >
+                        <span className="replay-zone-item-name">{z.data.name}</span>
+                        {!z.data.is_active && (
+                          <span className="replay-zone-item-badge">inactive</span>
+                        )}
+                      </div>
+                    ))}
+                  {zones.filter((z) =>
+                    z.data.name.toLowerCase().includes(zoneSearch.toLowerCase()),
+                  ).length === 0 && (
+                    <div className="replay-zone-empty">No zones match</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -682,6 +983,40 @@ export function LivePage() {
       {activeEvent && (
         <div className="live-event-info">
           {activeEvent[1].toFixed(2)}, {activeEvent[0].toFixed(2)}
+        </div>
+      )}
+      {selectedZone && zoneTooltipPos && (
+        <div
+          className="zone-tooltip"
+          style={{ right: '1rem', top: '4rem' }}
+        >
+          <div className="zone-tooltip-name">{selectedZone.data.name}</div>
+          {selectedZone.data.pss_image?.s3_location && (
+            <img
+              className="zone-tooltip-img"
+              src={s3Url(selectedZone.data.pss_image.s3_location)}
+              alt={selectedZone.data.name}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          )}
+          <div className="zone-tooltip-meta">
+            {selectedZone.data.person?.person_account?.display_name && (
+              <div className="zt-row"><span className="zt-label">Owner</span> {selectedZone.data.person.person_account.display_name}</div>
+            )}
+            {selectedZone.data.description && (
+              <div className="zt-row"><span className="zt-label">Description</span> {selectedZone.data.description}</div>
+            )}
+            {selectedZone.data.about && (
+              <div className="zt-row"><span className="zt-label">About</span> {selectedZone.data.about}</div>
+            )}
+            <div className="zt-row"><span className="zt-label">Members</span> {selectedZone.data.number_of_members}{selectedZone.data.max_number_of_members_allowed ? ` / ${selectedZone.data.max_number_of_members_allowed}` : ""}</div>
+            <div className="zt-row"><span className="zt-label">Active</span> {selectedZone.data.is_active ? "Yes" : "No"}</div>
+            <div className="zt-row"><span className="zt-label">Public</span> {selectedZone.data.is_public ? "Yes" : "No"}</div>
+            <div className="zt-row"><span className="zt-label">Created</span> {new Date(selectedZone.data.created_at).toLocaleDateString()}</div>
+            {selectedZone.data.valid_until && (
+              <div className="zt-row"><span className="zt-label">Valid until</span> {new Date(selectedZone.data.valid_until).toLocaleDateString()}</div>
+            )}
+          </div>
         </div>
       )}
     </div>
