@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import "../datepicker-dark.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { geohashEncode, geohashNeighbors, geohashToPolygon } from "../utils/geohash";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import { TimeHistogram } from "../components/TimeHistogram";
+import { CITIES } from "../data/cities";
 import "./MapPage.css";
 
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type LngLat = [number, number];
 type DrawingState = "idle" | "drawing" | "complete";
+
+const ZONE_AUTO_ZOOM = 13; // zoom level at which zones auto-appear in the viewport
 
 interface EventType {
   event_type: string;
@@ -20,6 +26,7 @@ interface EventType {
 
 const DISPLAY_NAMES: Record<string, string> = {
   DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm started private",
+  DETAILED_ATTENTION_STARTED_PRIVATE_GROUP: "Attention private",
   app_opening_ZONE: "App opening zone",
   FIRST_TIME_PHONE_STATUS_SENT: "Installs",
   DETAILED_ALARM_STARTED_ZONE: "Alarm started zone",
@@ -73,20 +80,31 @@ function parseAreaJson(raw: unknown): LngLat[] | null {
   return null;
 }
 
-function labelLeader(polygon: LngLat[]): {
-  label: LngLat; path: LngLat[];
-} {
-  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+function polygonIntersectsViewport(polygon: LngLat[], bounds: maplibregl.LngLatBounds): boolean {
+  const west = bounds.getWest(), east = bounds.getEast();
+  const south = bounds.getSouth(), north = bounds.getNorth();
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
   for (const [lng, lat] of polygon) {
     if (lng < minLng) minLng = lng;
     if (lng > maxLng) maxLng = lng;
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
   }
-  const h = maxLat - minLat;
-  const cx = (minLng + maxLng) / 2;
-  const anchor: LngLat = [cx, maxLat];
-  const label: LngLat = [cx, maxLat + h * 0.5];
+  return minLng >= west && maxLng <= east && minLat >= south && maxLat <= north;
+}
+
+function labelLeader(polygon: LngLat[]): {
+  label: LngLat; path: LngLat[];
+} {
+  let topPoint: LngLat = polygon[0];
+  let minLat = Infinity;
+  for (const pt of polygon) {
+    if (pt[1] > topPoint[1]) topPoint = pt;
+    if (pt[1] < minLat) minLat = pt[1];
+  }
+  const h = topPoint[1] - minLat;
+  const anchor: LngLat = topPoint;
+  const label: LngLat = [topPoint[0], topPoint[1] + h * 0.5];
 
   return { label, path: [label, anchor] };
 }
@@ -114,6 +132,7 @@ export function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const overlay = useRef<MapboxOverlay | null>(null);
+  const cityLabelRef = useRef<HTMLDivElement>(null);
 
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [selected, setSelected] = useState("");
@@ -126,10 +145,11 @@ export function MapPage() {
 
   // zoom tracking for adaptive heatmap params
   const [zoom, setZoom] = useState(5.5);
+  const [mapBounds, setMapBounds] = useState<maplibregl.LngLatBounds | null>(null);
 
   // time filter
-  const [timeFrom, setTimeFrom] = useState("");
-  const [timeUntil, setTimeUntil] = useState("");
+  const [timeFrom, setTimeFrom] = useState<Date | null>(null);
+  const [timeUntil, setTimeUntil] = useState<Date | null>(null);
 
   // zone overlays
   const [zones, setZones] = useState<ParsedZone[]>([]);
@@ -139,14 +159,28 @@ export function MapPage() {
   const [zoneDropdownOpen, setZoneDropdownOpen] = useState(false);
   const [zoneFilterActive, setZoneFilterActive] = useState<boolean | null>(null);
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
+  const [zoneAutoDiscover, setZoneAutoDiscover] = useState(true);
   const zoneDropdownRef = useRef<HTMLDivElement>(null);
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
   // geohash hover
   const [geohashEnabled, setGeohashEnabled] = useState(false);
+  const [geohashPrecision, setGeohashPrecision] = useState<5 | 6>(5);
+  const geohashPrecisionRef = useRef<5 | 6>(5);
   const [hoveredGeohash, setHoveredGeohash] = useState<string | null>(null);
 
-  const visibleZones = zones.filter((z) => selectedZoneIds.has(z.data.id));
+  const autoZoneMode = zoneAutoDiscover && zoom >= ZONE_AUTO_ZOOM;
+
+  const visibleZones = useMemo(() => {
+    if (autoZoneMode && mapBounds) {
+      const viewportZones = zones.filter((z) => polygonIntersectsViewport(z.polygon, mapBounds));
+      // Also include manually selected zones that aren't already in the viewport set
+      const viewportIds = new Set(viewportZones.map((z) => z.data.id));
+      const manualExtra = zones.filter((z) => selectedZoneIds.has(z.data.id) && !viewportIds.has(z.data.id));
+      return [...viewportZones, ...manualExtra];
+    }
+    return zones.filter((z) => selectedZoneIds.has(z.data.id));
+  }, [zones, autoZoneMode, mapBounds, selectedZoneIds]);
 
   const filteredZoneList = zones.filter((z) => {
     if (!z.data.name.toLowerCase().includes(zoneSearch.toLowerCase())) return false;
@@ -207,12 +241,11 @@ export function MapPage() {
 
     // time filter
     if (timeFrom) {
-      const fromTs = Math.floor(new Date(timeFrom).getTime() / 1000);
+      const fromTs = Math.floor(timeFrom.getTime() / 1000);
       events = events.filter((e) => e[2] >= fromTs);
     }
     if (timeUntil) {
-      const untilTs =
-        Math.floor(new Date(timeUntil).getTime() / 1000) + 86400;
+      const untilTs = Math.floor(timeUntil.getTime() / 1000) + 86400;
       events = events.filter((e) => e[2] < untilTs);
     }
 
@@ -239,9 +272,9 @@ export function MapPage() {
   }, []);
 
   useEffect(() => {
+    setAllEvents([]);
     if (!selected) return;
     setLoading(true);
-    setAllEvents([]);
     fetch(`/api/events/${encodeURIComponent(selected)}`)
       .then((r) => r.json())
       .then((data: { events: EventTuple[] }) => setAllEvents(data.events))
@@ -283,15 +316,29 @@ export function MapPage() {
     overlay.current = new MapboxOverlay({ layers: [] });
     map.current.addControl(overlay.current);
 
+    // Hide city/place label layers (replaced by HTML labels), keep country labels
+    map.current.on("load", () => {
+      const style = map.current?.getStyle();
+      if (style?.layers) {
+        for (const layer of style.layers) {
+          if (layer.type === "symbol" && !layer.id.startsWith("place_country")) {
+            map.current!.setLayoutProperty(layer.id, "visibility", "none");
+          }
+        }
+      }
+      if (map.current) setMapBounds(map.current.getBounds());
+    });
+
     map.current.on("moveend", () => {
-      const z = map.current?.getZoom();
-      if (z !== undefined) setZoom(z);
+      if (!map.current) return;
+      setZoom(map.current.getZoom());
+      setMapBounds(map.current.getBounds());
     });
 
     map.current.on("mousemove", (e) => {
       const z = map.current?.getZoom() ?? 5.5;
       if (z < 10) { setHoveredGeohash(null); return; }
-      const hash = geohashEncode(e.lngLat.lat, e.lngLat.lng, 5);
+      const hash = geohashEncode(e.lngLat.lat, e.lngLat.lng, geohashPrecisionRef.current);
       setHoveredGeohash((prev) => prev === hash ? prev : hash);
     });
 
@@ -391,6 +438,36 @@ export function MapPage() {
     update();
     return () => { m.off("move", update); };
   }, [visibleZones]);
+
+  // city HTML labels – positioned via map.project() on every frame
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+
+    const update = () => {
+      const container = cityLabelRef.current;
+      if (!container) return;
+      const z = m.getZoom();
+      const children = container.children;
+      for (let i = 0; i < CITIES.length; i++) {
+        const el = children[i] as HTMLElement | undefined;
+        if (!el) continue;
+        const city = CITIES[i];
+        if (z < city.minZoom) {
+          el.style.display = "none";
+          continue;
+        }
+        const pos = m.project(new maplibregl.LngLat(city.lng, city.lat));
+        el.style.left = `${pos.x}px`;
+        el.style.top = `${pos.y}px`;
+        el.style.display = "";
+      }
+    };
+
+    m.on("move", update);
+    update();
+    return () => { m.off("move", update); };
+  }, []);
 
   // cursor style
   useEffect(() => {
@@ -545,6 +622,14 @@ export function MapPage() {
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
 
+        <div ref={cityLabelRef} className="city-label-container">
+          {CITIES.map((c) => (
+            <div key={c.name} className="city-html-label">
+              {c.name}
+            </div>
+          ))}
+        </div>
+
         <div ref={zoneLabelRef} className="zone-label-container">
           {visibleZones.map((z) => (
             <div
@@ -595,6 +680,7 @@ export function MapPage() {
                 />
               )}
               <div className="zone-tooltip-meta">
+                <div className="zt-row"><span className="zt-label">ID</span> {z.id}</div>
                 {z.description && <div className="zt-row"><span className="zt-label">Description</span> {z.description}</div>}
                 {z.about && <div className="zt-row"><span className="zt-label">About</span> {z.about}</div>}
                 <div className="zt-row"><span className="zt-label">Members</span> {z.number_of_members}{z.max_number_of_members_allowed ? ` / ${z.max_number_of_members_allowed}` : ""}</div>
@@ -616,6 +702,7 @@ export function MapPage() {
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
           >
+            <option value="">None</option>
             {eventTypes.map((t) => (
               <option key={t.event_type} value={t.event_type}>
                 {displayName(t.event_type)} ({t.count.toLocaleString()})
@@ -628,7 +715,7 @@ export function MapPage() {
               className="zone-dropdown-btn"
               onClick={() => setZoneDropdownOpen((o) => !o)}
             >
-              Zones{selectedZoneIds.size > 0 ? ` (${selectedZoneIds.size})` : ""}
+              {autoZoneMode ? `Zones · ${visibleZones.length} in view` : `Zones${selectedZoneIds.size > 0 ? ` (${selectedZoneIds.size})` : ""}`}
             </button>
             {zoneDropdownOpen && (
               <div className="zone-dropdown-panel">
@@ -707,24 +794,19 @@ export function MapPage() {
           <label className="geohash-toggle">
             <input
               type="checkbox"
+              checked={zoneAutoDiscover}
+              onChange={(e) => setZoneAutoDiscover(e.target.checked)}
+            />
+            Auto discover
+          </label>
+          <label className="geohash-toggle">
+            <input
+              type="checkbox"
               checked={geohashEnabled}
               onChange={(e) => setGeohashEnabled(e.target.checked)}
             />
             Geohashes
           </label>
-        </div>
-
-        <div
-          className="event-count-badge"
-          style={drawingState === "complete" ? { bottom: `calc(${panelHeight + 16}px + 4.5rem)` } : undefined}
-        >
-          {filteredEvents.length.toLocaleString()} events
-        </div>
-
-        <div
-          className="bottom-toolbar"
-          style={drawingState === "complete" ? { bottom: panelHeight + 16 } : undefined}
-        >
           <input
             className="city-search"
             type="text"
@@ -738,6 +820,36 @@ export function MapPage() {
               }
             }}
           />
+          {geohashEnabled && (
+            <div className="geohash-precision-toggle">
+              {([5, 6] as const).map((p) => (
+                <button
+                  key={p}
+                  className={`geohash-precision-btn${geohashPrecision === p ? " active" : ""}`}
+                  onClick={() => {
+                    setGeohashPrecision(p);
+                    geohashPrecisionRef.current = p;
+                    setHoveredGeohash(null);
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div
+          className="event-count-badge"
+          style={drawingState === "complete" ? { bottom: `calc(${panelHeight + 16}px + 4.5rem)` } : undefined}
+        >
+          {filteredEvents.length.toLocaleString()} events
+        </div>
+
+        <div
+          className="bottom-toolbar"
+          style={drawingState === "complete" ? { bottom: panelHeight + 16 } : undefined}
+        >
           <PolygonToolbar
             drawingState={drawingState}
             vertexCount={vertices.length}
@@ -757,26 +869,30 @@ export function MapPage() {
           <div className="date-filters">
             <label>
               From
-              <input
-                type="date"
-                value={timeFrom}
-                onChange={(e) => setTimeFrom(e.target.value)}
+              <DatePicker
+                selected={timeFrom}
+                onChange={(d: Date | null) => setTimeFrom(d)}
+                dateFormat="dd.MM.yyyy"
+                isClearable
+                placeholderText="Select date"
               />
             </label>
             <label>
               Until
-              <input
-                type="date"
-                value={timeUntil}
-                onChange={(e) => setTimeUntil(e.target.value)}
+              <DatePicker
+                selected={timeUntil}
+                onChange={(d: Date | null) => setTimeUntil(d)}
+                dateFormat="dd.MM.yyyy"
+                isClearable
+                placeholderText="Select date"
               />
             </label>
             {(timeFrom || timeUntil) && (
               <button
                 className="time-reset-btn"
                 onClick={() => {
-                  setTimeFrom("");
-                  setTimeUntil("");
+                  setTimeFrom(null);
+                  setTimeUntil(null);
                 }}
               >
                 Reset
@@ -792,8 +908,8 @@ export function MapPage() {
               events={allEvents}
               filteredEvents={filteredEvents}
               onTimeRangeSelect={(from, until) => {
-                setTimeFrom(from);
-                setTimeUntil(until);
+                setTimeFrom(new Date(from));
+                setTimeUntil(new Date(until));
               }}
               onClose={() => {
                 setVertices([]);

@@ -68,6 +68,23 @@
   background: rgba(255, 140, 0, 0.08);
 }
 
+.histogram-sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+}
+
+.histogram-sidebar-label {
+  font-size: 0.55rem;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 1px;
+}
 .histogram-chart-area {
   flex: 1;
   min-height: 0;

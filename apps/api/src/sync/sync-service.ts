@@ -1,5 +1,9 @@
 import { sqlite } from "@heatbrothers/db";
-import { fetchEvents, SYNCED_EVENT_TYPES, type PostHogEvent } from "./posthog-client.js";
+import { fetchEvents, RateLimitedError, SYNCED_EVENT_TYPES, type PostHogEvent } from "./posthog-client.js";
+import { LIVE_EVENT_TYPE } from "@heatbrothers/shared";
+
+/** All other types — synced on the slow cron (round-robin). */
+export const SLOW_EVENT_TYPES = SYNCED_EVENT_TYPES.filter((t) => t !== LIVE_EVENT_TYPE);
 
 const insertStmt = sqlite.prepare(`
   INSERT OR IGNORE INTO events
@@ -21,7 +25,7 @@ const insertMany = sqlite.transaction((events: PostHogEvent[]) => {
       latitude: e.latitude,
       longitude: e.longitude,
       geohash: e.geohash,
-      timestamp: Math.floor(new Date(e.timestamp).getTime() / 1000),
+      timestamp: Number(e.timestamp),
       posthogTs: e.timestamp,
       distinctId: e.distinct_id,
       env: e.env ?? "prod",
@@ -38,24 +42,24 @@ const insertMany = sqlite.transaction((events: PostHogEvent[]) => {
   return inserted;
 });
 
-const getLastPosthogTs = sqlite.prepare<{ event_type: string }, { ts: string | null }>(
-  `SELECT MAX(posthog_ts) as ts FROM events WHERE event_type = @event_type`,
+const getLastEpoch = sqlite.prepare<{ event_type: string }, { ts: number | null }>(
+  `SELECT MAX(timestamp) as ts FROM events WHERE event_type = @event_type`,
 );
 
-async function syncEventType(eventType: string): Promise<{ inserted: number; skipped: number }> {
-  const row = getLastPosthogTs.get({ event_type: eventType });
-  const cursor = row?.ts || undefined;
+const LOOKBACK_S = 10 * 60; // 10 min lookback for ingestion delay (dedup via INSERT OR IGNORE)
 
-  if (cursor) {
-    console.log(`  [${eventType}] Incremental sync since: ${cursor}`);
-  } else {
-    console.log(`  [${eventType}] Full sync (no previous events)`);
-  }
+/** Sync a single event type. Throws RateLimitedError on 429. */
+export async function syncEventType(eventType: string): Promise<void> {
+  const row = getLastEpoch.get({ event_type: eventType });
+  const rawEpoch = row?.ts ?? undefined;
+  const cursorEpoch = rawEpoch ? rawEpoch - LOOKBACK_S : undefined;
+
+  console.log(`[sync] ${eventType} ${cursorEpoch != null ? `since epoch ${cursorEpoch} (lookback ${LOOKBACK_S}s from ${rawEpoch})` : "(full sync)"}`);
 
   let totalInserted = 0;
   let totalSkipped = 0;
 
-  for await (const batch of fetchEvents(eventType, cursor)) {
+  for await (const batch of fetchEvents(eventType, cursorEpoch)) {
     const validEvents = batch.filter(
       (e) => e.latitude != null && e.longitude != null,
     );
@@ -67,27 +71,18 @@ async function syncEventType(eventType: string): Promise<{ inserted: number; ski
     totalInserted += inserted;
 
     console.log(
-      `  [${eventType}] Batch: ${inserted} inserted, ${batch.length - validEvents.length} skipped. Total: ${totalInserted}`,
+      `  Batch: ${inserted} inserted, ${batch.length - validEvents.length} skipped (total: ${totalInserted})`,
     );
   }
 
-  return { inserted: totalInserted, skipped: totalSkipped };
+  console.log(`[sync] Done. ${totalInserted} new, ${totalSkipped} skipped.`);
 }
 
+/** Sync all event types (used by manual sync / run-sync script). */
 export async function runSync(): Promise<void> {
-  console.log("Starting PostHog sync...");
-
-  let grandInserted = 0;
-  let grandSkipped = 0;
-
   for (const eventType of SYNCED_EVENT_TYPES) {
-    const { inserted, skipped } = await syncEventType(eventType);
-    grandInserted += inserted;
-    grandSkipped += skipped;
+    await syncEventType(eventType);
   }
-
-  const totalEvents = sqlite.prepare("SELECT COUNT(*) as cnt FROM events").get() as { cnt: number };
-  console.log(
-    `Sync complete. ${grandInserted} new, ${grandSkipped} skipped. DB total: ${totalEvents.cnt}`,
-  );
 }
+
+export { LIVE_EVENT_TYPE, RateLimitedError };

@@ -1,0 +1,559 @@
+.live-page {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  background: #000;
+}
+
+.live-map {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── city HTML labels ── */
+.city-label-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+
+.city-html-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.75);
+  font-family: Arial, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.9);
+  letter-spacing: 0.02em;
+}
+
+.live-label {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 60, 60, 0.3);
+  border-radius: 8px;
+  padding: 0.3rem 0.8rem;
+  color: #ff3333;
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: bold;
+  letter-spacing: 0.15em;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+.live-countdown {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.65rem;
+  font-weight: normal;
+  letter-spacing: 0;
+  margin-left: 0.4rem;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── stats badge ── */
+.live-stats {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 10;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+}
+
+.live-stats-count {
+  color: #ff8800;
+  font-family: monospace;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.live-stats-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.live-stats-added {
+  color: rgba(255, 255, 255, 0.25);
+  font-family: monospace;
+  font-size: 0.6rem;
+  margin-left: 0.3rem;
+}
+
+.live-stats-ghost {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 0.3rem;
+  color: #ff8800;
+  font-family: monospace;
+  font-size: 1.6rem;
+  font-weight: bold;
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(255, 136, 0, 0.6);
+  animation: ghost-fly-up 5s ease-out forwards;
+}
+
+@keyframes ghost-fly-up {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-120px);
+    opacity: 0;
+  }
+}
+
+.live-stats-queue {
+  color: rgba(255, 255, 255, 0.3);
+  font-family: monospace;
+  font-size: 0.65rem;
+  margin-left: 0.3rem;
+}
+
+/* ── queue list (above stats badge) ── */
+.live-queue-list {
+  position: absolute;
+  bottom: 4rem;
+  left: 1.5rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 50vh;
+  overflow: hidden;
+}
+
+.live-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-family: monospace;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  animation: queue-enter 0.4s ease-out;
+}
+
+.live-queue-item.active {
+  border-color: rgba(255, 140, 0, 0.5);
+  background: rgba(255, 140, 0, 0.12);
+}
+
+.live-queue-item.exiting {
+  animation: queue-exit 0.6s ease-in forwards;
+}
+
+.live-queue-flag {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.live-queue-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.live-queue-item.active .live-queue-label {
+  color: #ff8800;
+}
+
+@keyframes queue-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes queue-exit {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(60px) scale(0.8);
+  }
+}
+
+/* ── active event coordinate label ── */
+.live-event-info {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 10;
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 140, 0, 0.25);
+  border-radius: 8px;
+  padding: 0.3rem 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+/* ── blink marker (DOM overlay positioned via map.project) ── */
+.live-blink-marker {
+  position: absolute;
+  z-index: 5;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+  margin-top: -10px;
+  border-radius: 50%;
+  background: rgba(255, 140, 0, 0.9);
+  box-shadow: 0 0 16px rgba(255, 140, 0, 0.7);
+  pointer-events: none;
+}
+
+.live-blink-label {
+  position: absolute;
+  z-index: 6;
+  transform: translate(-50%, -100%);
+  margin-top: -18px;
+  color: rgba(255, 140, 0, 0.9);
+  font-family: monospace;
+  font-size: 0.8rem;
+  font-weight: bold;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 1);
+}
+
+.live-blink-label.label-float-up {
+  animation: label-float-up 3s ease-out forwards;
+}
+
+@keyframes label-float-up {
+  0% {
+    transform: translate(-50%, -100%) translateY(0);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -100%) translateY(-60px);
+    opacity: 0;
+  }
+}
+
+.live-blink-marker.blink-animate {
+  animation: marker-blink 3s ease-out forwards;
+}
+
+@keyframes marker-blink {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 16px rgba(255, 140, 0, 0.8);
+  }
+  20% {
+    transform: scale(3);
+    opacity: 1;
+    box-shadow: 0 0 40px rgba(255, 140, 0, 0.6), 0 0 80px rgba(255, 140, 0, 0.3);
+  }
+  50% {
+    transform: scale(2.5);
+    opacity: 0.7;
+    box-shadow: 0 0 30px rgba(255, 140, 0, 0.4);
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+    box-shadow: 0 0 0px rgba(255, 140, 0, 0);
+  }
+}
+
+/* ── hand-drawn mode hint arrow ── */
+.live-mode-hint {
+  position: absolute;
+  top: 3.4rem;
+  right: 5.2rem;
+  z-index: 10;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(255, 120, 0, 0.5));
+  animation: hint-float 3.5s ease-in-out infinite;
+  transition: opacity 0.6s ease-out;
+}
+
+.live-mode-hint.dismissed {
+  opacity: 0;
+}
+
+@keyframes hint-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ── mode toggle ── */
+.live-mode-toggle {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+  display: flex;
+  gap: 0;
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mode-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.mode-btn:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mode-btn.active {
+  color: #ff8800;
+  background: rgba(255, 140, 0, 0.12);
+  cursor: default;
+}
+
+/* ── replay controls ── */
+.replay-controls {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* ── from / to tabs ── */
+.replay-tabs {
+  display: flex;
+  gap: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.replay-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: monospace;
+  font-size: 0.65rem;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+
+.replay-tab:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.replay-tab.active {
+  color: #ff8800;
+  background: rgba(255, 140, 0, 0.12);
+  font-weight: bold;
+}
+
+.replay-hide-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: monospace;
+  font-size: 0.6rem;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.replay-hide-btn:hover {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── mini (collapsed) state ── */
+.replay-controls.mini {
+  padding: 0.3rem;
+  gap: 0.25rem;
+}
+
+.replay-controls.mini .replay-tabs {
+  border: none;
+}
+
+.replay-controls.mini .replay-tab {
+  font-size: 0.5rem;
+  padding: 0.2rem 0.35rem;
+}
+
+.replay-controls.mini .replay-btn {
+  font-size: 0.6rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.replay-controls.mini .replay-hide-btn {
+  font-size: 0.5rem;
+}
+
+/* ── calendar + time row ── */
+.replay-picker-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+/* shrink inline calendar to fit the panel */
+.replay-calendar-wrap {
+  transform: scale(0.78);
+  transform-origin: top left;
+  /* collapse extra layout space from the full-size calendar */
+  margin-right: -62px;
+  margin-bottom: -58px;
+}
+
+.replay-calendar-wrap .react-datepicker {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* ── scrollable time columns ── */
+.time-scroller-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.time-scroller {
+  height: 200px;
+  overflow-y: auto;
+  width: 2rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 140, 0, 0.25) transparent;
+}
+
+.time-scroller::-webkit-scrollbar {
+  width: 3px;
+}
+
+.time-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.time-scroller::-webkit-scrollbar-thumb {
+  background: rgba(255, 140, 0, 0.25);
+  border-radius: 2px;
+}
+
+.time-scroller-item {
+  padding: 0.2rem 0;
+  text-align: center;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+  font-size: 0.7rem;
+  border-radius: 3px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.time-scroller-item:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 140, 0, 0.12);
+}
+
+.time-scroller-item.selected {
+  background: #ff8800;
+  color: #000;
+  font-weight: bold;
+}
+
+.time-scroller-sep {
+  color: rgba(255, 255, 255, 0.3);
+  font-family: monospace;
+  font-size: 0.75rem;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.replay-btn {
+  width: 100%;
+  background: rgba(255, 140, 0, 0.18);
+  border: 1px solid rgba(255, 140, 0, 0.35);
+  border-radius: 6px;
+  color: #ff8800;
+  font-family: monospace;
+  font-size: 0.8rem;
+  font-weight: bold;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 0.1rem;
+}
+
+.replay-btn:hover:not(:disabled) {
+  background: rgba(255, 140, 0, 0.25);
+}
+
+.replay-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.replay-info {
+  color: rgba(255, 255, 255, 0.4);
+  font-family: monospace;
+  font-size: 0.65rem;
+}

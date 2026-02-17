@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@heatbrothers/db": "workspace:*",
+    "@heatbrothers/shared": "workspace:*",
     "express": "^5.0.0",
     "cors": "^2.8.5",
     "node-cron": "^3.0.3",

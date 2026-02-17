@@ -3,7 +3,7 @@ import "./TimeHistogram.css";
 
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type BinSize = "day" | "week" | "month";
-type ViewMode = "daily" | "aggregated";
+type ViewMode = "normal" | "aggregated";
 
 interface TimeHistogramProps {
   events: EventTuple[];
@@ -12,19 +12,6 @@ interface TimeHistogramProps {
   onTimeRangeSelect?: (from: string, until: string) => void;
 }
 
-function chooseBinSize(events: EventTuple[]): BinSize {
-  if (events.length === 0) return "day";
-  let min = Infinity;
-  let max = -Infinity;
-  for (const e of events) {
-    if (e[2] < min) min = e[2];
-    if (e[2] > max) max = e[2];
-  }
-  const spanDays = (max - min) / 86400;
-  if (spanDays <= 60) return "day";
-  if (spanDays <= 365) return "week";
-  return "month";
-}
 
 function bucketKey(ts: number, binSize: BinSize): string {
   const d = new Date(ts * 1000);
@@ -77,7 +64,8 @@ function bucketEndDate(key: string, binSize: BinSize): string {
 }
 
 export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSelect }: TimeHistogramProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("daily");
+  const [viewMode, setViewMode] = useState<ViewMode>("normal");
+  const [binSizeOverride, setBinSizeOverride] = useState<BinSize>("day");
   const [hover, setHover] = useState<{
     x: number;
     y: number;
@@ -92,7 +80,7 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
   const brushRef = useRef<{ startIdx: number; endIdx: number } | null>(null);
   const brushing = useRef(false);
 
-  const binSize = useMemo(() => chooseBinSize(filteredEvents), [filteredEvents]);
+  const binSize = binSizeOverride;
   const filtBuckets = useMemo(
     () => bucket(filteredEvents, binSize),
     [filteredEvents, binSize],
@@ -108,7 +96,7 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
   const n = keys.length;
   const maxFilt = filtBuckets.size > 0 ? Math.max(...filtBuckets.values()) : 1;
   const maxCum = cumValues.length > 0 ? cumValues[cumValues.length - 1] : 1;
-  const maxCount = viewMode === "daily" ? maxFilt || 1 : maxCum || 1;
+  const maxCount = viewMode === "normal" ? maxFilt || 1 : maxCum || 1;
 
   const labelInterval = Math.max(1, Math.floor(n / 8));
 
@@ -136,18 +124,33 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
         </button>
       )}
       <div className="histogram-sidebar">
-        <button
-          className={`histogram-toggle ${viewMode === "daily" ? "active" : ""}`}
-          onClick={() => { setViewMode("daily"); setHover(null); }}
-        >
-          daily
-        </button>
-        <button
-          className={`histogram-toggle ${viewMode === "aggregated" ? "active" : ""}`}
-          onClick={() => { setViewMode("aggregated"); setHover(null); }}
-        >
-          aggregate
-        </button>
+        <div className="histogram-sidebar-group">
+          <span className="histogram-sidebar-label">view</span>
+          <button
+            className={`histogram-toggle ${viewMode === "normal" ? "active" : ""}`}
+            onClick={() => { setViewMode("normal"); setHover(null); }}
+          >
+            normal
+          </button>
+          <button
+            className={`histogram-toggle ${viewMode === "aggregated" ? "active" : ""}`}
+            onClick={() => { setViewMode("aggregated"); setHover(null); }}
+          >
+            aggregate
+          </button>
+        </div>
+        <div className="histogram-sidebar-group">
+          <span className="histogram-sidebar-label">step</span>
+          {(["day", "week", "month"] as BinSize[]).map((b) => (
+            <button
+              key={b}
+              className={`histogram-toggle ${binSizeOverride === b ? "active" : ""}`}
+              onClick={() => setBinSizeOverride(b)}
+            >
+              {b}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="histogram-main">
       <div className="histogram-chart-area">
@@ -212,7 +215,7 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
             </linearGradient>
           </defs>
 
-          {viewMode === "daily" && keys.map((key, i) => {
+          {viewMode === "normal" && keys.map((key, i) => {
             const filtCount = filtBuckets.get(key) ?? 0;
             const isHovered = hover?.idx === i;
             return (
