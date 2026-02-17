@@ -155,6 +155,7 @@ export function MapPage() {
   // zone overlays
   const [zones, setZones] = useState<ParsedZone[]>([]);
   const [zoneHover, setZoneHover] = useState<{ x: number; y: number; zone: ParsedZone } | null>(null);
+  const [zoneContextMenu, setZoneContextMenu] = useState<{ x: number; y: number; zone: ParsedZone } | null>(null);
   const [selectedZoneIds, setSelectedZoneIds] = useState<Set<string>>(new Set());
   const [zoneSearch, setZoneSearch] = useState("");
   const [zoneDropdownOpen, setZoneDropdownOpen] = useState(false);
@@ -409,6 +410,35 @@ export function MapPage() {
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [drawingState]);
+
+  // right-click context menu on zone polygons
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+
+    const handleContextMenu = (e: maplibregl.MapMouseEvent) => {
+      const clickPt: LngLat = [e.lngLat.lng, e.lngLat.lat];
+      for (const zone of visibleZones) {
+        if (pointInPolygon(clickPt, zone.polygon)) {
+          e.preventDefault();
+          setZoneContextMenu({ x: e.point.x, y: e.point.y, zone });
+          return;
+        }
+      }
+      setZoneContextMenu(null);
+    };
+
+    const handleDismiss = () => setZoneContextMenu(null);
+
+    m.on("contextmenu", handleContextMenu);
+    m.on("click", handleDismiss);
+    document.addEventListener("keydown", handleDismiss);
+    return () => {
+      m.off("contextmenu", handleContextMenu);
+      m.off("click", handleDismiss);
+      document.removeEventListener("keydown", handleDismiss);
+    };
+  }, [visibleZones]);
 
   // close zone dropdown on outside click
   useEffect(() => {
@@ -703,6 +733,34 @@ export function MapPage() {
             </div>
           );
         })()}
+
+        {zoneContextMenu && (
+          <div
+            className="zone-context-menu"
+            style={{ left: zoneContextMenu.x, top: zoneContextMenu.y }}
+          >
+            <div className="zone-context-menu-title">{zoneContextMenu.zone.data.name}</div>
+            <button
+              className="zone-context-menu-item"
+              onClick={() => {
+                setVertices(zoneContextMenu.zone.polygon);
+                setDrawingState("complete");
+                setZoneContextMenu(null);
+              }}
+            >
+              Draw polygon
+            </button>
+            <button
+              className="zone-context-menu-item"
+              onClick={() => {
+                navigator.clipboard.writeText(zoneContextMenu.zone.data.id);
+                setZoneContextMenu(null);
+              }}
+            >
+              Copy ID
+            </button>
+          </div>
+        )}
 
         <div className="map-controls">
           <select
