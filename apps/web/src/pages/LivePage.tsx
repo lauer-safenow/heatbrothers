@@ -173,6 +173,10 @@ export function LivePage() {
   const raf = useRef(0);
   const currentLng = useRef(10);
 
+  // 2D / 3D view toggle
+  const [mapView, setMapView] = useState<"2d" | "3d">("3d");
+  const mapViewRef = useRef<"2d" | "3d">("3d");
+
   // URL params for shareable replay links
   const [searchParams, setSearchParams] = useSearchParams();
   const initMode = useRef((searchParams.get("mode") === "replay" ? "replay" : "live") as Mode);
@@ -573,6 +577,23 @@ export function LivePage() {
     fetchNewEvents();
   }
 
+  function toggleMapView() {
+    const next = mapViewRef.current === "3d" ? "2d" : "3d";
+    mapViewRef.current = next;
+    setMapView(next);
+
+    if (next === "2d") {
+      map.current?.setProjection({ type: "mercator" });
+      idleSpin.current = false;
+      map.current?.flyTo({ center: [0, 20], zoom: 1, duration: 800, essential: true });
+    } else {
+      map.current?.setProjection({ type: "globe" });
+      if (queue.current.length === 0 && !processing.current) {
+        idleSpin.current = true;
+      }
+    }
+  }
+
   async function startReplay() {
     const fromEpoch = Math.floor(replayFrom.getTime() / 1000);
     const toEpoch = Math.floor(replayTo.getTime() / 1000);
@@ -668,11 +689,11 @@ export function LivePage() {
   function processQueue() {
     if (queue.current.length === 0) {
       processing.current = false;
-      idleSpin.current = true;
       syncQueueSize();
 
-      if (map.current) {
-        map.current.flyTo({
+      if (mapViewRef.current === "3d") {
+        idleSpin.current = true;
+        map.current?.flyTo({
           center: [currentLng.current, 50],
           zoom: 0.8,
           duration: 1500,
@@ -701,9 +722,10 @@ export function LivePage() {
 
     if (map.current) {
       const isZoneMode = selectedZoneRef.current !== null;
+      const is2D = mapViewRef.current === "2d";
 
-      if (isZoneMode) {
-        // Zone mode: no map navigation, blink immediately at event location
+      if (isZoneMode || is2D) {
+        // No map navigation: blink immediately at event location
         showBlink(lng, lat, event[2]);
         setDisplayQueue((prev) =>
           prev.map((item) =>
@@ -801,20 +823,36 @@ export function LivePage() {
         </svg>
       </div>
 
-      {/* Mode toggle */}
-      <div className="live-mode-toggle">
-        <button
-          className={`mode-btn${mode === "live" ? " active" : ""}`}
-          onClick={mode === "live" ? undefined : () => { switchToLive(); setHintDismissed(true); }}
-        >
-          LIVE
-        </button>
-        <button
-          className={`mode-btn${mode === "replay" ? " active" : ""}`}
-          onClick={mode === "replay" ? undefined : () => { switchToReplay(); setHintDismissed(true); }}
-        >
-          REPLAY
-        </button>
+      {/* Mode toggles */}
+      <div className="live-controls-row">
+        <div className="live-mode-toggle">
+          <button
+            className={`mode-btn${mode === "live" ? " active" : ""}`}
+            onClick={mode === "live" ? undefined : () => { switchToLive(); setHintDismissed(true); }}
+          >
+            LIVE
+          </button>
+          <button
+            className={`mode-btn${mode === "replay" ? " active" : ""}`}
+            onClick={mode === "replay" ? undefined : () => { switchToReplay(); setHintDismissed(true); }}
+          >
+            REPLAY
+          </button>
+        </div>
+        <div className="live-mode-toggle">
+          <button
+            className={`mode-btn${mapView === "2d" ? " active" : ""}`}
+            onClick={() => toggleMapView()}
+          >
+            2D
+          </button>
+          <button
+            className={`mode-btn${mapView === "3d" ? " active" : ""}`}
+            onClick={() => toggleMapView()}
+          >
+            3D
+          </button>
+        </div>
       </div>
 
       {/* Live mode header */}

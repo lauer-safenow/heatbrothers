@@ -335,12 +335,17 @@
   50% { transform: translateY(-4px); }
 }
 
-/* ── mode toggle ── */
-.live-mode-toggle {
+/* ── mode toggles ── */
+.live-controls-row {
   position: absolute;
   top: 1rem;
   right: 1rem;
   z-index: 10;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.live-mode-toggle {
   display: flex;
   gap: 0;
   background: rgba(10, 10, 10, 0.7);
