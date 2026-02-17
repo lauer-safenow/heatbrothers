@@ -73,36 +73,39 @@ const batchStmt = sqlite.prepare(
   `SELECT ${SELECT_COLS} FROM events WHERE id > @maxId ORDER BY id ASC LIMIT @limit`,
 );
 
-export function loadCache() {
-  console.log("[cache] Starting cache load from SQLite...");
-  const start = Date.now();
+export function loadCache(): Promise<void> {
+  return new Promise((resolve) => {
+    console.log("[cache] Starting cache load from SQLite...");
+    const start = Date.now();
 
-  eventCache.clear();
-  maxId = 0;
-  let total = 0;
+    eventCache.clear();
+    maxId = 0;
+    let total = 0;
 
-  function loadBatch() {
-    const rows = batchStmt.all({ maxId, limit: BATCH_SIZE }) as EventRow[];
-    for (const row of rows) {
-      appendRow(row);
+    function loadBatch() {
+      const rows = batchStmt.all({ maxId, limit: BATCH_SIZE }) as EventRow[];
+      for (const row of rows) {
+        appendRow(row);
+      }
+      total += rows.length;
+
+      if (rows.length > 0) {
+        console.log(`[cache]   ...${total.toLocaleString()} rows loaded (${Date.now() - start}ms)`);
+      }
+
+      if (rows.length === BATCH_SIZE) {
+        // yield to event loop so Express can serve requests, then continue
+        setImmediate(loadBatch);
+      } else {
+        const elapsed = Date.now() - start;
+        const types = [...eventCache.entries()].map(([t, es]) => `${t}: ${es.length.toLocaleString()}`).join(", ");
+        console.log(`[cache] Done: ${total.toLocaleString()} events in ${elapsed}ms (${types})`);
+        resolve();
+      }
     }
-    total += rows.length;
 
-    if (rows.length > 0) {
-      console.log(`[cache]   ...${total.toLocaleString()} rows loaded (${Date.now() - start}ms)`);
-    }
-
-    if (rows.length === BATCH_SIZE) {
-      // yield to event loop so Express can serve requests, then continue
-      setImmediate(loadBatch);
-    } else {
-      const elapsed = Date.now() - start;
-      const types = [...eventCache.entries()].map(([t, es]) => `${t}: ${es.length.toLocaleString()}`).join(", ");
-      console.log(`[cache] Done: ${total.toLocaleString()} events in ${elapsed}ms (${types})`);
-    }
-  }
-
-  loadBatch();
+    loadBatch();
+  });
 }
 
 export function refreshCache() {
