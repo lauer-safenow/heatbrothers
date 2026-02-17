@@ -57,10 +57,18 @@ interface ZonesQueryResult {
   alarmdata_person_safe_spot: ZoneRow[];
 }
 
+const ZONES_TTL_MS = 5 * 60 * 1000;
+let zonesCache: { data: ZoneRow[]; expiresAt: number } | null = null;
+
 zonesRouter.get("/zones", async (_req, res) => {
   try {
+    if (zonesCache && Date.now() < zonesCache.expiresAt) {
+      res.json({ zones: zonesCache.data });
+      return;
+    }
     const data = await hasuraQuery<ZonesQueryResult>(ZONES_QUERY);
-    res.json({ zones: data.alarmdata_person_safe_spot });
+    zonesCache = { data: data.alarmdata_person_safe_spot, expiresAt: Date.now() + ZONES_TTL_MS };
+    res.json({ zones: zonesCache.data });
   } catch (err) {
     console.error("Zones fetch failed:", err);
     res.status(500).json({ error: "Failed to fetch zones" });
