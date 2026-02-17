@@ -29,7 +29,7 @@ export function startCronSync() {
   });
 
   // ── Slow cron: all other types every 10 min with random stagger between each ──
-  cron.schedule(`*/${SLOW_SYNC_INTERVAL_M} * * * *`, async () => {
+  cron.schedule(`*/${SLOW_SYNC_INTERVAL_M} * * * * *`, async () => {
     console.log(`[cron:slow] Syncing ${SLOW_EVENT_TYPES.length} types...`);
     for (let i = 0; i < SLOW_EVENT_TYPES.length; i++) {
       // random delay: random(5-10) * (i+1) seconds
