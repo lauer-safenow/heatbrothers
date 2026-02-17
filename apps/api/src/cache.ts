@@ -69,8 +69,9 @@ function appendRow(row: EventRow) {
 
 const BATCH_SIZE = 50_000;
 
-const batchStmt = () =>
-  sqlite.prepare(`SELECT ${SELECT_COLS} FROM events WHERE id > @maxId ORDER BY id ASC LIMIT @limit`);
+const batchStmt = sqlite.prepare(
+  `SELECT ${SELECT_COLS} FROM events WHERE id > @maxId ORDER BY id ASC LIMIT @limit`,
+);
 
 export function loadCache() {
   console.log("[cache] Starting cache load from SQLite...");
@@ -81,7 +82,7 @@ export function loadCache() {
   let total = 0;
 
   function loadBatch() {
-    const rows = batchStmt().all({ maxId, limit: BATCH_SIZE }) as EventRow[];
+    const rows = batchStmt.all({ maxId, limit: BATCH_SIZE }) as EventRow[];
     for (const row of rows) {
       appendRow(row);
     }
@@ -105,7 +106,7 @@ export function loadCache() {
 }
 
 export function refreshCache() {
-  const rows = batchStmt().all({ maxId, limit: -1 }) as EventRow[];
+  const rows = batchStmt.all({ maxId, limit: -1 }) as EventRow[];
 
   if (rows.length > 0) {
     for (const row of rows) appendRow(row);
