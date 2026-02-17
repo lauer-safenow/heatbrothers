@@ -4,40 +4,20 @@ export interface CachedEvent {
   id: number;
   latitude: number;
   longitude: number;
-  geohash: string | null;
   timestamp: number;
-  distinctId: string;
-  eventSource: string | null;
-  pssId: string | null;
-  pssName: string | null;
-  pssType: string | null;
-  companyName: string | null;
-  alarmSource: string | null;
 }
 
 const eventCache = new Map<string, CachedEvent[]>();
 let maxId = 0;
 
-const SELECT_COLS = `
-  id, event_type, latitude, longitude, geohash, timestamp,
-  distinct_id, event_source, pss_id, pss_name, pss_type,
-  company_name, alarm_source
-`;
+const SELECT_COLS = `id, event_type, latitude, longitude, timestamp`;
 
 interface EventRow {
   id: number;
   event_type: string;
   latitude: number;
   longitude: number;
-  geohash: string | null;
   timestamp: number;
-  distinct_id: string;
-  event_source: string | null;
-  pss_id: string | null;
-  pss_name: string | null;
-  pss_type: string | null;
-  company_name: string | null;
-  alarm_source: string | null;
 }
 
 function rowToCached(row: EventRow): CachedEvent {
@@ -45,15 +25,7 @@ function rowToCached(row: EventRow): CachedEvent {
     id: row.id,
     latitude: row.latitude,
     longitude: row.longitude,
-    geohash: row.geohash,
     timestamp: row.timestamp,
-    distinctId: row.distinct_id,
-    eventSource: row.event_source,
-    pssId: row.pss_id,
-    pssName: row.pss_name,
-    pssType: row.pss_type,
-    companyName: row.company_name,
-    alarmSource: row.alarm_source,
   };
 }
 
