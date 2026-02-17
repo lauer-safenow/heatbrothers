@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import DatePicker from "react-datepicker";
@@ -217,56 +215,8 @@ export function MapPage() {
   const dragStartY = useRef(0);
   const dragStartH = useRef(0);
 
-  const handleExport = useCallback(async () => {
-    if (!map.current) return;
-
-    const dpr = window.devicePixelRatio;
-
-    // Capture the MapLibre WebGL canvas (preserveDrawingBuffer: true allows this)
-    const mapCanvas = map.current.getCanvas();
-    const mapRect = mapCanvas.getBoundingClientRect();
-    const mapImgData = mapCanvas.toDataURL("image/png");
-
-    // Capture all HTML overlays, skipping the WebGL canvas so it doesn't appear black
-    const overlayCanvas = await html2canvas(document.body, {
-      useCORS: true,
-      scale: dpr,
-      logging: false,
-      ignoreElements: (el) =>
-        el.tagName === "CANVAS" && !!mapContainer.current?.contains(el),
-    });
-
-    // Composite: map base first, then HTML overlays on top
-    const w = overlayCanvas.width;
-    const h = overlayCanvas.height;
-    const composite = document.createElement("canvas");
-    composite.width = w;
-    composite.height = h;
-    const ctx = composite.getContext("2d")!;
-
-    const mapImg = new Image();
-    mapImg.src = mapImgData;
-    await new Promise<void>((resolve) => {
-      mapImg.onload = () => resolve();
-    });
-    ctx.drawImage(
-      mapImg,
-      mapRect.left * dpr,
-      mapRect.top * dpr,
-      mapRect.width * dpr,
-      mapRect.height * dpr
-    );
-    ctx.drawImage(overlayCanvas, 0, 0);
-
-    // Export as PDF
-    const finalImgData = composite.toDataURL("image/png");
-    const pdf = new jsPDF({
-      orientation: w > h ? "landscape" : "portrait",
-      unit: "px",
-      format: [w, h],
-    });
-    pdf.addImage(finalImgData, "PNG", 0, 0, w, h);
-    pdf.save("heatbrothers-export.pdf");
+  const handleExport = useCallback(() => {
+    window.print();
   }, []);
 
   const onDragStart = useCallback((e: React.MouseEvent) => {

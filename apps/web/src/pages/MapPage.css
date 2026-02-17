@@ -1,3 +1,25 @@
+/* ── print / PDF export ── */
+@media print {
+  /* hide all chrome, show only the map */
+  .map-controls,
+  .bottom-toolbar,
+  .bottom-panel,
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-top-right,
+  .event-count-badge {
+    display: none !important;
+  }
+
+  .map-page,
+  .map-section,
+  .map-container {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+}
+
 /* ── layout ── */
 .map-page {
   position: fixed;
