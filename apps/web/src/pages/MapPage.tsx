@@ -863,7 +863,7 @@ export function MapPage() {
               checked={zoneAutoDiscover}
               onChange={(e) => setZoneAutoDiscover(e.target.checked)}
             />
-            Auto discover
+            Discover Zones
           </label>
           <label className="geohash-toggle">
             <input
