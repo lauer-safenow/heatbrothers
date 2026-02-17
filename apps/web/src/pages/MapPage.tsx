@@ -52,6 +52,7 @@ interface ZoneData {
   safe_spot_type: string;
   valid_until: string | null;
   about: string | null;
+  person: { person_account: { display_name: string } | null } | null;
 }
 
 interface ParsedZone {
@@ -687,6 +688,7 @@ export function MapPage() {
               )}
               <div className="zone-tooltip-meta">
                 <div className="zt-row"><span className="zt-label">ID</span> {z.id}</div>
+                {z.person?.person_account?.display_name && <div className="zt-row"><span className="zt-label">Owner</span> {z.person.person_account.display_name}</div>}
                 {z.description && <div className="zt-row"><span className="zt-label">Description</span> {z.description}</div>}
                 {z.about && <div className="zt-row"><span className="zt-label">About</span> {z.about}</div>}
                 <div className="zt-row"><span className="zt-label">Members</span> {z.number_of_members}{z.max_number_of_members_allowed ? ` / ${z.max_number_of_members_allowed}` : ""}</div>

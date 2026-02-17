@@ -50,6 +50,7 @@ interface ZoneRow {
   safe_spot_type: string;
   valid_until: string | null;
   about: string | null;
+  person: { person_account: { display_name: string } | null } | null;
 }
 
 interface ZonesQueryResult {
