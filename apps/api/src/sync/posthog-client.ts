@@ -5,7 +5,7 @@ const POSTHOG_HOST = process.env.POSTHOG_HOST || "https://app.posthog.com";
 const POSTHOG_PROJECT_ID = process.env.POSTHOG_PROJECT_ID!;
 
 const QUERY_URL = `${POSTHOG_HOST}/api/projects/${POSTHOG_PROJECT_ID}/query/`;
-const PAGE_SIZE = 10_000;
+const PAGE_SIZE = 2_000;
 
 export const SYNCED_EVENT_TYPES = [
   "FIRST_TIME_PHONE_STATUS_SENT",
@@ -30,7 +30,6 @@ export interface PostHogEvent {
   pssType: string | null;
   companyName: string | null;
   alarmSource: string | null;
-  properties: string;
 }
 
 export class RateLimitedError extends Error {
@@ -117,8 +116,7 @@ export async function* fetchEvents(
         properties.pssName as pss_name,
         properties.pssType as pss_type,
         properties.companyName as company_name,
-        properties.alarmSource as alarm_source,
-        properties
+        properties.alarmSource as alarm_source
       FROM events
       ${whereClause}
       ORDER BY timestamp ASC
@@ -144,7 +142,6 @@ export async function* fetchEvents(
       pssType: row[11] as string | null,
       companyName: row[12] as string | null,
       alarmSource: row[13] as string | null,
-      properties: typeof row[14] === "string" ? row[14] : JSON.stringify(row[14]),
     }));
 
     yield events;
@@ -208,8 +205,7 @@ export async function* fetchAllEvents(
         properties.pssName as pss_name,
         properties.pssType as pss_type,
         properties.companyName as company_name,
-        properties.alarmSource as alarm_source,
-        properties
+        properties.alarmSource as alarm_source
       FROM events
       ${whereClause}
       ORDER BY timestamp ASC
@@ -235,7 +231,6 @@ export async function* fetchAllEvents(
       pssType: row[11] as string | null,
       companyName: row[12] as string | null,
       alarmSource: row[13] as string | null,
-      properties: typeof row[14] === "string" ? row[14] : JSON.stringify(row[14]),
     }));
 
     yield events;

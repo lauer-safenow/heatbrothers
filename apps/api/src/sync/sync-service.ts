@@ -9,11 +9,11 @@ const insertStmt = sqlite.prepare(`
   INSERT OR IGNORE INTO events
     (posthog_id, event_type, latitude, longitude, geohash, timestamp, posthog_ts,
      distinct_id, env, event_source, pss_id, pss_name, pss_type,
-     company_name, alarm_source, properties)
+     company_name, alarm_source)
   VALUES
     (@posthogId, @eventType, @latitude, @longitude, @geohash, @timestamp, @posthogTs,
      @distinctId, @env, @eventSource, @pssId, @pssName, @pssType,
-     @companyName, @alarmSource, @properties)
+     @companyName, @alarmSource)
 `);
 
 const insertMany = sqlite.transaction((events: PostHogEvent[]) => {
@@ -35,7 +35,6 @@ const insertMany = sqlite.transaction((events: PostHogEvent[]) => {
       pssType: e.pssType,
       companyName: e.companyName,
       alarmSource: e.alarmSource,
-      properties: e.properties,
     });
     inserted += result.changes;
   }
