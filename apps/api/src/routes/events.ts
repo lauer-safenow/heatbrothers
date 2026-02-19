@@ -1,8 +1,27 @@
 import { Router } from "express";
+import { getNearestCity } from "offline-geocode-city";
 import { getEventsByType, type CachedEvent } from "../cache.js";
 import { REPLAY_MAX_EVENTS } from "@heatbrothers/shared";
 
 export const eventsRouter = Router();
+
+// Server-side reverse geocode cache: "lat0.1,lng0.1" → [city, countryCode]
+const geoCache = new Map<string, [string, string]>();
+
+function geocode(lat: number, lng: number): [string, string] {
+  const key = `${lat.toFixed(1)},${lng.toFixed(1)}`;
+  const cached = geoCache.get(key);
+  if (cached) return cached;
+  const r = getNearestCity(lat, lng);
+  const entry: [string, string] = [r.cityName || "Unknown", (r.countryIso2 || "").toUpperCase()];
+  geoCache.set(key, entry);
+  return entry;
+}
+
+function eventTuple(e: CachedEvent): [number, number, number, number, string, string] {
+  const [city, cc] = geocode(e.latitude, e.longitude);
+  return [e.longitude, e.latitude, e.timestamp, e.id, city, cc];
+}
 
 /** Returns the first index where arr[i][field] >= key. Array must be sorted ascending by field. */
 function lowerBound(arr: CachedEvent[], field: "id" | "timestamp", key: number): number {
@@ -29,7 +48,7 @@ eventsRouter.get("/events/:type/since/:ts", (req, res) => {
   const newer = all.slice(lowerBound(all, "timestamp", since + 1));
   res.json({
     count: newer.length,
-    events: newer.map((e) => [e.longitude, e.latitude, e.timestamp, e.id]),
+    events: newer.map(eventTuple),
   });
 });
 
@@ -40,7 +59,7 @@ eventsRouter.get("/events/:type/after/:id", (req, res) => {
   const newer = all.slice(lowerBound(all, "id", afterId + 1));
   res.json({
     count: newer.length,
-    events: newer.map((e) => [e.longitude, e.latitude, e.timestamp, e.id]),
+    events: newer.map(eventTuple),
   });
 });
 
@@ -58,7 +77,7 @@ eventsRouter.get("/events/:type/between/:from/:to", (req, res) => {
     count: events.length,
     total: range.length,
     capped,
-    events: events.map((e) => [e.longitude, e.latitude, e.timestamp, e.id]),
+    events: events.map(eventTuple),
   });
 });
 

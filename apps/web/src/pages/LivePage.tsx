@@ -12,7 +12,7 @@ import { CITIES } from "../data/cities";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import "./LivePage.css";
 
-type EventTuple = [number, number, number, number]; // [lng, lat, unixSeconds, id]
+type EventTuple = [number, number, number, number, string, string]; // [lng, lat, unixSeconds, id, city, countryCode]
 type LngLat = [number, number];
 
 interface ZoneData {
@@ -157,11 +157,6 @@ export function LivePage() {
 
   // queue display list with city names
   const [displayQueue, setDisplayQueue] = useState<QueueItem[]>([]);
-  const geocodeQueue = useRef<EventTuple[]>([]);
-  const geocoding = useRef(false);
-
-  // Cache: rounded "lat,lng" → { city, flag } to avoid duplicate Nominatim calls
-  const geocodeCache = useRef<Map<string, { city: string; flag: string }>>(new Map());
 
   // blink overlay
   const blinkRef = useRef<HTMLDivElement>(null);
@@ -269,54 +264,6 @@ export function LivePage() {
     setZoneTooltipPos({ x: px.x, y: px.y });
   }
 
-  // Reverse geocode events using Nominatim (1 req/s), with cache
-  async function startGeocoding() {
-    if (geocoding.current) return;
-    geocoding.current = true;
-
-    while (geocodeQueue.current.length > 0) {
-      const event = geocodeQueue.current.shift()!;
-      const [lng, lat, , id] = event;
-      const cacheKey = `${lat.toFixed(1)},${lng.toFixed(1)}`;
-
-      const cached = geocodeCache.current.get(cacheKey);
-      if (cached) {
-        setDisplayQueue((prev) =>
-          prev.map((item) =>
-            item.id === id ? { ...item, label: cached.city, flag: cached.flag } : item,
-          ),
-        );
-        continue; // no delay needed — no network call
-      }
-
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&addressdetails=1`,
-          { headers: { "Accept-Language": "en" } },
-        );
-        const data = await res.json();
-        const addr = data.address || {};
-        const city = addr.city || addr.town || addr.village || addr.county || addr.state || "Unknown";
-        const cc = (addr.country_code || "").toUpperCase();
-        const flag = countryFlag(cc);
-
-        geocodeCache.current.set(cacheKey, { city, flag });
-
-        setDisplayQueue((prev) =>
-          prev.map((item) =>
-            item.id === id ? { ...item, label: city, flag } : item,
-          ),
-        );
-      } catch {
-        // keep fallback coords label
-      }
-
-      await new Promise((r) => setTimeout(r, 1100));
-    }
-
-    geocoding.current = false;
-  }
-
   function enqueueEvents(fresh: EventTuple[]) {
     fresh.sort((a, b) => a[2] - b[2]);
     queue.current.push(...fresh);
@@ -326,15 +273,12 @@ export function LivePage() {
       id: e[3],
       lng: e[0],
       lat: e[1],
-      label: `${e[1].toFixed(1)}°, ${e[0].toFixed(1)}°`,
-      flag: "",
+      label: e[4] || "Unknown",
+      flag: countryFlag(e[5] || ""),
       exiting: false,
       active: false,
     }));
     setDisplayQueue((prev) => [...prev, ...newItems]);
-
-    geocodeQueue.current.push(...fresh);
-    startGeocoding();
 
     if (!processing.current) {
       processQueue();
@@ -597,7 +541,6 @@ export function LivePage() {
     setDisplayQueue([]);
     setActiveEvent(null);
     hideBlink();
-    geocodeQueue.current = [];
     // Reset replay timeline state
     replayEvents.current = [];
     playbackIndex.current = 0;
@@ -728,10 +671,6 @@ export function LivePage() {
       setTimelinePosition(0);
       setReplayVersion((v) => v + 1);
 
-      // Pre-queue geocoding for all events
-      geocodeQueue.current.push(...events);
-      startGeocoding();
-
       idleSpin.current = false;
       if (zone) {
         // Delay start so fitBounds animation finishes before blinking begins
@@ -789,29 +728,16 @@ export function LivePage() {
   function rebuildDisplayWindow(fromIndex: number) {
     const events = replayEvents.current;
     const window = events.slice(fromIndex, fromIndex + DISPLAY_WINDOW);
-    const items: QueueItem[] = window.map((e) => {
-      const cacheKey = `${e[1].toFixed(1)},${e[0].toFixed(1)}`;
-      const cached = geocodeCache.current.get(cacheKey);
-      return {
-        id: e[3],
-        lng: e[0],
-        lat: e[1],
-        label: cached?.city ?? `${e[1].toFixed(1)}°, ${e[0].toFixed(1)}°`,
-        flag: cached?.flag ?? "",
-        exiting: false,
-        active: false,
-      };
-    });
+    const items: QueueItem[] = window.map((e) => ({
+      id: e[3],
+      lng: e[0],
+      lat: e[1],
+      label: e[4] || "Unknown",
+      flag: countryFlag(e[5] || ""),
+      exiting: false,
+      active: false,
+    }));
     setDisplayQueue(items);
-    // Queue geocoding for uncached items
-    const toGeocode = window.filter((e) => {
-      const key = `${e[1].toFixed(1)},${e[0].toFixed(1)}`;
-      return !geocodeCache.current.has(key);
-    });
-    if (toGeocode.length > 0) {
-      geocodeQueue.current.push(...toGeocode);
-      startGeocoding();
-    }
   }
 
   function processReplay() {
