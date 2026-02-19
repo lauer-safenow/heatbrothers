@@ -210,6 +210,17 @@ export function LivePage() {
   const selectedZoneRef = useRef<ParsedZone | null>(null);
   const [zoneTooltipPos, setZoneTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
+  // Timeline / scrubbing state (replay only)
+  const replayEvents = useRef<EventTuple[]>([]);
+  const playbackIndex = useRef(0);
+  const isScrubRef = useRef(false);
+  const [timelinePosition, setTimelinePosition] = useState(0);
+  const [replayVersion, setReplayVersion] = useState(0);
+  const densityCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [scrubActive, setScrubActive] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const replayPaused = useRef(false);
+
   const activeDate = activeTab === "from" ? replayFrom : replayTo;
   function setActiveDate(d: Date) {
     if (activeTab === "from") { setReplayFrom(d); updateUrl("replay", d, replayTo); }
@@ -520,6 +531,39 @@ export function LivePage() {
     }
   }, [mode, selectedZone]);
 
+  // Draw event density on timeline canvas when replay events change
+  useEffect(() => {
+    const canvas = densityCanvasRef.current;
+    const events = replayEvents.current;
+    if (!canvas || events.length === 0) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const bins = new Uint32Array(w);
+    const tMin = events[0][2];
+    const tMax = events[events.length - 1][2];
+    const range = tMax - tMin || 1;
+
+    for (const e of events) {
+      const bin = Math.min(w - 1, Math.floor(((e[2] - tMin) / range) * w));
+      bins[bin]++;
+    }
+
+    let maxBin = 0;
+    for (let i = 0; i < w; i++) if (bins[i] > maxBin) maxBin = bins[i];
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(255, 140, 0, 0.25)";
+    for (let i = 0; i < w; i++) {
+      if (bins[i] > 0) {
+        const barH = Math.max(1, (bins[i] / maxBin) * h);
+        ctx.fillRect(i, h - barH, 1, barH);
+      }
+    }
+  }, [replayVersion]);
+
   // Render zone polygon via deck.gl (same approach as MapPage)
   useEffect(() => {
     if (!overlay.current) return;
@@ -554,6 +598,14 @@ export function LivePage() {
     setActiveEvent(null);
     hideBlink();
     geocodeQueue.current = [];
+    // Reset replay timeline state
+    replayEvents.current = [];
+    playbackIndex.current = 0;
+    replayPaused.current = false;
+    isScrubRef.current = false;
+    setPaused(false);
+    setScrubActive(false);
+    setTimelinePosition(0);
   }
 
   function switchToReplay() {
@@ -669,12 +721,23 @@ export function LivePage() {
         return;
       }
 
+      // Store full event set for index-based replay with timeline scrubbing
+      events.sort((a, b) => a[2] - b[2]);
+      replayEvents.current = events;
+      playbackIndex.current = 0;
+      setTimelinePosition(0);
+      setReplayVersion((v) => v + 1);
+
+      // Pre-queue geocoding for all events
+      geocodeQueue.current.push(...events);
+      startGeocoding();
+
       idleSpin.current = false;
       if (zone) {
         // Delay start so fitBounds animation finishes before blinking begins
-        setTimeout(() => { enqueueEvents(events); updateZoneTooltipPos(); }, 1300);
+        setTimeout(() => { processReplay(); updateZoneTooltipPos(); }, 1300);
       } else {
-        enqueueEvents(events);
+        processReplay();
       }
     } catch (err) {
       console.error("[replay] fetch error:", err);
@@ -719,7 +782,191 @@ export function LivePage() {
     }
   }
 
+  // ── Replay: index-based playback ──
+
+  const DISPLAY_WINDOW = 15;
+
+  function rebuildDisplayWindow(fromIndex: number) {
+    const events = replayEvents.current;
+    const window = events.slice(fromIndex, fromIndex + DISPLAY_WINDOW);
+    const items: QueueItem[] = window.map((e) => {
+      const cacheKey = `${e[1].toFixed(1)},${e[0].toFixed(1)}`;
+      const cached = geocodeCache.current.get(cacheKey);
+      return {
+        id: e[3],
+        lng: e[0],
+        lat: e[1],
+        label: cached?.city ?? `${e[1].toFixed(1)}°, ${e[0].toFixed(1)}°`,
+        flag: cached?.flag ?? "",
+        exiting: false,
+        active: false,
+      };
+    });
+    setDisplayQueue(items);
+    // Queue geocoding for uncached items
+    const toGeocode = window.filter((e) => {
+      const key = `${e[1].toFixed(1)},${e[0].toFixed(1)}`;
+      return !geocodeCache.current.has(key);
+    });
+    if (toGeocode.length > 0) {
+      geocodeQueue.current.push(...toGeocode);
+      startGeocoding();
+    }
+  }
+
+  function processReplay() {
+    const events = replayEvents.current;
+    if (playbackIndex.current >= events.length) {
+      // Replay finished
+      processing.current = false;
+      setDisplayQueue([]);
+      setActiveEvent(null);
+      hideBlink();
+      if (mapViewRef.current === "3d") {
+        idleSpin.current = true;
+        map.current?.flyTo({ center: [currentLng.current, 50], zoom: 0.8, duration: 1500, essential: true });
+      }
+      return;
+    }
+
+    if (replayPaused.current || isScrubRef.current) return;
+
+    processing.current = true;
+    idleSpin.current = false;
+    const gen = replayGen.current;
+    const idx = playbackIndex.current;
+    const event = events[idx];
+    const [lng, lat] = event;
+    const eventId = event[3];
+
+    setTimelinePosition(idx);
+    setActiveEvent(event);
+    rebuildDisplayWindow(idx);
+
+    // Mark current item active
+    setDisplayQueue((prev) =>
+      prev.map((item) => item.id === eventId ? { ...item, active: true } : item),
+    );
+
+    const onEventDone = () => {
+      if (gen !== replayGen.current) return;
+      hideBlink();
+      setActiveEvent(null);
+      // Mark exiting then remove
+      setDisplayQueue((prev) => prev.filter((item) => item.id !== eventId));
+      playbackIndex.current = idx + 1;
+      setTimelinePosition(idx + 1);
+      requestAnimationFrame(() => processReplay());
+    };
+
+    const isZoneMode = selectedZoneRef.current !== null;
+    const is2D = mapViewRef.current === "2d";
+
+    if (isZoneMode || is2D) {
+      showBlink(lng, lat, event[2]);
+      setDisplayQueue((prev) =>
+        prev.map((item) => item.id === eventId ? { ...item, exiting: true, active: false } : item),
+      );
+      setTimeout(() => {
+        if (gen !== replayGen.current) return;
+        onEventDone();
+      }, DISPLAY_DURATION / speed.current);
+    } else {
+      const onArrival = () => {
+        map.current?.off("moveend", onArrival);
+        if (gen !== replayGen.current) return;
+        showBlink(lng, lat, event[2]);
+        setDisplayQueue((prev) =>
+          prev.map((item) => item.id === eventId ? { ...item, exiting: true, active: false } : item),
+        );
+        setTimeout(() => {
+          if (gen !== replayGen.current) return;
+          onEventDone();
+        }, DISPLAY_DURATION / speed.current);
+      };
+
+      const center = map.current!.getCenter();
+      const dist = Math.hypot(lng - center.lng, lat - center.lat);
+      const duration = Math.min(8000, 2000 + dist * 60) / speed.current;
+      map.current!.once("moveend", onArrival);
+
+      if (dist < 15) {
+        map.current!.easeTo({ center: [lng, lat], zoom: 6, duration, essential: true });
+      } else {
+        map.current!.flyTo({ center: [lng, lat], zoom: 6, duration, curve: 1, essential: true });
+      }
+    }
+  }
+
+  // ── Scrubbing handlers ──
+
+  function onScrubStart() {
+    replayPaused.current = true;
+    isScrubRef.current = true;
+    setScrubActive(true);
+
+    replayGen.current++;
+    processing.current = false;
+    hideBlink();
+    map.current?.stop();
+  }
+
+  function onScrubChange(index: number) {
+    playbackIndex.current = index;
+    setTimelinePosition(index);
+
+    const event = replayEvents.current[index];
+    if (!event || !map.current) return;
+
+    const [lng, lat] = event;
+    map.current.jumpTo({ center: [lng, lat], zoom: 6 });
+
+    // Show timestamp label (no animation)
+    blinkLngLat.current = [lng, lat];
+    if (blinkLabelRef.current) {
+      const d = new Date(event[2] * 1000);
+      blinkLabelRef.current.textContent = `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.${d.getFullYear()} ${d.toLocaleTimeString()}`;
+      blinkLabelRef.current.style.display = "block";
+      blinkLabelRef.current.classList.remove("label-float-up");
+      updateBlinkPosition();
+    }
+
+    setActiveEvent(event);
+    rebuildDisplayWindow(index);
+  }
+
+  function onScrubEnd() {
+    isScrubRef.current = false;
+    setScrubActive(false);
+
+    replayPaused.current = false;
+    hideBlink();
+    processReplay();
+  }
+
+  function togglePause() {
+    if (replayPaused.current) {
+      // Resume
+      replayPaused.current = false;
+      setPaused(false);
+      processReplay();
+    } else {
+      // Pause
+      replayPaused.current = true;
+      setPaused(true);
+      replayGen.current++;
+      processing.current = false;
+      map.current?.stop();
+    }
+  }
+
+  function formatTimelineTime(ts: number): string {
+    const d = new Date(ts * 1000);
+    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  }
+
   function processQueue() {
+    if (modeRef.current === "replay") return; // replay uses processReplay()
     if (queue.current.length === 0) {
       processing.current = false;
       syncQueueSize();
@@ -1049,30 +1296,93 @@ export function LivePage() {
         ))}
       </div>
 
-      <div className="live-stats">
-        <span className="live-stats-count">{queueSize} alarms</span>
-        <span className="live-stats-text">to display</span>
-        <span className="live-speed-control">
-          {SPEED_OPTIONS.map((s) => (
-            <button
-              key={s}
-              className={`speed-btn${speedDisplay === s ? " active" : ""}`}
-              onClick={() => { speed.current = s; setSpeedDisplay(s); }}
-            >
-              {s}x
-            </button>
-          ))}
-        </span>
-        {mode === "live" && (
-          <span className="live-stats-added">+{lastAdded} queued in last cycle</span>
-        )}
-        {ghostText && <span className="live-stats-ghost" onAnimationEnd={() => { setGhostText(null); ghostAnimating.current = false; }}>{ghostText}</span>}
-      </div>
-      {activeEvent && (
-        <div className="live-event-info">
-          {activeEvent[1].toFixed(2)}, {activeEvent[0].toFixed(2)}
+      <div className="live-bottom-bar">
+        <div className="live-stats">
+          <span className="live-stats-count">
+            {mode === "replay" && replayEvents.current.length > 0
+              ? `${timelinePosition + 1} / ${replayEvents.current.length}`
+              : `${queueSize} alarms`}
+          </span>
+          <span className="live-stats-text">
+            {mode === "replay" && replayEvents.current.length > 0 ? "events" : "to display"}
+          </span>
+          <span className="live-speed-control">
+            {SPEED_OPTIONS.map((s) => (
+              <button
+                key={s}
+                className={`speed-btn${speedDisplay === s ? " active" : ""}`}
+                onClick={() => { speed.current = s; setSpeedDisplay(s); }}
+              >
+                {s}x
+              </button>
+            ))}
+          </span>
+          {mode === "live" && (
+            <span className="live-stats-added">+{lastAdded} queued in last cycle</span>
+          )}
+          {ghostText && <span className="live-stats-ghost" onAnimationEnd={() => { setGhostText(null); ghostAnimating.current = false; }}>{ghostText}</span>}
         </div>
-      )}
+
+        {/* Replay timeline */}
+        {mode === "replay" && replayEvents.current.length > 0 && (
+          <div className="replay-timeline">
+            <button className="timeline-pause-btn" onClick={togglePause}>
+              {paused
+                ? <svg width="12" height="14" viewBox="0 0 12 14"><path d="M1 0 L12 7 L1 14Z" fill="#ff8800" /></svg>
+                : <svg width="10" height="14" viewBox="0 0 10 14"><rect x="0" y="0" width="3" height="14" fill="#ff8800" /><rect x="7" y="0" width="3" height="14" fill="#ff8800" /></svg>
+              }
+            </button>
+            <span className="timeline-label">
+              {formatTimelineTime(replayEvents.current[0][2])}
+            </span>
+            <div className="timeline-track-container">
+              <canvas
+                ref={densityCanvasRef}
+                className="timeline-density"
+                width={400}
+                height={20}
+              />
+              <input
+                type="range"
+                className="timeline-slider"
+                min={0}
+                max={replayEvents.current.length - 1}
+                value={timelinePosition}
+                onMouseDown={onScrubStart}
+                onTouchStart={onScrubStart}
+                onInput={(e) => onScrubChange(parseInt((e.target as HTMLInputElement).value))}
+                onMouseUp={onScrubEnd}
+                onTouchEnd={onScrubEnd}
+              />
+              {scrubActive && (() => {
+                const evt = replayEvents.current[timelinePosition];
+                const d = evt ? new Date(evt[2] * 1000) : null;
+                const label = d
+                  ? `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`
+                  : "";
+                return (
+                  <div
+                    className="scrub-arrow"
+                    style={{ left: `${(timelinePosition / Math.max(1, replayEvents.current.length - 1)) * 100}%` }}
+                  >
+                    <span className="scrub-arrow-label">{label}</span>
+                    <svg width="14" height="20" viewBox="0 0 14 20">
+                      <path d="M7 0 L7 14" stroke="#ff8800" strokeWidth="2" />
+                      <path d="M2 10 L7 16 L12 10" stroke="#ff8800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    </svg>
+                  </div>
+                );
+              })()}
+            </div>
+            <span className="timeline-label">
+              {formatTimelineTime(replayEvents.current[replayEvents.current.length - 1][2])}
+            </span>
+            <span className="timeline-position">
+              {timelinePosition + 1}/{replayEvents.current.length}
+            </span>
+          </div>
+        )}
+      </div>
       {selectedZone && zoneTooltipPos && (
         <div
           className="zone-tooltip"
