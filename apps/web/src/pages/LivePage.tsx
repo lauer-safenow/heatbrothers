@@ -173,6 +173,11 @@ export function LivePage() {
   const raf = useRef(0);
   const currentLng = useRef(10);
 
+  // playback speed multiplier
+  const SPEED_OPTIONS = [0.5, 1, 2, 5, 10] as const;
+  const speed = useRef(1);
+  const [speedDisplay, setSpeedDisplay] = useState(1);
+
   // 2D / 3D view toggle
   const [mapView, setMapView] = useState<"2d" | "3d">("3d");
   const mapViewRef = useRef<"2d" | "3d">("3d");
@@ -186,6 +191,7 @@ export function LivePage() {
   const initZoneId = useRef<string | null>(searchParams.get("zoneid"));
 
   // mode state
+  const [todayMode, setTodayMode] = useState(false);
   const [mode, setMode] = useState<Mode>(initMode.current);
   const modeRef = useRef<Mode>(initMode.current);
   const [replayFrom, setReplayFrom] = useState<Date>(initFrom.current);
@@ -553,17 +559,40 @@ export function LivePage() {
   function switchToReplay() {
     modeRef.current = "replay";
     setMode("replay");
+    setTodayMode(false);
     clearQueue();
     idleSpin.current = true;
     setReplayInfo(null);
     setLastAdded(0);
     setGhostText(null);
+    setPickerOpen(true);
     updateUrl("replay");
+  }
+
+  function switchToToday() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    modeRef.current = "replay";
+    setMode("replay");
+    setTodayMode(true);
+    clearQueue();
+    idleSpin.current = true;
+    setReplayInfo(null);
+    setLastAdded(0);
+    setGhostText(null);
+    setReplayFrom(todayStart);
+    setReplayTo(todayEnd);
+    setPickerOpen(false);
+    updateUrl("replay", todayStart, todayEnd);
+    // Auto-start playback after state settles
+    setTimeout(() => startReplayWithDates(todayStart, todayEnd), 50);
   }
 
   function switchToLive() {
     modeRef.current = "live";
     setMode("live");
+    setTodayMode(false);
     clearQueue();
     idleSpin.current = true;
     setReplayInfo(null);
@@ -594,9 +623,9 @@ export function LivePage() {
     }
   }
 
-  async function startReplay() {
-    const fromEpoch = Math.floor(replayFrom.getTime() / 1000);
-    const toEpoch = Math.floor(replayTo.getTime() / 1000);
+  async function startReplayWithDates(from: Date, to: Date) {
+    const fromEpoch = Math.floor(from.getTime() / 1000);
+    const toEpoch = Math.floor(to.getTime() / 1000);
     if (isNaN(fromEpoch) || isNaN(toEpoch) || fromEpoch >= toEpoch) {
       setReplayInfo("Invalid time range");
       return;
@@ -609,7 +638,7 @@ export function LivePage() {
     clearQueue();
     setReplayLoading(true);
     setReplayInfo(null);
-    updateUrl("replay", replayFrom, replayTo);
+    updateUrl("replay", from, to);
 
     if (zone) {
       const bounds = computePolygonBounds(zone.polygon);
@@ -653,6 +682,10 @@ export function LivePage() {
     } finally {
       setReplayLoading(false);
     }
+  }
+
+  function startReplay() {
+    return startReplayWithDates(replayFrom, replayTo);
   }
 
   function showBlink(lng: number, lat: number, timestamp: number) {
@@ -738,7 +771,7 @@ export function LivePage() {
           setActiveEvent(null);
           setDisplayQueue((prev) => prev.filter((item) => item.id !== eventId));
           requestAnimationFrame(() => processQueue());
-        }, DISPLAY_DURATION);
+        }, DISPLAY_DURATION / speed.current);
       } else {
         const onArrival = () => {
           map.current?.off("moveend", onArrival);
@@ -760,13 +793,13 @@ export function LivePage() {
             setActiveEvent(null);
             setDisplayQueue((prev) => prev.filter((item) => item.id !== eventId));
             requestAnimationFrame(() => processQueue());
-          }, DISPLAY_DURATION);
+          }, DISPLAY_DURATION / speed.current);
         };
 
         // Adapt to distance: short = easeTo (no zoom arc), long = flyTo (gentle arc)
         const center = map.current.getCenter();
         const dist = Math.hypot(lng - center.lng, lat - center.lat);
-        const duration = Math.min(8000, 2000 + dist * 60); // 2s–8s based on distance
+        const duration = Math.min(8000, 2000 + dist * 60) / speed.current;
 
         map.current.once("moveend", onArrival);
 
@@ -833,10 +866,16 @@ export function LivePage() {
             LIVE
           </button>
           <button
-            className={`mode-btn${mode === "replay" ? " active" : ""}`}
-            onClick={mode === "replay" ? undefined : () => { switchToReplay(); setHintDismissed(true); }}
+            className={`mode-btn${mode === "replay" && !todayMode ? " active" : ""}`}
+            onClick={() => { switchToReplay(); setHintDismissed(true); }}
           >
             REPLAY
+          </button>
+          <button
+            className={`mode-btn${mode === "replay" && todayMode ? " active" : ""}`}
+            onClick={() => { switchToToday(); setHintDismissed(true); }}
+          >
+            TODAY
           </button>
         </div>
         <div className="live-mode-toggle">
@@ -1013,6 +1052,17 @@ export function LivePage() {
       <div className="live-stats">
         <span className="live-stats-count">{queueSize} alarms</span>
         <span className="live-stats-text">to display</span>
+        <span className="live-speed-control">
+          {SPEED_OPTIONS.map((s) => (
+            <button
+              key={s}
+              className={`speed-btn${speedDisplay === s ? " active" : ""}`}
+              onClick={() => { speed.current = s; setSpeedDisplay(s); }}
+            >
+              {s}x
+            </button>
+          ))}
+        </span>
         {mode === "live" && (
           <span className="live-stats-added">+{lastAdded} queued in last cycle</span>
         )}

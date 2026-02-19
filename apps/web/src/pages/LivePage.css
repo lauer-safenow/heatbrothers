@@ -65,6 +65,35 @@
   50% { opacity: 0.5; }
 }
 
+/* ── speed control (inline in stats bar) ── */
+.live-speed-control {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin-left: 0.6rem;
+}
+
+.speed-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.speed-btn:hover {
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.speed-btn.active {
+  color: #ff8800;
+  border-color: rgba(255, 136, 0, 0.4);
+}
+
 /* ── stats badge ── */
 .live-stats {
   position: absolute;
@@ -72,7 +101,7 @@
   left: 1.5rem;
   z-index: 10;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.4rem;
   background: rgba(10, 10, 10, 0.7);
   backdrop-filter: blur(12px);
