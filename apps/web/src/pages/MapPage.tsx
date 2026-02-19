@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import DatePicker from "react-datepicker";
@@ -129,11 +130,42 @@ function getHeatmapParams(zoom: number) {
   return { radiusPixels, intensity, threshold };
 }
 
+function dateToDateParam(d: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function paramToDate(s: string | null): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parsePolyParam(s: string | null): LngLat[] | null {
+  if (!s) return null;
+  const nums = s.split(",").map(Number);
+  if (nums.length < 6 || nums.length % 2 !== 0 || nums.some(isNaN)) return null;
+  const verts: LngLat[] = [];
+  for (let i = 0; i < nums.length; i += 2) {
+    verts.push([nums[i], nums[i + 1]]);
+  }
+  return verts;
+}
+
 export function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const overlay = useRef<MapboxOverlay | null>(null);
   const cityLabelRef = useRef<HTMLDivElement>(null);
+
+  // URL state persistence
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initType = useRef<string | null>(searchParams.get("type"));
+  const initFrom = useRef(paramToDate(searchParams.get("from")));
+  const initTo = useRef(paramToDate(searchParams.get("to")));
+  const initZones = useRef(searchParams.get("zones")?.split(",").filter(Boolean) ?? null);
+  const initPoly = useRef(parsePolyParam(searchParams.get("poly")));
+  const initialized = useRef(false);
 
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [selected, setSelected] = useState("");
@@ -141,16 +173,18 @@ export function MapPage() {
   const [loading, setLoading] = useState(false);
 
   // polygon drawing
-  const [drawingState, setDrawingState] = useState<DrawingState>("idle");
-  const [vertices, setVertices] = useState<LngLat[]>([]);
+  const [drawingState, setDrawingState] = useState<DrawingState>(
+    initPoly.current ? "complete" : "idle"
+  );
+  const [vertices, setVertices] = useState<LngLat[]>(initPoly.current ?? []);
 
   // zoom tracking for adaptive heatmap params
   const [zoom, setZoom] = useState(5.5);
   const [mapBounds, setMapBounds] = useState<maplibregl.LngLatBounds | null>(null);
 
   // time filter
-  const [timeFrom, setTimeFrom] = useState<Date | null>(null);
-  const [timeUntil, setTimeUntil] = useState<Date | null>(null);
+  const [timeFrom, setTimeFrom] = useState<Date | null>(initFrom.current);
+  const [timeUntil, setTimeUntil] = useState<Date | null>(initTo.current);
 
   // zone overlays
   const [zones, setZones] = useState<ParsedZone[]>([]);
@@ -269,10 +303,21 @@ export function MapPage() {
       .then((r) => r.json())
       .then((data: { byType: EventType[] }) => {
         setEventTypes(data.byType);
+        // URL param takes priority over default
+        const urlType = initType.current;
+        if (urlType) {
+          const found = data.byType.find((t) => t.event_type === urlType);
+          if (found) {
+            setSelected(found.event_type);
+            initialized.current = true;
+            return;
+          }
+        }
         const preferred = data.byType.find(
           (t) => t.event_type === "FIRST_TIME_PHONE_STATUS_SENT",
         );
         setSelected(preferred?.event_type ?? data.byType[0]?.event_type ?? "");
+        initialized.current = true;
       })
       .catch(() => {});
   }, []);
@@ -302,9 +347,33 @@ export function MapPage() {
           if (polygon) parsed.push({ data, polygon });
         }
         setZones(parsed);
+        // Restore zone selection from URL
+        const urlZones = initZones.current;
+        if (urlZones && urlZones.length > 0) {
+          const validIds = new Set(parsed.map((z) => z.data.id));
+          const restored = urlZones.filter((id) => validIds.has(id));
+          if (restored.length > 0) setSelectedZoneIds(new Set(restored));
+          initZones.current = null;
+        }
       })
       .catch((err) => console.warn("Zones fetch failed:", err));
   }, []);
+
+  // ---------- sync state → URL ----------
+  useEffect(() => {
+    if (!initialized.current) return;
+    const params: Record<string, string> = {};
+    if (selected) params.type = selected;
+    if (timeFrom) params.from = dateToDateParam(timeFrom);
+    if (timeUntil) params.to = dateToDateParam(timeUntil);
+    if (selectedZoneIds.size > 0) params.zones = [...selectedZoneIds].join(",");
+    if (drawingState === "complete" && vertices.length >= 3) {
+      params.poly = vertices
+        .map(([lng, lat]) => `${lng.toFixed(4)},${lat.toFixed(4)}`)
+        .join(",");
+    }
+    setSearchParams(params, { replace: true });
+  }, [selected, timeFrom, timeUntil, selectedZoneIds, drawingState, vertices, setSearchParams]);
 
   // ---------- map init ----------
   useEffect(() => {
