@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -61,6 +61,12 @@ function countryFlag(code: string): string {
   return String.fromCodePoint(
     ...code.toUpperCase().split("").map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
   );
+}
+
+const countryDisplayNames = new Intl.DisplayNames(["en"], { type: "region" });
+function countryName(code: string): string {
+  if (!code || code.length !== 2) return code;
+  try { return countryDisplayNames.of(code.toUpperCase()) || code; } catch { return code; }
 }
 
 function s3Url(location: string): string {
@@ -214,7 +220,32 @@ export function LivePage() {
   const densityCanvasRef = useRef<HTMLCanvasElement>(null);
   const [scrubActive, setScrubActive] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [pinnedCountry, setPinnedCountry] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pinnedCountry) return;
+    const close = () => setPinnedCountry(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [pinnedCountry]);
   const replayPaused = useRef(false);
+
+  // Precomputed country index — built once when replay events load
+  type CountryEntry = { flag: string; events: { city: string; time: number; idx: number }[] };
+  const countryIndex = useRef<Map<string, CountryEntry>>(new Map());
+
+  // Full country tally — computed once when replay events load, static during playback/scrubbing
+  const countryTally = useMemo(() => {
+    const ci = countryIndex.current;
+    if (ci.size === 0) return [];
+    const result: [string, { flag: string; count: number; events: { city: string; time: number; idx: number }[] }][] = [];
+    for (const [cc, data] of ci) {
+      const evts = data.events;
+      result.push([cc, { flag: data.flag, count: evts.length, events: evts }]);
+    }
+    result.sort((a, b) => b[1].count - a[1].count);
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replayVersion]);
 
   const activeDate = activeTab === "from" ? replayFrom : replayTo;
   function setActiveDate(d: Date) {
@@ -543,6 +574,7 @@ export function LivePage() {
     hideBlink();
     // Reset replay timeline state
     replayEvents.current = [];
+    countryIndex.current = new Map();
     playbackIndex.current = 0;
     replayPaused.current = false;
     isScrubRef.current = false;
@@ -667,6 +699,18 @@ export function LivePage() {
       // Store full event set for index-based replay with timeline scrubbing
       events.sort((a, b) => a[2] - b[2]);
       replayEvents.current = events;
+
+      // Build precomputed country index for O(log n) tally lookups
+      const ci = new Map<string, CountryEntry>();
+      for (let i = 0; i < events.length; i++) {
+        const e = events[i];
+        const cc = e[5] || "??";
+        let entry = ci.get(cc);
+        if (!entry) { entry = { flag: countryFlag(cc), events: [] }; ci.set(cc, entry); }
+        entry.events.push({ city: e[4] || "Unknown", time: e[2], idx: i });
+      }
+      countryIndex.current = ci;
+
       playbackIndex.current = 0;
       setTimelinePosition(0);
       setReplayVersion((v) => v + 1);
@@ -847,11 +891,16 @@ export function LivePage() {
     const [lng, lat] = event;
     map.current.jumpTo({ center: [lng, lat], zoom: 6 });
 
-    // Show timestamp label (no animation)
+    // Show static blink marker + label (no fade-out animation)
     blinkLngLat.current = [lng, lat];
+    if (blinkRef.current) {
+      blinkRef.current.classList.remove("blink-animate");
+      blinkRef.current.style.display = "block";
+      updateBlinkPosition();
+    }
     if (blinkLabelRef.current) {
       const d = new Date(event[2] * 1000);
-      blinkLabelRef.current.textContent = `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.${d.getFullYear()} ${d.toLocaleTimeString()}`;
+      blinkLabelRef.current.textContent = `${event[4] || ""} ${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.${d.getFullYear()} ${d.toLocaleTimeString()}`;
       blinkLabelRef.current.style.display = "block";
       blinkLabelRef.current.classList.remove("label-float-up");
       updateBlinkPosition();
@@ -1251,8 +1300,45 @@ export function LivePage() {
 
         {/* Replay timeline */}
         {mode === "replay" && replayEvents.current.length > 0 && (
-          <div className="replay-timeline">
-            <button className="timeline-pause-btn" onClick={togglePause}>
+          <div className="replay-timeline-wrap">
+            {/* Country tally — precomputed, binary-search lookup per country */}
+            <div className="country-tally" onClick={() => setPinnedCountry(null)}>
+              {countryTally.map(([cc, data]) => (
+                <span
+                  key={cc}
+                  className={`country-tally-badge${pinnedCountry === cc ? " pinned" : ""}`}
+                  onClick={(e) => { e.stopPropagation(); setPinnedCountry(pinnedCountry === cc ? null : cc); }}
+                  onMouseEnter={() => { if (pinnedCountry && pinnedCountry !== cc) setPinnedCountry(cc); }}
+                >
+                  {data.flag} {data.count}
+                  <div className="country-tally-tooltip" onMouseEnter={() => setPinnedCountry(cc)}>
+                    <div className="ctt-header">{countryName(cc)}</div>
+                    <div className="ctt-events">
+                      {data.events.map((ev, j) => {
+                        const d = new Date(ev.time * 1000);
+                        return (
+                          <div
+                            key={j}
+                            className="ctt-row ctt-row-clickable"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!replayPaused.current) { replayPaused.current = true; setPaused(true); }
+                              onScrubChange(ev.idx);
+                              setPinnedCountry(null);
+                            }}
+                          >
+                            <span className="ctt-time">{d.getHours().toString().padStart(2, "0")}:{d.getMinutes().toString().padStart(2, "0")}:{d.getSeconds().toString().padStart(2, "0")}</span>
+                            <span className="ctt-city">{ev.city}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </span>
+              ))}
+            </div>
+            <div className="replay-timeline">
+              <button className="timeline-pause-btn" onClick={togglePause}>
               {paused
                 ? <svg width="12" height="14" viewBox="0 0 12 14"><path d="M1 0 L12 7 L1 14Z" fill="#ff8800" /></svg>
                 : <svg width="10" height="14" viewBox="0 0 10 14"><rect x="0" y="0" width="3" height="14" fill="#ff8800" /><rect x="7" y="0" width="3" height="14" fill="#ff8800" /></svg>
@@ -1306,6 +1392,7 @@ export function LivePage() {
             <span className="timeline-position">
               {timelinePosition + 1}/{replayEvents.current.length}
             </span>
+            </div>
           </div>
         )}
       </div>

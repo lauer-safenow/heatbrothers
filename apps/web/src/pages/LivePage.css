@@ -102,7 +102,7 @@
   right: 1.5rem;
   z-index: 10;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.5rem;
 }
 
@@ -826,6 +826,7 @@
   100% { opacity: 1; }
 }
 
+
 /* ── replay timeline ── */
 .replay-timeline {
   flex: 1;
@@ -941,4 +942,98 @@
   font-size: 0.6rem;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* ── replay timeline wrapper (tally above timeline) ── */
+.replay-timeline-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* ── country tally ── */
+.country-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0 0.4rem;
+}
+.country-tally-badge {
+  position: relative;
+  font-size: 0.7rem;
+  font-family: monospace;
+  color: #ccc;
+  cursor: default;
+  white-space: nowrap;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+.country-tally-badge:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* tooltip on hover — sits flush on badge so hover path is unbroken */
+.country-tally-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 10, 10, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  padding-bottom: 0.6rem;
+  min-width: 140px;
+  max-height: 30vh;
+  overflow-y: auto;
+  z-index: 100;
+}
+.country-tally-badge:hover .country-tally-tooltip,
+.country-tally-badge.pinned .country-tally-tooltip {
+  display: block;
+}
+/* When a badge is pinned, suppress hover tooltips on other badges (pin switches on hover instead) */
+.country-tally:has(.pinned) .country-tally-badge:not(.pinned):hover .country-tally-tooltip {
+  display: none;
+}
+.ctt-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #ff8800;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.2rem;
+}
+.ctt-events {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ctt-row {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.6rem;
+  color: #aaa;
+}
+.ctt-time {
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+.ctt-city {
+  color: #ccc;
+}
+.ctt-row-clickable {
+  cursor: pointer;
+  padding: 1px 2px;
+  border-radius: 2px;
+  transition: background 0.1s;
+}
+.ctt-row-clickable:hover {
+  background: rgba(255, 140, 0, 0.15);
+}
+.ctt-row-clickable:hover .ctt-city {
+  color: #ff8800;
 }
