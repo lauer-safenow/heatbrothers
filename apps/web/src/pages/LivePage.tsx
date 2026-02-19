@@ -889,7 +889,11 @@ export function LivePage() {
     if (!event || !map.current) return;
 
     const [lng, lat] = event;
-    map.current.jumpTo({ center: [lng, lat], zoom: 6 });
+    if (mapViewRef.current === "2d") {
+      map.current.panTo([lng, lat]);
+    } else {
+      map.current.jumpTo({ center: [lng, lat], zoom: 6 });
+    }
 
     // Show static blink marker + label (no fade-out animation)
     blinkLngLat.current = [lng, lat];
