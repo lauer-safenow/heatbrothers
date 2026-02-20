@@ -360,7 +360,21 @@ export function HotRightNowPage() {
 
   const flyTo = useCallback((h: Hotspot) => {
     setSelected((prev) => (prev === h ? null : h));
-    mapRef.current?.flyTo({ center: [h.lng, h.lat], zoom: 10, duration: 1200 });
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (h.zonePolygon && h.zonePolygon.length > 0) {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const [lng, lat] of h.zonePolygon) bounds.extend([lng, lat]);
+      map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 1200 });
+    } else {
+      const [minLng, minLat, maxLng, maxLat] = h.bbox;
+      map.fitBounds([minLng, minLat, maxLng, maxLat], {
+        padding: 60,
+        maxZoom: 16,
+        duration: 1200,
+      });
+    }
   }, []);
 
   // Fetch global SafeNow news once when hotspot data loads
