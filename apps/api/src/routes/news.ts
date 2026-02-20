@@ -204,29 +204,17 @@ newsRouter.get("/news", async (req, res) => {
   const locale = COUNTRY_LOCALE[country] || DEFAULT_LOCALE;
 
   // Build city query: use OR-joined nearby cities if available, else single city
+  // Include zone name in the query when available so venue-specific results appear
   const cityList = cities ? cities.split(",").map((c) => c.trim()).filter(Boolean) : [];
-  const cityQuery = cityList.length > 1
-    ? `(${cityList.map((c) => `"${c}"`).join(" OR ")})`
-    : city;
+  const allTerms = zone ? [zone, ...cityList] : cityList;
+  const uniqueTerms = [...new Set(allTerms.length > 0 ? allTerms : city ? [city] : [])];
+  const cityQuery = uniqueTerms.length > 1
+    ? `(${uniqueTerms.map((c) => `"${c}"`).join(" OR ")})`
+    : uniqueTerms[0] || city;
 
   try {
     let articles: Array<{ title: string; url: string; source: string; dateTime: string }>;
-
-    if (zone) {
-      const [zoneArticles, cityArticles] = await Promise.all([
-        fetchGoogleNews(zone, locale, after, before).catch(() => []),
-        fetchGoogleNews(cityQuery, locale, after, before).catch(() => []),
-      ]);
-      // Deduplicate by URL, zone results first
-      const seen = new Set<string>();
-      articles = [];
-      for (const a of [...zoneArticles, ...cityArticles]) {
-        if (!seen.has(a.url)) { seen.add(a.url); articles.push(a); }
-      }
-      articles = articles.slice(0, 50);
-    } else {
-      articles = (await fetchGoogleNews(cityQuery, locale, after, before)).slice(0, 20);
-    }
+    articles = (await fetchGoogleNews(cityQuery, locale, after, before)).slice(0, 30);
 
     // Translate titles to English if source language isn't English
     const origTitles = articles.map((a) => a.title);

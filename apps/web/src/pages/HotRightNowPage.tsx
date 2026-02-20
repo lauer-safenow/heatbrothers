@@ -676,10 +676,10 @@ export function HotRightNowPage() {
 
           <div className="hot-news-panel hot-news-panel--bottom">
             <div className="hot-list-title hot-list-title--news">
-              Regional News {selected && <span className="hot-news-city">{selected.city}</span>}
-              {selected?.nearbyCities && selected.nearbyCities.length > 1 && (
+              Regional News {selected && <span className="hot-news-city">{selected.zoneName ?? selected.city}</span>}
+              {selected && (selected.zoneName || (selected.nearbyCities && selected.nearbyCities.length > 1)) && (
                 <div className="hot-news-queried">
-                  Queried: {selected.nearbyCities.join(", ")}
+                  Queried: {[selected.zoneName, ...(selected.nearbyCities || [])].filter(Boolean).join(", ")}
                 </div>
               )}
             </div>
