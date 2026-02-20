@@ -8,7 +8,7 @@ const ALARM_TYPES = [
   "DETAILED_ALARM_STARTED_PRIVATE_GROUP",
   "DETAILED_ALARM_STARTED_ZONE",
 ];
-const EDGE_DISTANCE_KM = 5;
+const EDGE_DISTANCE_KM = 3;
 const DEFAULT_LIMIT = 10;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -47,7 +47,7 @@ interface HotspotEntry {
   edges: [number, number, number, number][]; // [srcLng, srcLat, dstLng, dstLat]
 }
 
-const LOOKBACK_DAYS = 10;
+const LOOKBACK_DAYS = 5;
 
 const DACH_NO_DE = new Set(["AT", "CH"]);
 
@@ -68,7 +68,7 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
   if (events.length === 0) return [];
 
   // Spatial grid (~50km cells)
-  const CELL_SIZE = 0.045;
+  const CELL_SIZE = 0.027;
   const grid = new Map<string, number[]>();
   for (let i = 0; i < events.length; i++) {
     const key = `${Math.floor(events[i].latitude / CELL_SIZE)},${Math.floor(events[i].longitude / CELL_SIZE)}`;
@@ -110,17 +110,19 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
   const result: HotspotEntry[] = [];
   for (const i of candidates) {
     if (consumed.has(i)) continue;
-    // BFS to find entire connected component
+    // BFS to find connected component, max 5 edge hops from seed
+    const MAX_HOPS = 10;
     const component: number[] = [];
-    const queue = [i];
+    const queue: [number, number][] = [[i, 0]]; // [node, depth]
     consumed.add(i);
     while (queue.length > 0) {
-      const cur = queue.pop()!;
+      const [cur, depth] = queue.shift()!;
       component.push(cur);
+      if (depth >= MAX_HOPS) continue;
       for (const n of adj[cur]) {
         if (!consumed.has(n)) {
           consumed.add(n);
-          queue.push(n);
+          queue.push([n, depth + 1]);
         }
       }
     }
