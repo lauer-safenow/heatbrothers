@@ -1,20 +1,35 @@
-import { getNearestCity } from "offline-geocode-city";
+import { createRevGeocoder, type RevGeocoder } from "@webkitty/geo-rev";
+
+let revGeocoder: RevGeocoder | null = null;
 
 const geoCache = new Map<string, [string, string]>();
 
 const FALLBACK: [string, string] = ["Unknown", ""];
 
+export async function initGeocoder(): Promise<void> {
+  revGeocoder = await createRevGeocoder();
+  console.log("[geocoder] GeoNames reverse geocoder ready");
+}
+
 export function geocode(lat: number, lng: number): [string, string] {
-  const key = `${lat.toFixed(1)},${lng.toFixed(1)}`;
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
   const cached = geoCache.get(key);
   if (cached) return cached;
+
+  if (!revGeocoder) {
+    geoCache.set(key, FALLBACK);
+    return FALLBACK;
+  }
+
   try {
-    const r = getNearestCity(lat, lng);
-    const entry: [string, string] = [r.cityName || "Unknown", (r.countryIso2 || "").toUpperCase()];
+    const r = revGeocoder.lookup({ latitude: lat, longitude: lng });
+    const entry: [string, string] = [
+      r.record?.name || "Unknown",
+      (r.record?.countryCode || "").toUpperCase(),
+    ];
     geoCache.set(key, entry);
     return entry;
   } catch {
-    // s2-geometry overflows on some coords (ocean, 0/0, poles)
     geoCache.set(key, FALLBACK);
     return FALLBACK;
   }

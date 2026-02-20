@@ -49,6 +49,7 @@ interface HotspotEntry {
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat]
   nodes: [number, number][]; // [lng, lat]
   edges: [number, number, number, number][]; // [srcLng, srcLat, dstLng, dstLat]
+  nearbyCities: string[];
   zoneName?: string;
   zoneId?: string;
   zonePolygon?: number[][];
@@ -228,6 +229,29 @@ function extractHotspots(events: CachedEvent[], maxResults: number, minPts: numb
     }
 
     const [city, countryCode] = geocode(events[seedIdx].latitude, events[seedIdx].longitude);
+
+    // Sample up to 8 evenly-spaced nodes to get nearby city names
+    const citySet = new Set<string>([city]);
+    const step = Math.max(1, Math.floor(members.length / 8));
+    for (let i = 0; i < members.length; i += step) {
+      const [c] = geocode(events[members[i]].latitude, events[members[i]].longitude);
+      if (c !== "Unknown") citySet.add(c);
+    }
+    // Also sample offset points (~20km) from cluster center in 8 directions
+    // to capture nearby larger cities beyond the cluster's own extent
+    const centerLat = events[seedIdx].latitude;
+    const centerLng = events[seedIdx].longitude;
+    const OFFSET = 0.2; // ~22km N/S, ~14km E/W at European latitudes
+    const D = OFFSET * 0.707; // diagonal offset
+    for (const [dLat, dLng] of [
+      [OFFSET, 0], [-OFFSET, 0], [0, OFFSET], [0, -OFFSET],
+      [D, D], [D, -D], [-D, D], [-D, -D],
+    ]) {
+      const [c] = geocode(centerLat + dLat, centerLng + dLng);
+      if (c !== "Unknown") citySet.add(c);
+    }
+    const nearbyCities = [...citySet].filter((c) => c !== "Unknown");
+
     result.push({
       rank: 0,
       lat: events[seedIdx].latitude,
@@ -239,6 +263,7 @@ function extractHotspots(events: CachedEvent[], maxResults: number, minPts: numb
       bbox: [minLng, minLat, maxLng, maxLat],
       nodes,
       edges,
+      nearbyCities,
     });
   }
 
@@ -323,6 +348,7 @@ hotspotsRouter.get("/hotspots", async (req, res) => {
       const zoneHotspots = extractHotspots(zoneEvents, 20, minPts, epsTemporal, epsKm);
       const zoneRow = zonesMap.get(pssId);
       const zoneName = zoneRow?.name || zoneEvents[0]?.pssName || "Unknown Zone";
+      if (/test/i.test(zoneName) || zoneName.startsWith("ST_")) continue;
       const polygon = zoneRow ? parseAreaJson(zoneRow.area_json) : null;
 
       for (const h of zoneHotspots) {

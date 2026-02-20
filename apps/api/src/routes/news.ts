@@ -30,9 +30,9 @@ const COUNTRY_LOCALE: Record<string, { hl: string; gl: string; ceid: string }> =
 
 const DEFAULT_LOCALE = { hl: "en", gl: "US", ceid: "US:en" };
 
-/* ── in-memory cache (10 min TTL) ── */
+/* ── in-memory cache (1 hour TTL) ── */
 const cache = new Map<string, { data: unknown; ts: number }>();
-const CACHE_TTL = 10 * 60 * 1000;
+const CACHE_TTL = 60 * 60 * 1000;
 
 function getCached(key: string): unknown | null {
   const entry = cache.get(key);
@@ -141,21 +141,33 @@ async function translateToEnglish(texts: string[], sourceLang: string): Promise<
   }
 }
 
-/* ── fetch news for a single query ── */
+/* ── serialized request queue to avoid Google rate-limiting ── */
+let fetchQueue: Promise<unknown> = Promise.resolve();
+const FETCH_DELAY_MS = 600; // gap between consecutive Google News requests
+
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+
+/* ── fetch news for a single query (serialized via queue) ── */
 async function fetchGoogleNews(
   query: string,
   locale: { hl: string; gl: string; ceid: string },
   after?: string,
   before?: string,
 ): Promise<Array<{ title: string; url: string; source: string; dateTime: string }>> {
-  // Google News supports after:YYYY-MM-DD and before:YYYY-MM-DD in query
   let q = query;
   if (after) q += ` after:${after}`;
   if (before) q += ` before:${before}`;
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=${locale.hl}&gl=${locale.gl}&ceid=${locale.ceid}`;
-  console.log(`[news] Google News RSS: ${url}`);
-  const xml = await httpsGet(url);
-  return parseRssItems(xml);
+
+  // Chain onto queue so requests go one at a time with a delay
+  const result = fetchQueue.then(async () => {
+    console.log(`[news] Google News RSS: ${url}`);
+    const xml = await httpsGet(url);
+    await sleep(FETCH_DELAY_MS);
+    return parseRssItems(xml);
+  });
+  fetchQueue = result.catch(() => {}).then(() => {}); // keep queue alive even on errors
+  return result;
 }
 
 /**
@@ -170,6 +182,7 @@ newsRouter.get("/news", async (req, res) => {
   const city = (req.query.city as string || "").trim();
   const country = (req.query.country as string || "").trim().toUpperCase();
   const zone = (req.query.zone as string || "").trim();
+  const cities = (req.query.cities as string || "").trim();
   const from = (req.query.from as string || "").trim(); // YYYY-MM-DD
   const to = (req.query.to as string || "").trim();     // YYYY-MM-DD
 
@@ -181,7 +194,7 @@ newsRouter.get("/news", async (req, res) => {
   const after = from || undefined;
   const before = to || undefined;
 
-  const cacheKey = `${city}_${country}_${zone}_${after}_${before}`;
+  const cacheKey = `${city}_${country}_${zone}_${cities}_${after}_${before}`;
   const cached = getCached(cacheKey);
   if (cached) {
     res.json(cached);
@@ -190,13 +203,19 @@ newsRouter.get("/news", async (req, res) => {
 
   const locale = COUNTRY_LOCALE[country] || DEFAULT_LOCALE;
 
+  // Build city query: use OR-joined nearby cities if available, else single city
+  const cityList = cities ? cities.split(",").map((c) => c.trim()).filter(Boolean) : [];
+  const cityQuery = cityList.length > 1
+    ? `(${cityList.map((c) => `"${c}"`).join(" OR ")})`
+    : city;
+
   try {
     let articles: Array<{ title: string; url: string; source: string; dateTime: string }>;
 
     if (zone) {
       const [zoneArticles, cityArticles] = await Promise.all([
         fetchGoogleNews(zone, locale, after, before).catch(() => []),
-        fetchGoogleNews(city, locale, after, before).catch(() => []),
+        fetchGoogleNews(cityQuery, locale, after, before).catch(() => []),
       ]);
       // Deduplicate by URL, zone results first
       const seen = new Set<string>();
@@ -206,7 +225,7 @@ newsRouter.get("/news", async (req, res) => {
       }
       articles = articles.slice(0, 50);
     } else {
-      articles = (await fetchGoogleNews(city, locale, after, before)).slice(0, 20);
+      articles = (await fetchGoogleNews(cityQuery, locale, after, before)).slice(0, 20);
     }
 
     // Translate titles to English if source language isn't English
@@ -238,8 +257,8 @@ newsRouter.get("/news/safenow", async (_req, res) => {
   if (hit) { res.json(hit); return; }
 
   try {
-    // Search across all configured locales for global coverage
-    const locales = Object.values(COUNTRY_LOCALE);
+    // Search a few key locales only — avoids Google rate-limiting (was 22 × 2 = 44 requests)
+    const locales = [COUNTRY_LOCALE.DE, COUNTRY_LOCALE.AT, COUNTRY_LOCALE.US, COUNTRY_LOCALE.GB];
     const queries = ['"SafeNow"', '"Tilman Rumland"'];
     const results = await Promise.all(
       queries.flatMap((q) => locales.map((loc) => fetchGoogleNews(q, loc, after, before).catch(() => []))),

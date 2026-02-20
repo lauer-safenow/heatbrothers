@@ -10,6 +10,7 @@ import { hotspotsRouter } from "./routes/hotspots.js";
 import { newsRouter } from "./routes/news.js";
 import { startCronSync } from "./sync/cron.js";
 import { loadCache } from "./cache.js";
+import { initGeocoder } from "./geocode.js";
 
 const WEB_ROOT = path.resolve(ROOT_DIR, "apps/web");
 
@@ -53,6 +54,8 @@ if (isDev) {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
+
+await initGeocoder();
 
 app.listen(port, async () => {
   console.log(`Heatbrothers running on http://localhost:${port}`);

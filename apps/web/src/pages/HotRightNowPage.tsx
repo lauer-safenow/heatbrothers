@@ -18,6 +18,7 @@ interface Hotspot {
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat]
   nodes: [number, number][];
   edges: [number, number, number, number][];
+  nearbyCities?: string[];
   zoneName?: string;
   zoneId?: string;
   zonePolygon?: number[][];
@@ -80,6 +81,7 @@ export function HotRightNowPage() {
   const [safenowLoading, setSafenowLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editing, setEditing] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(true);
   const alarmType = (searchParams.get("type") === ZONE_EVENT_TYPE ? ZONE_EVENT_TYPE : LIVE_EVENT_TYPE) as string;
 
   // ── Draggable news panel divider ──
@@ -390,6 +392,7 @@ export function HotRightNowPage() {
       to: now.toISOString().slice(0, 10),
     });
     if (selected.zoneName) qs.set("zone", selected.zoneName);
+    if (selected.nearbyCities?.length) qs.set("cities", selected.nearbyCities.join(","));
     fetch(`/api/news?${qs}`)
       .then((r) => r.json())
       .then((d) => setNews(d.articles || []))
@@ -602,7 +605,18 @@ export function HotRightNowPage() {
           )}
         </div>
 
-        <div className="hot-news-col" ref={newsColRef}>
+        <button
+          className="hot-news-toggle"
+          onClick={() => setNewsOpen((o) => !o)}
+          title={newsOpen ? "Hide news" : "Show news"}
+        >
+          {newsOpen ? "»" : "«"}
+        </button>
+
+        <div
+          className={`hot-news-col${newsOpen ? "" : " hot-news-col--collapsed"}`}
+          ref={newsColRef}
+        >
           <div
             className="hot-news-panel hot-news-panel--top"
             style={{ height: topPanelH }}
@@ -649,6 +663,11 @@ export function HotRightNowPage() {
           <div className="hot-news-panel hot-news-panel--bottom">
             <div className="hot-list-title hot-list-title--news">
               Regional News {selected && <span className="hot-news-city">{selected.city}</span>}
+              {selected?.nearbyCities && selected.nearbyCities.length > 1 && (
+                <div className="hot-news-queried">
+                  Queried: {selected.nearbyCities.join(", ")}
+                </div>
+              )}
             </div>
             {!selected ? (
               <div className="hot-empty-col">Select a hotspot to see regional news</div>
