@@ -82,6 +82,45 @@ export function HotRightNowPage() {
   const [editing, setEditing] = useState(false);
   const alarmType = (searchParams.get("type") === ZONE_EVENT_TYPE ? ZONE_EVENT_TYPE : LIVE_EVENT_TYPE) as string;
 
+  // ── Draggable news panel divider ──
+  const newsColRef = useRef<HTMLDivElement>(null);
+  const [topPanelH, setTopPanelH] = useState("50%");
+  const [dragging, setDragging] = useState(false);
+  const dragStartY = useRef(0);
+  const dragStartH = useRef(0);
+
+  const MIN_PANEL = 80; // px minimum for each panel
+
+  const onDividerDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const col = newsColRef.current;
+    if (!col) return;
+    const topPanel = col.querySelector(".hot-news-panel--top") as HTMLElement;
+    if (!topPanel) return;
+    dragStartY.current = e.clientY;
+    dragStartH.current = topPanel.offsetHeight;
+    setDragging(true);
+  }, []);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      const col = newsColRef.current;
+      if (!col) return;
+      const colH = col.offsetHeight - 6; // subtract divider height
+      const delta = e.clientY - dragStartY.current;
+      const newH = Math.max(MIN_PANEL, Math.min(colH - MIN_PANEL, dragStartH.current + delta));
+      setTopPanelH(`${newH}px`);
+    };
+    const onUp = () => setDragging(false);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, [dragging]);
+
   const SETTINGS_CONFIG = [
     { key: "lookbackDays", label: "lookback", unit: "d", default: 5,
       options: [1, 2, 3, 5, 7, 10, 14, 21, 30],
@@ -341,12 +380,14 @@ export function HotRightNowPage() {
       return;
     }
     setNewsLoading(true);
-    const year = new Date().getFullYear();
+    const now = new Date();
+    const from14 = new Date(now);
+    from14.setDate(from14.getDate() - 30);
     const qs = new URLSearchParams({
       city: selected.city,
       country: selected.countryCode,
-      from: `${year}-01-01`,
-      to: new Date().toISOString().slice(0, 10),
+      from: from14.toISOString().slice(0, 10),
+      to: now.toISOString().slice(0, 10),
     });
     if (selected.zoneName) qs.set("zone", selected.zoneName);
     fetch(`/api/news?${qs}`)
@@ -561,73 +602,86 @@ export function HotRightNowPage() {
           )}
         </div>
 
-        <div className="hot-news-col">
-          <div className="hot-list-title hot-list-title--news">
-            SafeNow News
-          </div>
-          {safenowLoading ? (
-            <div className="hot-empty-col">Loading…</div>
-          ) : safenowNews.length === 0 ? (
-            <div className="hot-empty-col">No SafeNow news found</div>
-          ) : (
-            <div className="hot-list">
-              {safenowNews.map((a, i) => (
-                <a
-                  key={`sn-${i}`}
-                  className="hot-card hot-card--news hot-card--safenow"
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="hot-card-info">
-                    <div className="hot-news-title">{a.title}</div>
-                    <div className="hot-news-meta">
-                      <span className="hot-news-source">{a.source}</span>
-                      {a.dateTime && (
-                        <span className="hot-news-date">
-                          {new Date(a.dateTime).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </a>
-              ))}
+        <div className="hot-news-col" ref={newsColRef}>
+          <div
+            className="hot-news-panel hot-news-panel--top"
+            style={{ height: topPanelH }}
+          >
+            <div className="hot-list-title hot-list-title--news">
+              SafeNow News
             </div>
-          )}
-          <div className="hot-list-title hot-list-title--news" style={{ marginTop: "1rem" }}>
-            Regional News {selected && <span className="hot-news-city">{selected.city}</span>}
-          </div>
-          {!selected ? (
-            <div className="hot-empty-col">Select a hotspot to see regional news</div>
-          ) : newsLoading ? (
-            <div className="hot-empty-col">Loading…</div>
-          ) : news.length === 0 ? (
-            <div className="hot-empty-col">No news found for {selected.city}</div>
-          ) : (
-            <div className="hot-list">
-              {news.map((a, i) => (
-                <a
-                  key={`rn-${i}`}
-                  className={`hot-card hot-card--news${a.title.toLowerCase().includes("safenow") ? " hot-card--safenow" : ""}`}
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="hot-card-info">
-                    <div className="hot-news-title">{a.title}</div>
-                    <div className="hot-news-meta">
-                      <span className="hot-news-source">{a.source}</span>
-                      {a.dateTime && (
-                        <span className="hot-news-date">
-                          {new Date(a.dateTime).toLocaleDateString()}
-                        </span>
-                      )}
+            {safenowLoading ? (
+              <div className="hot-empty-col">Loading…</div>
+            ) : safenowNews.length === 0 ? (
+              <div className="hot-empty-col">No SafeNow news found</div>
+            ) : (
+              <div className="hot-list">
+                {safenowNews.map((a, i) => (
+                  <a
+                    key={`sn-${i}`}
+                    className="hot-card hot-card--news hot-card--safenow"
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <div className="hot-card-info">
+                      <div className="hot-news-title">{a.title}</div>
+                      <div className="hot-news-meta">
+                        <span className="hot-news-source">{a.source}</span>
+                        {a.dateTime && (
+                          <span className="hot-news-date">
+                            {new Date(a.dateTime).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </a>
-              ))}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div
+            className={`hot-news-divider${dragging ? " hot-news-divider--active" : ""}`}
+            onMouseDown={onDividerDown}
+          />
+
+          <div className="hot-news-panel hot-news-panel--bottom">
+            <div className="hot-list-title hot-list-title--news">
+              Regional News {selected && <span className="hot-news-city">{selected.city}</span>}
             </div>
-          )}
+            {!selected ? (
+              <div className="hot-empty-col">Select a hotspot to see regional news</div>
+            ) : newsLoading ? (
+              <div className="hot-empty-col">Loading…</div>
+            ) : news.length === 0 ? (
+              <div className="hot-empty-col">No news found for {selected.city}</div>
+            ) : (
+              <div className="hot-list">
+                {news.map((a, i) => (
+                  <a
+                    key={`rn-${i}`}
+                    className={`hot-card hot-card--news${a.title.toLowerCase().includes("safenow") ? " hot-card--safenow" : ""}`}
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <div className="hot-card-info">
+                      <div className="hot-news-title">{a.title}</div>
+                      <div className="hot-news-meta">
+                        <span className="hot-news-source">{a.source}</span>
+                        {a.dateTime && (
+                          <span className="hot-news-date">
+                            {new Date(a.dateTime).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
