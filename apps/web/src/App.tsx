@@ -56,10 +56,15 @@ export function App() {
           <button className="enter-btn" onClick={() => navigate("/map")}>
             ENTER
           </button>
-          <button className="live-btn" onClick={() => navigate("/live")}>
-            <span className="live-dot" />
-            LIVE
-          </button>
+          <div className="splash-actions-secondary">
+            <button className="live-btn" onClick={() => navigate("/live")}>
+              <span className="live-dot" />
+              LIVE
+            </button>
+            <button className="hot-btn" onClick={() => navigate("/hot-right-now")}>
+              HOT RIGHT NOW
+            </button>
+          </div>
         </div>
       </div>
 

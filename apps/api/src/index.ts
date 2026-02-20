@@ -6,6 +6,7 @@ import { syncRouter } from "./routes/sync.js";
 import { eventsRouter } from "./routes/events.js";
 import { zonesRouter } from "./routes/zones.js";
 import { featureRequestsRouter } from "./routes/feature-requests.js";
+import { hotspotsRouter } from "./routes/hotspots.js";
 import { startCronSync } from "./sync/cron.js";
 import { loadCache } from "./cache.js";
 
@@ -29,6 +30,7 @@ app.use("/api", syncRouter);
 app.use("/api", eventsRouter);
 app.use("/api", zonesRouter);
 app.use("/api", featureRequestsRouter);
+app.use("/api", hotspotsRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
