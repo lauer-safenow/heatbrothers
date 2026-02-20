@@ -8,7 +8,7 @@ const ALARM_TYPES = [
   "DETAILED_ALARM_STARTED_PRIVATE_GROUP",
   "DETAILED_ALARM_STARTED_ZONE",
 ];
-const EDGE_DISTANCE_KM = 50;
+const EDGE_DISTANCE_KM = 5;
 const DEFAULT_LIMIT = 10;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -43,18 +43,24 @@ interface HotspotEntry {
   countryCode: string;
   timestamp: number;
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat]
+  nodes: [number, number][]; // [lng, lat]
+  edges: [number, number, number, number][]; // [srcLng, srcLat, dstLng, dstLat]
 }
 
-const LOOKBACK_DAYS = 1;
+const LOOKBACK_DAYS = 10;
+
+const DACH_NO_DE = new Set(["AT", "CH"]);
 
 interface HotspotResult {
   from: string;
   to: string;
   totalAlarms: number;
   countDE: number;
-  countNonDE: number;
-  hotspots: HotspotEntry[];
+  countDACH: number;
+  countWorld: number;
   hotspotsDE: HotspotEntry[];
+  hotspotsDACH: HotspotEntry[];
+  hotspotsWorld: HotspotEntry[];
 }
 
 /** Run graph + greedy extraction on a set of alarms, return up to maxResults hotspots. */
@@ -62,7 +68,7 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
   if (events.length === 0) return [];
 
   // Spatial grid (~50km cells)
-  const CELL_SIZE = 0.45;
+  const CELL_SIZE = 0.045;
   const grid = new Map<string, number[]>();
   for (let i = 0; i < events.length; i++) {
     const key = `${Math.floor(events[i].latitude / CELL_SIZE)},${Math.floor(events[i].longitude / CELL_SIZE)}`;
@@ -95,7 +101,7 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
     }
   }
 
-  // Greedy cluster extraction
+  // BFS connected-component extraction
   const consumed = new Set<number>();
   const candidates = Array.from({ length: events.length }, (_, i) => i)
     .filter((i) => degree[i] > 0)
@@ -104,18 +110,30 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
   const result: HotspotEntry[] = [];
   for (const i of candidates) {
     if (consumed.has(i)) continue;
-    // Collect cluster members (this node + its neighbors)
-    const cluster = [i, ...adj[i]];
+    // BFS to find entire connected component
+    const component: number[] = [];
+    const queue = [i];
+    consumed.add(i);
+    while (queue.length > 0) {
+      const cur = queue.pop()!;
+      component.push(cur);
+      for (const n of adj[cur]) {
+        if (!consumed.has(n)) {
+          consumed.add(n);
+          queue.push(n);
+        }
+      }
+    }
+    // Bbox from all nodes in the component
     let minLat = events[i].latitude, maxLat = minLat;
     let minLng = events[i].longitude, maxLng = minLng;
-    for (const n of adj[i]) {
+    for (const n of component) {
       const { latitude, longitude } = events[n];
       if (latitude < minLat) minLat = latitude;
       if (latitude > maxLat) maxLat = latitude;
       if (longitude < minLng) minLng = longitude;
       if (longitude > maxLng) maxLng = longitude;
     }
-    // Ensure bbox has a minimum visible size (~10km padding)
     const MIN_PAD = 0.1;
     if (maxLat - minLat < MIN_PAD) {
       const midLat = (minLat + maxLat) / 2;
@@ -127,22 +145,35 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
       minLng = midLng - MIN_PAD / 2;
       maxLng = midLng + MIN_PAD / 2;
     }
+    // Collect node positions and edges for visualization
+    const nodes: [number, number][] = component.map(n => [events[n].longitude, events[n].latitude]);
+    const edges: [number, number, number, number][] = [];
+    for (const n of component) {
+      for (const m of adj[n]) {
+        if (m > n) {
+          edges.push([events[n].longitude, events[n].latitude, events[m].longitude, events[m].latitude]);
+        }
+      }
+    }
     const [city, countryCode] = geocode(events[i].latitude, events[i].longitude);
     result.push({
-      rank: result.length + 1,
+      rank: 0,
       lat: events[i].latitude,
       lng: events[i].longitude,
-      degree: degree[i],
+      degree: component.length,
       city,
       countryCode,
       timestamp: events[i].timestamp,
       bbox: [minLng, minLat, maxLng, maxLat],
+      nodes,
+      edges,
     });
-    consumed.add(i);
-    for (const n of cluster) consumed.add(n);
-    if (result.length >= maxResults) break;
   }
-  return result;
+  // Sort by component size descending, assign ranks, return top N
+  result.sort((a, b) => b.degree - a.degree);
+  const top = result.slice(0, maxResults);
+  for (let r = 0; r < top.length; r++) top[r].rank = r + 1;
+  return top;
 }
 
 let cached: { result: HotspotResult; expiresAt: number; cacheKey: string } | null = null;
@@ -164,8 +195,9 @@ hotspotsRouter.get("/hotspots", (req, res) => {
   if (cached && cached.cacheKey === cacheKey && Date.now() < cached.expiresAt) {
     res.json({
       ...cached.result,
-      hotspots: cached.result.hotspots.slice(0, limit),
       hotspotsDE: cached.result.hotspotsDE.slice(0, limit),
+      hotspotsDACH: cached.result.hotspotsDACH.slice(0, limit),
+      hotspotsWorld: cached.result.hotspotsWorld.slice(0, limit),
     });
     return;
   }
@@ -186,33 +218,39 @@ hotspotsRouter.get("/hotspots", (req, res) => {
   }
   const totalAlarms = allAlarms.length;
 
-  // 2. Split into DE and non-DE
-  const nonDE: CachedEvent[] = [];
+  // 2. Split into DE, DACH (AT+CH), and World
   const deOnly: CachedEvent[] = [];
+  const dachOnly: CachedEvent[] = [];
+  const world: CachedEvent[] = [];
   for (const alarm of allAlarms) {
     const [, cc] = geocode(alarm.latitude, alarm.longitude);
     if (cc === "DE") deOnly.push(alarm);
-    else nonDE.push(alarm);
+    else if (DACH_NO_DE.has(cc)) dachOnly.push(alarm);
+    else world.push(alarm);
   }
 
-  // 3. Run graph extraction on both sets
-  const hotspots = extractHotspots(nonDE, 20);
+  // 3. Run graph extraction on all three sets
   const hotspotsDE = extractHotspots(deOnly, 20);
+  const hotspotsDACH = extractHotspots(dachOnly, 20);
+  const hotspotsWorld = extractHotspots(world, 20);
 
   const result: HotspotResult = {
     from: fromKey,
     to: toKey,
     totalAlarms,
     countDE: deOnly.length,
-    countNonDE: nonDE.length,
-    hotspots,
+    countDACH: dachOnly.length,
+    countWorld: world.length,
     hotspotsDE,
+    hotspotsDACH,
+    hotspotsWorld,
   };
 
   cached = { result, expiresAt: Date.now() + CACHE_TTL_MS, cacheKey };
   res.json({
     ...result,
-    hotspots: hotspots.slice(0, limit),
     hotspotsDE: hotspotsDE.slice(0, limit),
+    hotspotsDACH: hotspotsDACH.slice(0, limit),
+    hotspotsWorld: hotspotsWorld.slice(0, limit),
   });
 });

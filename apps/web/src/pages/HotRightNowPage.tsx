@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import { PolygonLayer, TextLayer } from "deck.gl";
+import { LineLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "deck.gl";
 import "./HotRightNowPage.css";
 
 interface Hotspot {
@@ -15,6 +15,8 @@ interface Hotspot {
   countryCode: string;
   timestamp: number;
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat]
+  nodes: [number, number][];
+  edges: [number, number, number, number][];
 }
 
 interface HotspotResponse {
@@ -22,9 +24,11 @@ interface HotspotResponse {
   to: string;
   totalAlarms: number;
   countDE: number;
-  countNonDE: number;
-  hotspots: Hotspot[];
+  countDACH: number;
+  countWorld: number;
   hotspotsDE: Hotspot[];
+  hotspotsDACH: Hotspot[];
+  hotspotsWorld: Hotspot[];
 }
 
 function countryFlag(code: string): string {
@@ -45,6 +49,7 @@ export function HotRightNowPage() {
 
   const [data, setData] = useState<HotspotResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Hotspot | null>(null);
 
   // Fetch hotspot data
   useEffect(() => {
@@ -88,10 +93,8 @@ export function HotRightNowPage() {
     const map = mapRef.current;
     if (!overlay || !map || !data) return;
 
-    const all = [...data.hotspots, ...data.hotspotsDE];
+    const all = [...data.hotspotsWorld, ...data.hotspotsDACH, ...data.hotspotsDE];
     if (all.length === 0) return;
-
-    const maxDegree = Math.max(...all.map((h) => h.degree), 1);
 
     const bboxToPolygon = (b: [number, number, number, number]) => [
       [b[0], b[1]],
@@ -101,29 +104,79 @@ export function HotRightNowPage() {
       [b[0], b[1]],
     ];
 
+    // Determine color for selected hotspot
+    const selNodes = selected ? selected.nodes : [];
+    const selEdges = selected ? selected.edges : [];
+    const isWorld = selected && data.hotspotsWorld.includes(selected);
+    const isDach = selected && data.hotspotsDACH.includes(selected);
+    const selColor: [number, number, number, number] = isWorld
+      ? [255, 136, 0, 200]
+      : isDach
+        ? [68, 204, 119, 200]
+        : [68, 153, 255, 200];
+    const selEdgeColor: [number, number, number, number] = isWorld
+      ? [255, 136, 0, 100]
+      : isDach
+        ? [68, 204, 119, 100]
+        : [68, 153, 255, 100];
+
     overlay.setProps({
       layers: [
-        // World bounding boxes (orange/red)
+        // ── Edges + Nodes for selected hotspot only ──
+        new LineLayer({
+          id: "edges-selected",
+          data: selEdges,
+          getSourcePosition: (d) => [d[0], d[1]],
+          getTargetPosition: (d) => [d[2], d[3]],
+          getColor: selEdgeColor,
+          getWidth: 1,
+          widthMinPixels: 1,
+        }),
+        new ScatterplotLayer({
+          id: "nodes-selected",
+          data: selNodes,
+          getPosition: (d) => d,
+          getFillColor: selColor,
+          getRadius: 150,
+          radiusMinPixels: 2,
+          radiusMaxPixels: 5,
+        }),
+        // ── Bounding boxes ──
         new PolygonLayer<Hotspot>({
           id: "bbox-world",
-          data: data.hotspots,
+          data: data.hotspotsWorld,
           getPolygon: (d) => bboxToPolygon(d.bbox),
-          getFillColor: (d) => {
-            const t = d.degree / maxDegree;
-            return [255, Math.round(136 - t * 80), 0, Math.round(40 + t * 40)];
-          },
-          getLineColor: (d) => {
-            const t = d.degree / maxDegree;
-            return [255, Math.round(136 - t * 80), 0, Math.round(160 + t * 80)];
-          },
-          lineWidthMinPixels: 2,
+          getFillColor: [255, 136, 0, 15],
+          getLineColor: [255, 136, 0, 120],
+          lineWidthMinPixels: 1,
           stroked: true,
           filled: true,
-          pickable: true,
         }),
+        new PolygonLayer<Hotspot>({
+          id: "bbox-dach",
+          data: data.hotspotsDACH,
+          getPolygon: (d) => bboxToPolygon(d.bbox),
+          getFillColor: [68, 204, 119, 15],
+          getLineColor: [68, 204, 119, 120],
+          lineWidthMinPixels: 1,
+          stroked: true,
+          filled: true,
+        }),
+        new PolygonLayer<Hotspot>({
+          id: "bbox-de",
+          data: data.hotspotsDE,
+          getPolygon: (d) => bboxToPolygon(d.bbox),
+          getFillColor: [68, 153, 255, 15],
+          getLineColor: [68, 153, 255, 120],
+          lineWidthMinPixels: 1,
+          stroked: true,
+          filled: true,
+        }),
+        // ── Labels (top layer) ──
         new TextLayer<Hotspot>({
           id: "labels-world",
-          data: data.hotspots,
+          data: data.hotspotsWorld,
+          characterSet: "auto",
           getPosition: (d) => [d.lng, d.lat],
           getText: (d) => `#${d.rank} ${d.city}`,
           getSize: 14,
@@ -135,27 +188,25 @@ export function HotRightNowPage() {
           outlineColor: [0, 0, 0, 200],
           billboard: true,
         }),
-        // Germany bounding boxes (blue)
-        new PolygonLayer<Hotspot>({
-          id: "bbox-de",
-          data: data.hotspotsDE,
-          getPolygon: (d) => bboxToPolygon(d.bbox),
-          getFillColor: (d) => {
-            const t = d.degree / maxDegree;
-            return [0, Math.round(120 + t * 80), 255, Math.round(40 + t * 40)];
-          },
-          getLineColor: (d) => {
-            const t = d.degree / maxDegree;
-            return [0, Math.round(120 + t * 80), 255, Math.round(160 + t * 80)];
-          },
-          lineWidthMinPixels: 2,
-          stroked: true,
-          filled: true,
-          pickable: true,
+        new TextLayer<Hotspot>({
+          id: "labels-dach",
+          data: data.hotspotsDACH,
+          characterSet: "auto",
+          getPosition: (d) => [d.lng, d.lat],
+          getText: (d) => `#${d.rank} ${d.city}`,
+          getSize: 14,
+          getColor: [180, 255, 200, 220],
+          getPixelOffset: [0, -24],
+          fontFamily: "Arial",
+          fontWeight: "bold",
+          outlineWidth: 3,
+          outlineColor: [0, 0, 0, 200],
+          billboard: true,
         }),
         new TextLayer<Hotspot>({
           id: "labels-de",
           data: data.hotspotsDE,
+          characterSet: "auto",
           getPosition: (d) => [d.lng, d.lat],
           getText: (d) => `#${d.rank} ${d.city}`,
           getSize: 14,
@@ -170,7 +221,14 @@ export function HotRightNowPage() {
       ],
     });
 
-    // Fit bounds to show all hotspots
+  }, [data, selected]);
+
+  // Fit bounds once on initial data load
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    const all = [...data.hotspotsWorld, ...data.hotspotsDACH, ...data.hotspotsDE];
+    if (all.length === 0) return;
     if (all.length === 1) {
       map.flyTo({ center: [all[0].lng, all[0].lat], zoom: 8 });
     } else {
@@ -181,6 +239,7 @@ export function HotRightNowPage() {
   }, [data]);
 
   const flyTo = useCallback((h: Hotspot) => {
+    setSelected((prev) => (prev === h ? null : h));
     mapRef.current?.flyTo({ center: [h.lng, h.lat], zoom: 10, duration: 1200 });
   }, []);
 
@@ -209,24 +268,27 @@ export function HotRightNowPage() {
             Germany: <span className="hot-meta-val">{data.countDE.toLocaleString()}</span>
           </span>
           <span>
-            World: <span className="hot-meta-val">{data.countNonDE.toLocaleString()}</span>
+            (D)ACH: <span className="hot-meta-val">{data.countDACH.toLocaleString()}</span>
+          </span>
+          <span>
+            World: <span className="hot-meta-val">{data.countWorld.toLocaleString()}</span>
           </span>
         </div>
       )}
 
       {loading ? (
         <div className="hot-loading">Loading hotspot data...</div>
-      ) : !data || (data.hotspots.length === 0 && data.hotspotsDE.length === 0) ? (
-        <div className="hot-empty">No hotspots found for yesterday.</div>
+      ) : !data || (data.hotspotsWorld.length === 0 && data.hotspotsDACH.length === 0 && data.hotspotsDE.length === 0) ? (
+        <div className="hot-empty">No hotspots found.</div>
       ) : (
         <div className="hot-lists">
           <div className="hot-list-col">
             <div className="hot-list-title hot-list-title--world">World</div>
-            {data.hotspots.length === 0 ? (
+            {data.hotspotsWorld.length === 0 ? (
               <div className="hot-empty-col">No hotspots</div>
             ) : (
               <div className="hot-list">
-                {data.hotspots.map((h) => (
+                {data.hotspotsWorld.map((h) => (
                   <div key={h.rank} className="hot-card" onClick={() => flyTo(h)}>
                     <div className="hot-rank">{h.rank}</div>
                     <div className="hot-card-info">
@@ -236,6 +298,30 @@ export function HotRightNowPage() {
                       <div className="hot-country">{h.countryCode}</div>
                     </div>
                     <div className="hot-degree">
+                      {h.degree}
+                      <span className="hot-degree-label">nearby alarms</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="hot-list-col">
+            <div className="hot-list-title hot-list-title--dach">(D)ACH</div>
+            {data.hotspotsDACH.length === 0 ? (
+              <div className="hot-empty-col">No hotspots</div>
+            ) : (
+              <div className="hot-list">
+                {data.hotspotsDACH.map((h) => (
+                  <div key={h.rank} className="hot-card hot-card--dach" onClick={() => flyTo(h)}>
+                    <div className="hot-rank hot-rank--dach">{h.rank}</div>
+                    <div className="hot-card-info">
+                      <div className="hot-city">
+                        {countryFlag(h.countryCode)} {h.city}
+                      </div>
+                      <div className="hot-country">{h.countryCode}</div>
+                    </div>
+                    <div className="hot-degree hot-degree--dach">
                       {h.degree}
                       <span className="hot-degree-label">nearby alarms</span>
                     </div>

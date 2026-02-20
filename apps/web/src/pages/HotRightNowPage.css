@@ -88,7 +88,7 @@
   font-weight: bold;
 }
 
-/* ── two-column layout ── */
+/* ── three-column layout ── */
 .hot-lists {
   flex: 1;
   display: flex;
@@ -116,6 +116,10 @@
 
 .hot-list-title--world {
   color: #ff8800;
+}
+
+.hot-list-title--dach {
+  color: #44cc77;
 }
 
 .hot-list-title--de {
@@ -203,6 +207,22 @@
   font-weight: normal;
   display: block;
   text-align: right;
+}
+
+/* ── DACH card variants (green) ── */
+.hot-card--dach:hover {
+  border-color: rgba(68, 204, 119, 0.4);
+}
+
+.hot-rank--dach {
+  background: linear-gradient(180deg, #99ffbb 0%, #44cc77 60%, #228844 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hot-degree--dach {
+  color: #44cc77;
 }
 
 /* ── DE card variants (blue) ── */
