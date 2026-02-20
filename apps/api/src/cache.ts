@@ -5,12 +5,14 @@ export interface CachedEvent {
   latitude: number;
   longitude: number;
   timestamp: number;
+  pssId: string | null;
+  pssName: string | null;
 }
 
 const eventCache = new Map<string, CachedEvent[]>();
 let maxId = 0;
 
-const SELECT_COLS = `id, event_type, latitude, longitude, timestamp`;
+const SELECT_COLS = `id, event_type, latitude, longitude, timestamp, pss_id, pss_name`;
 
 interface EventRow {
   id: number;
@@ -18,6 +20,8 @@ interface EventRow {
   latitude: number;
   longitude: number;
   timestamp: number;
+  pss_id: string | null;
+  pss_name: string | null;
 }
 
 function rowToCached(row: EventRow): CachedEvent {
@@ -26,6 +30,8 @@ function rowToCached(row: EventRow): CachedEvent {
     latitude: row.latitude,
     longitude: row.longitude,
     timestamp: row.timestamp,
+    pssId: row.pss_id,
+    pssName: row.pss_name,
   };
 }
 

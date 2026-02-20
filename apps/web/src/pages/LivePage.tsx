@@ -207,9 +207,11 @@ export function LivePage() {
   const initPoly = useRef<LngLat[] | null>(parsePolyParam(searchParams.get("poly")));
 
   // Auto-fly / free-move toggle
+  const initEtype = useRef<string | null>(searchParams.get("etype"));
   const initFlyMode = useRef<"auto" | "free">(searchParams.get("fly") === "free" ? "free" : "auto");
   const [flyMode, setFlyMode] = useState<"auto" | "free">(initFlyMode.current);
   const flyModeRef = useRef<"auto" | "free">(initFlyMode.current);
+  const etypeRef = useRef<string | null>(initEtype.current);
 
   // mode state
   const [todayMode, setTodayMode] = useState(false);
@@ -311,6 +313,7 @@ export function LivePage() {
           .join(",");
       }
       params.fly = flyModeRef.current;
+      if (etypeRef.current) params.etype = etypeRef.current;
       setSearchParams(params, { replace: true });
     } else {
       const params: Record<string, string> = { fly: flyModeRef.current };
@@ -441,10 +444,11 @@ export function LivePage() {
     raf.current = requestAnimationFrame(spin);
 
     // If URL says replay with from/to, auto-play; otherwise start live
-    if (autoPlay.current) {
+    // When zoneid is present, defer autoplay until zone is loaded
+    if (autoPlay.current && !initZoneId.current) {
       autoPlay.current = false;
       startReplay();
-    } else {
+    } else if (!autoPlay.current) {
       lastSeenTs.current = Math.floor(Date.now() / 1000) - 10 * 60;
       fetchNewEvents();
     }
@@ -494,6 +498,11 @@ export function LivePage() {
             selectedZoneRef.current = found;
           }
           initZoneId.current = null;
+          // Deferred autoplay: zone is now loaded, trigger replay
+          if (autoPlay.current) {
+            autoPlay.current = false;
+            setTimeout(() => startReplay(), 0);
+          }
         }
       })
       .catch((err) => console.warn("Zones fetch failed:", err));
@@ -815,8 +824,12 @@ export function LivePage() {
       return;
     }
 
+    // Stop idle spin immediately so fitBounds animation isn't overwritten
+    idleSpin.current = false;
+
     // Snapshot zone and polygon at play-time so closures have stable references
-    const zone = selectedZone;
+    // Prefer ref over state — ref may already be set by initZoneId before React re-renders
+    const zone = selectedZoneRef.current ?? selectedZone;
     selectedZoneRef.current = zone;
     const poly = polyVerticesRef.current;
     const polyComplete = drawingStateRef.current === "complete" && poly.length >= 3;
@@ -835,10 +848,17 @@ export function LivePage() {
     }
 
     try {
-      const eventType = zone ? ZONE_EVENT_TYPE : LIVE_EVENT_TYPE;
-      const res = await fetch(
-        `/api/events/${encodeURIComponent(eventType)}/between/${fromEpoch}/${toEpoch}`,
-      );
+      const eventType = etypeRef.current || (zone ? ZONE_EVENT_TYPE : LIVE_EVENT_TYPE);
+      let fetchUrl = `/api/events/${encodeURIComponent(eventType)}/between/${fromEpoch}/${toEpoch}`;
+      // Pass bounding box to server so it filters before the cap
+      if (zone) {
+        const [[minLng, minLat], [maxLng, maxLat]] = computePolygonBounds(zone.polygon);
+        fetchUrl += `?bbox=${minLng},${minLat},${maxLng},${maxLat}`;
+      } else if (polyComplete) {
+        const [[minLng, minLat], [maxLng, maxLat]] = computePolygonBounds(poly);
+        fetchUrl += `?bbox=${minLng},${minLat},${maxLng},${maxLat}`;
+      }
+      const res = await fetch(fetchUrl);
       if (!res.ok) { setReplayInfo("Fetch failed"); return; }
       const data = await res.json();
       let events: EventTuple[] = data.events;
@@ -1057,10 +1077,17 @@ export function LivePage() {
     if (!event || !map.current) return;
 
     const [lng, lat] = event;
-    if (mapViewRef.current === "2d") {
-      map.current.panTo([lng, lat]);
-    } else {
-      map.current.jumpTo({ center: [lng, lat], zoom: 6 });
+    const isRegion = selectedZoneRef.current !== null ||
+      (drawingStateRef.current === "complete" && polyVerticesRef.current.length >= 3);
+    const isFreeMove = flyModeRef.current === "free";
+
+    // In zone/poly/free mode, don't move the map — just update the blink marker
+    if (!isRegion && !isFreeMove) {
+      if (mapViewRef.current === "2d") {
+        map.current.panTo([lng, lat]);
+      } else {
+        map.current.jumpTo({ center: [lng, lat], zoom: 6 });
+      }
     }
 
     // Show static blink marker + label (no fade-out animation)

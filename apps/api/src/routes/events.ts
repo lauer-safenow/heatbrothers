@@ -57,12 +57,27 @@ eventsRouter.get("/events/:type/between/:from/:to", (req, res) => {
   const all = getEventsByType(req.params.type);
   const start = lowerBound(all, "timestamp", from);
   const end = lowerBound(all, "timestamp", to + 1);
-  const range = all.slice(start, end);
-  const capped = range.length > REPLAY_MAX_EVENTS;
+  let range = all.slice(start, end);
+
+  // Optional bounding-box filter (minLng,minLat,maxLng,maxLat)
+  const bboxParam = req.query.bbox as string | undefined;
+  if (bboxParam) {
+    const parts = bboxParam.split(",").map(Number);
+    if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
+      const [minLng, minLat, maxLng, maxLat] = parts;
+      range = range.filter((e) =>
+        e.longitude >= minLng && e.longitude <= maxLng &&
+        e.latitude >= minLat && e.latitude <= maxLat,
+      );
+    }
+  }
+
+  const total = range.length;
+  const capped = total > REPLAY_MAX_EVENTS;
   const events = capped ? range.slice(0, REPLAY_MAX_EVENTS) : range;
   res.json({
     count: events.length,
-    total: range.length,
+    total,
     capped,
     events: events.map(eventTuple),
   });

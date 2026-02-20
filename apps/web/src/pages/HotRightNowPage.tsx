@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { LineLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "deck.gl";
+import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import "./HotRightNowPage.css";
 
 interface Hotspot {
@@ -17,6 +18,17 @@ interface Hotspot {
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat]
   nodes: [number, number][];
   edges: [number, number, number, number][];
+  zoneName?: string;
+  zoneId?: string;
+  zonePolygon?: number[][];
+}
+
+interface NewsArticle {
+  title: string;
+  url: string;
+  source: string;
+  dateTime: string;
+  hot?: boolean;
 }
 
 interface HotspotResponse {
@@ -41,13 +53,16 @@ function countryFlag(code: string): string {
   );
 }
 
-function replayUrl(h: Hotspot, from: string, to: string): string {
+function replayUrl(h: Hotspot, from: string, to: string, etype: string): string {
+  if (h.zoneId) {
+    return `/live?mode=replay&from=${from}T00:00&to=${to}T23:59&zoneid=${h.zoneId}&fly=auto&etype=${encodeURIComponent(etype)}`;
+  }
   const [minLng, minLat, maxLng, maxLat] = h.bbox;
   const poly = [
     minLng, minLat, maxLng, minLat,
     maxLng, maxLat, minLng, maxLat,
   ].map((n) => n.toFixed(4)).join(",");
-  return `/live?mode=replay&from=${from}T00:00&to=${to}T23:59&poly=${poly}&fly=free`;
+  return `/live?mode=replay&from=${from}T00:00&to=${to}T23:59&poly=${poly}&fly=auto&etype=${encodeURIComponent(etype)}`;
 }
 
 export function HotRightNowPage() {
@@ -59,16 +74,71 @@ export function HotRightNowPage() {
   const [data, setData] = useState<HotspotResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Hotspot | null>(null);
+  const [news, setNews] = useState<NewsArticle[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [safenowNews, setSafenowNews] = useState<NewsArticle[]>([]);
+  const [safenowLoading, setSafenowLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [editing, setEditing] = useState(false);
+  const alarmType = (searchParams.get("type") === ZONE_EVENT_TYPE ? ZONE_EVENT_TYPE : LIVE_EVENT_TYPE) as string;
 
-  // Fetch hotspot data
+  const SETTINGS_CONFIG = [
+    { key: "lookbackDays", label: "lookback", unit: "d", default: 5,
+      options: [1, 2, 3, 5, 7, 10, 14, 21, 30],
+      tip: "How many days back to scan for alarm events" },
+    { key: "epsKm", label: "eps", unit: "km", default: 3,
+      options: [0.5, 1, 1.5, 2, 3, 5, 8, 10, 15, 20, 30, 50],
+      tip: "Spatial radius — two alarms must be within this distance to be neighbors" },
+    { key: "epsHours", label: "epsT", unit: "h", default: 2,
+      options: [0.5, 1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 120],
+      tip: "Temporal radius — two alarms must happen within this time of each other to be neighbors" },
+    { key: "minPts", label: "minPts", unit: "", default: 3,
+      options: [2, 3, 4, 5, 6, 8, 10, 15, 20],
+      tip: "Minimum neighbors (incl. self) for a point to be a cluster core" },
+    { key: "limit", label: "limit", unit: "", default: 10,
+      options: [1, 2, 3, 5, 10, 15, 20],
+      tip: "Maximum hotspots to show per region" },
+  ] as const;
+
+  // Read current values from URL (or defaults)
+  const getVal = (key: string, def: number) => {
+    const v = searchParams.get(key);
+    return v != null ? parseFloat(v) : def;
+  };
+  const [draft, setDraft] = useState(() =>
+    Object.fromEntries(SETTINGS_CONFIG.map((s) => [s.key, getVal(s.key, s.default)])),
+  );
+
+  // Fetch hotspot data from URL search params
   useEffect(() => {
     setLoading(true);
-    fetch("/api/hotspots")
+    setSelected(null);
+    const qs = new URLSearchParams(searchParams);
+    if (!qs.has("type")) qs.set("type", LIVE_EVENT_TYPE);
+    fetch(`/api/hotspots?${qs.toString()}`)
       .then((r) => r.json())
       .then((d: HotspotResponse) => setData(d))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [searchParams]);
+
+  const setAlarmType = (t: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (t === LIVE_EVENT_TYPE) next.delete("type");
+    else next.set("type", t);
+    setSearchParams(next);
+  };
+
+  const applySettings = () => {
+    const next = new URLSearchParams();
+    if (alarmType !== LIVE_EVENT_TYPE) next.set("type", alarmType);
+    for (const s of SETTINGS_CONFIG) {
+      const v = draft[s.key];
+      if (v !== s.default) next.set(s.key, String(v));
+    }
+    setEditing(false);
+    setSearchParams(next);
+  };
 
   // Initialize map
   useEffect(() => {
@@ -154,7 +224,7 @@ export function HotRightNowPage() {
         new PolygonLayer<Hotspot>({
           id: "bbox-world",
           data: data.hotspotsWorld,
-          getPolygon: (d) => bboxToPolygon(d.bbox),
+          getPolygon: (d) => d.zonePolygon ? [...d.zonePolygon, d.zonePolygon[0]] : bboxToPolygon(d.bbox),
           getFillColor: [255, 136, 0, 15],
           getLineColor: [255, 136, 0, 120],
           lineWidthMinPixels: 1,
@@ -164,7 +234,7 @@ export function HotRightNowPage() {
         new PolygonLayer<Hotspot>({
           id: "bbox-dach",
           data: data.hotspotsDACH,
-          getPolygon: (d) => bboxToPolygon(d.bbox),
+          getPolygon: (d) => d.zonePolygon ? [...d.zonePolygon, d.zonePolygon[0]] : bboxToPolygon(d.bbox),
           getFillColor: [68, 204, 119, 15],
           getLineColor: [68, 204, 119, 120],
           lineWidthMinPixels: 1,
@@ -174,7 +244,7 @@ export function HotRightNowPage() {
         new PolygonLayer<Hotspot>({
           id: "bbox-de",
           data: data.hotspotsDE,
-          getPolygon: (d) => bboxToPolygon(d.bbox),
+          getPolygon: (d) => d.zonePolygon ? [...d.zonePolygon, d.zonePolygon[0]] : bboxToPolygon(d.bbox),
           getFillColor: [68, 153, 255, 15],
           getLineColor: [68, 153, 255, 120],
           lineWidthMinPixels: 1,
@@ -187,7 +257,7 @@ export function HotRightNowPage() {
           data: data.hotspotsWorld,
           characterSet: "auto",
           getPosition: (d) => [d.lng, d.lat],
-          getText: (d) => `#${d.rank} ${d.city}`,
+          getText: (d) => `#${d.rank} ${d.zoneName ?? d.city}`,
           getSize: 14,
           getColor: [255, 255, 255, 220],
           getPixelOffset: [0, -24],
@@ -202,7 +272,7 @@ export function HotRightNowPage() {
           data: data.hotspotsDACH,
           characterSet: "auto",
           getPosition: (d) => [d.lng, d.lat],
-          getText: (d) => `#${d.rank} ${d.city}`,
+          getText: (d) => `#${d.rank} ${d.zoneName ?? d.city}`,
           getSize: 14,
           getColor: [180, 255, 200, 220],
           getPixelOffset: [0, -24],
@@ -217,7 +287,7 @@ export function HotRightNowPage() {
           data: data.hotspotsDE,
           characterSet: "auto",
           getPosition: (d) => [d.lng, d.lat],
-          getText: (d) => `#${d.rank} ${d.city}`,
+          getText: (d) => `#${d.rank} ${d.zoneName ?? d.city}`,
           getSize: 14,
           getColor: [180, 220, 255, 220],
           getPixelOffset: [0, -24],
@@ -252,6 +322,40 @@ export function HotRightNowPage() {
     mapRef.current?.flyTo({ center: [h.lng, h.lat], zoom: 10, duration: 1200 });
   }, []);
 
+  // Fetch global SafeNow news once when hotspot data loads
+  useEffect(() => {
+    if (!data) return;
+    setSafenowLoading(true);
+    const qs = new URLSearchParams({ from: data.from, to: data.to });
+    fetch(`/api/news/safenow?${qs}`)
+      .then((r) => r.json())
+      .then((d) => setSafenowNews(d.articles || []))
+      .catch(() => setSafenowNews([]))
+      .finally(() => setSafenowLoading(false));
+  }, [data]);
+
+  // Fetch regional news when a hotspot is selected
+  useEffect(() => {
+    if (!selected || !data) {
+      setNews([]);
+      return;
+    }
+    setNewsLoading(true);
+    const year = new Date().getFullYear();
+    const qs = new URLSearchParams({
+      city: selected.city,
+      country: selected.countryCode,
+      from: `${year}-01-01`,
+      to: new Date().toISOString().slice(0, 10),
+    });
+    if (selected.zoneName) qs.set("zone", selected.zoneName);
+    fetch(`/api/news?${qs}`)
+      .then((r) => r.json())
+      .then((d) => setNews(d.articles || []))
+      .catch(() => setNews([]))
+      .finally(() => setNewsLoading(false));
+  }, [selected, data]);
+
   return (
     <div className="hot-page">
       <div className="hot-header">
@@ -259,139 +363,273 @@ export function HotRightNowPage() {
           Back
         </button>
         <span className="hot-title">HOT RIGHT NOW</span>
+        <div className="hot-type-toggle">
+          <button
+            className={`hot-type-btn${alarmType === LIVE_EVENT_TYPE ? " active" : ""}`}
+            onClick={() => setAlarmType(LIVE_EVENT_TYPE)}
+          >
+            Private
+          </button>
+          <button
+            className={`hot-type-btn${alarmType === ZONE_EVENT_TYPE ? " active" : ""}`}
+            onClick={() => setAlarmType(ZONE_EVENT_TYPE)}
+          >
+            Zone
+          </button>
+        </div>
         <span className="hot-subtitle">
           {data ? `${data.from} — ${data.to}` : "Loading..."}
         </span>
-      </div>
-
-      <div className="hot-map-wrap">
-        <div ref={mapContainer} className="hot-map-container" />
-      </div>
-
-      {data && (
-        <div className="hot-meta">
-          <span>
-            Total alarms: <span className="hot-meta-val">{data.totalAlarms.toLocaleString()}</span>
-          </span>
-          <span>
-            Germany: <span className="hot-meta-val">{data.countDE.toLocaleString()}</span>
-          </span>
-          <span>
-            (D)ACH: <span className="hot-meta-val">{data.countDACH.toLocaleString()}</span>
-          </span>
-          <span>
-            World: <span className="hot-meta-val">{data.countWorld.toLocaleString()}</span>
+        <div className="hot-settings">
+          {SETTINGS_CONFIG.map((s) => (
+            <span key={s.key} className="hot-setting" onClick={() => setEditing(true)}>
+              {editing ? (
+                <>
+                  {s.label}{" "}
+                  <select
+                    className="hot-setting-select"
+                    value={draft[s.key]}
+                    onChange={(e) => setDraft((d) => ({ ...d, [s.key]: parseFloat(e.target.value) }))}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {s.options.map((v) => (
+                      <option key={v} value={v}>{v}{s.unit}</option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>{s.label} <span className="hot-setting-val">{getVal(s.key, s.default)}{s.unit}</span></>
+              )}
+              <span className="hot-setting-tip">{s.tip}</span>
+            </span>
+          ))}
+          {editing && (
+            <>
+              <button className="hot-settings-apply" onClick={applySettings}>Apply</button>
+              <button className="hot-settings-cancel" onClick={() => { setEditing(false); setDraft(Object.fromEntries(SETTINGS_CONFIG.map((s) => [s.key, getVal(s.key, s.default)]))); }}>Cancel</button>
+            </>
+          )}
+          <span className="hot-what">
+            ?
+            <div className="hot-what-popup">
+              <strong>ST-DBSCAN</strong> (Spatiotemporal Density-Based Clustering)
+              <br /><br />
+              Scans the last <b>lookback</b> days of alarm events.
+              Two alarms are "neighbors" if they are within <b>eps</b> km
+              AND happened within <b>epsT</b> hours of each other.
+              <br /><br />
+              A cluster forms when a point has at least <b>minPts</b> neighbors.
+              Clusters grow by chaining: if A{"\u2192"}B{"\u2192"}C are each pairwise
+              neighbors, they all join the same cluster — even if A and C
+              are far apart. Isolated events are filtered as noise.
+              <br /><br />
+              <em>Result: dense spatiotemporal bursts of alarms = hotspots.</em>
+            </div>
           </span>
         </div>
-      )}
+      </div>
 
-      {loading ? (
-        <div className="hot-loading">Loading hotspot data...</div>
-      ) : !data || (data.hotspotsWorld.length === 0 && data.hotspotsDACH.length === 0 && data.hotspotsDE.length === 0) ? (
-        <div className="hot-empty">No hotspots found.</div>
-      ) : (
-        <div className="hot-lists">
-          <div className="hot-list-col">
-            <div className="hot-list-title hot-list-title--world">World</div>
-            {data.hotspotsWorld.length === 0 ? (
-              <div className="hot-empty-col">No hotspots</div>
-            ) : (
-              <div className="hot-list">
-                {data.hotspotsWorld.map((h) => (
-                  <div key={h.rank} className="hot-card" onClick={() => flyTo(h)}>
-                    <div className="hot-rank">{h.rank}</div>
-                    <div className="hot-card-info">
-                      <div className="hot-city">
-                        {countryFlag(h.countryCode)} {h.city}
-                      </div>
-                      <div className="hot-country">{h.countryCode}</div>
-                    </div>
-                    <div className="hot-degree">
-                      {h.degree}
-                      <span className="hot-degree-label">nearby alarms</span>
-                    </div>
-                    <a
-                      className="hot-replay-link"
-                      href={replayUrl(h, data.from, data.to)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      replay
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
+      <div className="hot-body">
+        <div className="hot-left">
+          <div className="hot-map-wrap">
+            <div ref={mapContainer} className="hot-map-container" />
           </div>
-          <div className="hot-list-col">
-            <div className="hot-list-title hot-list-title--dach">(D)ACH</div>
-            {data.hotspotsDACH.length === 0 ? (
-              <div className="hot-empty-col">No hotspots</div>
-            ) : (
-              <div className="hot-list">
-                {data.hotspotsDACH.map((h) => (
-                  <div key={h.rank} className="hot-card hot-card--dach" onClick={() => flyTo(h)}>
-                    <div className="hot-rank hot-rank--dach">{h.rank}</div>
-                    <div className="hot-card-info">
-                      <div className="hot-city">
-                        {countryFlag(h.countryCode)} {h.city}
+
+          {data && (
+            <div className="hot-meta">
+              <span>
+                Total alarms: <span className="hot-meta-val">{data.totalAlarms.toLocaleString()}</span>
+              </span>
+              <span>
+                Germany: <span className="hot-meta-val">{data.countDE.toLocaleString()}</span>
+              </span>
+              <span>
+                (D)ACH: <span className="hot-meta-val">{data.countDACH.toLocaleString()}</span>
+              </span>
+              <span>
+                World: <span className="hot-meta-val">{data.countWorld.toLocaleString()}</span>
+              </span>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="hot-loading">Loading hotspot data...</div>
+          ) : !data || (data.hotspotsWorld.length === 0 && data.hotspotsDACH.length === 0 && data.hotspotsDE.length === 0) ? (
+            <div className="hot-empty">No hotspots found.</div>
+          ) : (
+            <div className="hot-lists">
+              <div className="hot-list-col">
+                <div className="hot-list-title hot-list-title--world">World</div>
+                {data.hotspotsWorld.length === 0 ? (
+                  <div className="hot-empty-col">No hotspots</div>
+                ) : (
+                  <div className="hot-list">
+                    {data.hotspotsWorld.map((h) => (
+                      <div key={h.rank} className="hot-card" onClick={() => flyTo(h)}>
+                        <div className="hot-rank">{h.rank}</div>
+                        <div className="hot-card-info">
+                          <div className="hot-city">
+                            {h.zoneName ?? <>{countryFlag(h.countryCode)} {h.city}</>}
+                          </div>
+                          <div className="hot-country">{h.zoneName ? h.city : h.countryCode}</div>
+                        </div>
+                        <div className="hot-degree">
+                          {h.degree}
+                          <span className="hot-degree-label">nearby alarms</span>
+                        </div>
+                        <a
+                          className="hot-replay-link"
+                          href={replayUrl(h, data.from, data.to, alarmType)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          replay
+                        </a>
                       </div>
-                      <div className="hot-country">{h.countryCode}</div>
-                    </div>
-                    <div className="hot-degree hot-degree--dach">
-                      {h.degree}
-                      <span className="hot-degree-label">nearby alarms</span>
-                    </div>
-                    <a
-                      className="hot-replay-link hot-replay-link--dach"
-                      href={replayUrl(h, data.from, data.to)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      replay
-                    </a>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-          <div className="hot-list-col">
-            <div className="hot-list-title hot-list-title--de">Germany</div>
-            {data.hotspotsDE.length === 0 ? (
-              <div className="hot-empty-col">No hotspots</div>
-            ) : (
-              <div className="hot-list">
-                {data.hotspotsDE.map((h) => (
-                  <div key={h.rank} className="hot-card hot-card--de" onClick={() => flyTo(h)}>
-                    <div className="hot-rank hot-rank--de">{h.rank}</div>
-                    <div className="hot-card-info">
-                      <div className="hot-city">
-                        {countryFlag(h.countryCode)} {h.city}
+              <div className="hot-list-col">
+                <div className="hot-list-title hot-list-title--dach">(D)ACH</div>
+                {data.hotspotsDACH.length === 0 ? (
+                  <div className="hot-empty-col">No hotspots</div>
+                ) : (
+                  <div className="hot-list">
+                    {data.hotspotsDACH.map((h) => (
+                      <div key={h.rank} className="hot-card hot-card--dach" onClick={() => flyTo(h)}>
+                        <div className="hot-rank hot-rank--dach">{h.rank}</div>
+                        <div className="hot-card-info">
+                          <div className="hot-city">
+                            {h.zoneName ?? <>{countryFlag(h.countryCode)} {h.city}</>}
+                          </div>
+                          <div className="hot-country">{h.zoneName ? h.city : h.countryCode}</div>
+                        </div>
+                        <div className="hot-degree hot-degree--dach">
+                          {h.degree}
+                          <span className="hot-degree-label">nearby alarms</span>
+                        </div>
+                        <a
+                          className="hot-replay-link hot-replay-link--dach"
+                          href={replayUrl(h, data.from, data.to, alarmType)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          replay
+                        </a>
                       </div>
-                      <div className="hot-country">{h.countryCode}</div>
-                    </div>
-                    <div className="hot-degree hot-degree--de">
-                      {h.degree}
-                      <span className="hot-degree-label">nearby alarms</span>
-                    </div>
-                    <a
-                      className="hot-replay-link hot-replay-link--de"
-                      href={replayUrl(h, data.from, data.to)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      replay
-                    </a>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
+              <div className="hot-list-col">
+                <div className="hot-list-title hot-list-title--de">Germany</div>
+                {data.hotspotsDE.length === 0 ? (
+                  <div className="hot-empty-col">No hotspots</div>
+                ) : (
+                  <div className="hot-list">
+                    {data.hotspotsDE.map((h) => (
+                      <div key={h.rank} className="hot-card hot-card--de" onClick={() => flyTo(h)}>
+                        <div className="hot-rank hot-rank--de">{h.rank}</div>
+                        <div className="hot-card-info">
+                          <div className="hot-city">
+                            {h.zoneName ?? <>{countryFlag(h.countryCode)} {h.city}</>}
+                          </div>
+                          <div className="hot-country">{h.zoneName ? h.city : h.countryCode}</div>
+                        </div>
+                        <div className="hot-degree hot-degree--de">
+                          {h.degree}
+                          <span className="hot-degree-label">nearby alarms</span>
+                        </div>
+                        <a
+                          className="hot-replay-link hot-replay-link--de"
+                          href={replayUrl(h, data.from, data.to, alarmType)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          replay
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="hot-news-col">
+          <div className="hot-list-title hot-list-title--news">
+            SafeNow News
+          </div>
+          {safenowLoading ? (
+            <div className="hot-empty-col">Loading…</div>
+          ) : safenowNews.length === 0 ? (
+            <div className="hot-empty-col">No SafeNow news found</div>
+          ) : (
+            <div className="hot-list">
+              {safenowNews.map((a, i) => (
+                <a
+                  key={`sn-${i}`}
+                  className="hot-card hot-card--news hot-card--safenow"
+                  href={a.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <div className="hot-card-info">
+                    <div className="hot-news-title">{a.title}</div>
+                    <div className="hot-news-meta">
+                      <span className="hot-news-source">{a.source}</span>
+                      {a.dateTime && (
+                        <span className="hot-news-date">
+                          {new Date(a.dateTime).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+          <div className="hot-list-title hot-list-title--news" style={{ marginTop: "1rem" }}>
+            Regional News {selected && <span className="hot-news-city">{selected.city}</span>}
+          </div>
+          {!selected ? (
+            <div className="hot-empty-col">Select a hotspot to see regional news</div>
+          ) : newsLoading ? (
+            <div className="hot-empty-col">Loading…</div>
+          ) : news.length === 0 ? (
+            <div className="hot-empty-col">No news found for {selected.city}</div>
+          ) : (
+            <div className="hot-list">
+              {news.map((a, i) => (
+                <a
+                  key={`rn-${i}`}
+                  className={`hot-card hot-card--news${a.title.toLowerCase().includes("safenow") ? " hot-card--safenow" : ""}`}
+                  href={a.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <div className="hot-card-info">
+                    <div className="hot-news-title">{a.title}</div>
+                    <div className="hot-news-meta">
+                      <span className="hot-news-source">{a.source}</span>
+                      {a.dateTime && (
+                        <span className="hot-news-date">
+                          {new Date(a.dateTime).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

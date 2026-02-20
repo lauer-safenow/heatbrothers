@@ -7,6 +7,7 @@ import { eventsRouter } from "./routes/events.js";
 import { zonesRouter } from "./routes/zones.js";
 import { featureRequestsRouter } from "./routes/feature-requests.js";
 import { hotspotsRouter } from "./routes/hotspots.js";
+import { newsRouter } from "./routes/news.js";
 import { startCronSync } from "./sync/cron.js";
 import { loadCache } from "./cache.js";
 
@@ -31,6 +32,7 @@ app.use("/api", eventsRouter);
 app.use("/api", zonesRouter);
 app.use("/api", featureRequestsRouter);
 app.use("/api", hotspotsRouter);
+app.use("/api", newsRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });

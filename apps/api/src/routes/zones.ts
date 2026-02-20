@@ -34,7 +34,7 @@ const ZONES_QUERY = `
   }
 `;
 
-interface ZoneRow {
+export interface ZoneRow {
   id: string;
   name: string;
   pss_image: { s3_location: string } | null;
@@ -59,16 +59,30 @@ interface ZonesQueryResult {
 
 const ZONES_TTL_MS = 5 * 60 * 1000;
 let zonesCache: { data: ZoneRow[]; expiresAt: number } | null = null;
+let zonesMapCache: { map: Map<string, ZoneRow>; expiresAt: number } | null = null;
+
+async function ensureZonesCache() {
+  if (zonesCache && Date.now() < zonesCache.expiresAt) return;
+  const data = await hasuraQuery<ZonesQueryResult>(ZONES_QUERY);
+  zonesCache = { data: data.alarmdata_person_safe_spot, expiresAt: Date.now() + ZONES_TTL_MS };
+  zonesMapCache = null; // invalidate map cache
+}
+
+/** Returns all zones keyed by zone id (pss_id) for O(1) lookup. */
+export async function getZonesMap(): Promise<Map<string, ZoneRow>> {
+  await ensureZonesCache();
+  if (!zonesMapCache || zonesMapCache.expiresAt !== zonesCache!.expiresAt) {
+    const map = new Map<string, ZoneRow>();
+    for (const z of zonesCache!.data) map.set(z.id, z);
+    zonesMapCache = { map, expiresAt: zonesCache!.expiresAt };
+  }
+  return zonesMapCache.map;
+}
 
 zonesRouter.get("/zones", async (_req, res) => {
   try {
-    if (zonesCache && Date.now() < zonesCache.expiresAt) {
-      res.json({ zones: zonesCache.data });
-      return;
-    }
-    const data = await hasuraQuery<ZonesQueryResult>(ZONES_QUERY);
-    zonesCache = { data: data.alarmdata_person_safe_spot, expiresAt: Date.now() + ZONES_TTL_MS };
-    res.json({ zones: zonesCache.data });
+    await ensureZonesCache();
+    res.json({ zones: zonesCache!.data });
   } catch (err) {
     console.error("Zones fetch failed:", err);
     res.status(500).json({ error: "Failed to fetch zones" });
