@@ -11,7 +11,7 @@ import { pointInPolygon } from "../utils/pointInPolygon";
 import { geohashEncode, geohashNeighbors, geohashToPolygon } from "../utils/geohash";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import { TimeHistogram } from "../components/TimeHistogram";
-import { CITIES } from "../data/cities";
+
 import "./MapPage.css";
 
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
@@ -156,7 +156,6 @@ export function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const overlay = useRef<MapboxOverlay | null>(null);
-  const cityLabelRef = useRef<HTMLDivElement>(null);
 
   // URL state persistence
   const [searchParams, setSearchParams] = useSearchParams();
@@ -178,9 +177,10 @@ export function MapPage() {
   );
   const [vertices, setVertices] = useState<LngLat[]>(initPoly.current ?? []);
 
-  // zoom tracking for adaptive heatmap params
+  // zoom tracking for adaptive heatmap params (quantized to 0.5 steps to reduce re-renders)
   const [zoom, setZoom] = useState(5.5);
-  const [mapBounds, setMapBounds] = useState<maplibregl.LngLatBounds | null>(null);
+  const mapBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
+  const [boundsVersion, setBoundsVersion] = useState(0);
 
   // time filter
   const [timeFrom, setTimeFrom] = useState<Date | null>(initFrom.current);
@@ -201,22 +201,26 @@ export function MapPage() {
 
   // geohash hover
   const [geohashEnabled, setGeohashEnabled] = useState(false);
+  const geohashEnabledRef = useRef(false);
   const [geohashPrecision, setGeohashPrecision] = useState<5 | 6>(5);
   const geohashPrecisionRef = useRef<5 | 6>(5);
   const [hoveredGeohash, setHoveredGeohash] = useState<string | null>(null);
+  const zoneAutoDiscoverRef = useRef(true);
 
   const autoZoneMode = zoneAutoDiscover && zoom >= ZONE_AUTO_ZOOM;
 
   const visibleZones = useMemo(() => {
-    if (autoZoneMode && mapBounds) {
-      const viewportZones = zones.filter((z) => polygonIntersectsViewport(z.polygon, mapBounds));
+    if (autoZoneMode && mapBoundsRef.current) {
+      const bounds = mapBoundsRef.current;
+      const viewportZones = zones.filter((z) => polygonIntersectsViewport(z.polygon, bounds));
       // Also include manually selected zones that aren't already in the viewport set
       const viewportIds = new Set(viewportZones.map((z) => z.data.id));
       const manualExtra = zones.filter((z) => selectedZoneIds.has(z.data.id) && !viewportIds.has(z.data.id));
       return [...viewportZones, ...manualExtra];
     }
     return zones.filter((z) => selectedZoneIds.has(z.data.id));
-  }, [zones, autoZoneMode, mapBounds, selectedZoneIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zones, autoZoneMode, boundsVersion, selectedZoneIds]);
 
   const filteredZoneList = zones.filter((z) => {
     if (!z.data.name.toLowerCase().includes(zoneSearch.toLowerCase())) return false;
@@ -393,26 +397,36 @@ export function MapPage() {
     overlay.current = new MapboxOverlay({ layers: [] });
     map.current.addControl(overlay.current);
 
-    // Hide city/place label layers (replaced by HTML labels), keep country labels
+    // Hide non-essential symbol layers, keep country + city/town labels
     map.current.on("load", () => {
+      const keepPrefixes = ["place_country", "place_city", "place_capital", "place_town"];
       const style = map.current?.getStyle();
       if (style?.layers) {
         for (const layer of style.layers) {
-          if (layer.type === "symbol" && !layer.id.startsWith("place_country")) {
+          if (
+            layer.type === "symbol" &&
+            !keepPrefixes.some((p) => layer.id.startsWith(p))
+          ) {
             map.current!.setLayoutProperty(layer.id, "visibility", "none");
           }
         }
       }
-      if (map.current) setMapBounds(map.current.getBounds());
+      mapBoundsRef.current = map.current?.getBounds() ?? null;
     });
 
     map.current.on("moveend", () => {
       if (!map.current) return;
-      setZoom(map.current.getZoom());
-      setMapBounds(map.current.getBounds());
+      const raw = map.current.getZoom();
+      const quantized = Math.round(raw * 2) / 2;
+      setZoom(quantized);
+      mapBoundsRef.current = map.current.getBounds();
+      if (zoneAutoDiscoverRef.current && raw >= ZONE_AUTO_ZOOM) {
+        setBoundsVersion((v) => v + 1);
+      }
     });
 
     map.current.on("mousemove", (e) => {
+      if (!geohashEnabledRef.current) return;
       const z = map.current?.getZoom() ?? 5.5;
       if (z < 10) { setHoveredGeohash(null); return; }
       const hash = geohashEncode(e.lngLat.lat, e.lngLat.lng, geohashPrecisionRef.current);
@@ -420,11 +434,9 @@ export function MapPage() {
     });
 
     map.current.on("mouseout", () => {
+      if (!geohashEnabledRef.current) return;
       setHoveredGeohash(null);
     });
-
-    // Note: geohashEnabled gating happens at render/layer level, not here,
-    // so we always compute but only display when enabled.
 
     return () => {
       map.current?.remove();
@@ -545,35 +557,6 @@ export function MapPage() {
     return () => { m.off("move", update); };
   }, [visibleZones]);
 
-  // city HTML labels – positioned via map.project() on every frame
-  useEffect(() => {
-    const m = map.current;
-    if (!m) return;
-
-    const update = () => {
-      const container = cityLabelRef.current;
-      if (!container) return;
-      const z = m.getZoom();
-      const children = container.children;
-      for (let i = 0; i < CITIES.length; i++) {
-        const el = children[i] as HTMLElement | undefined;
-        if (!el) continue;
-        const city = CITIES[i];
-        if (z < city.minZoom) {
-          el.style.display = "none";
-          continue;
-        }
-        const pos = m.project(new maplibregl.LngLat(city.lng, city.lat));
-        el.style.left = `${pos.x}px`;
-        el.style.top = `${pos.y}px`;
-        el.style.display = "";
-      }
-    };
-
-    m.on("move", update);
-    update();
-    return () => { m.off("move", update); };
-  }, []);
 
   // cursor style
   useEffect(() => {
@@ -588,19 +571,21 @@ export function MapPage() {
 
     const layers: Layer[] = [];
 
-    // heatmap (params adapt to zoom level)
-    const { radiusPixels, intensity, threshold } = getHeatmapParams(zoom);
-    layers.push(
-      new HeatmapLayer({
-        id: "heatmap",
-        data: filteredEvents,
-        getPosition: (d: EventTuple) => [d[0], d[1]],
-        getWeight: () => 1,
-        radiusPixels,
-        intensity,
-        threshold,
-      }),
-    );
+    // heatmap (params adapt to zoom level) — skip when no data
+    if (filteredEvents.length > 0) {
+      const { radiusPixels, intensity, threshold } = getHeatmapParams(zoom);
+      layers.push(
+        new HeatmapLayer({
+          id: "heatmap",
+          data: filteredEvents,
+          getPosition: (d: EventTuple) => [d[0], d[1]],
+          getWeight: () => 1,
+          radiusPixels,
+          intensity,
+          threshold,
+        }),
+      );
+    }
 
     // zone overlays
     for (const z of visibleZones) {
@@ -728,13 +713,6 @@ export function MapPage() {
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
 
-        <div ref={cityLabelRef} className="city-label-container">
-          {CITIES.map((c) => (
-            <div key={c.name} className="city-html-label">
-              {c.name}
-            </div>
-          ))}
-        </div>
 
         <div ref={zoneLabelRef} className="zone-label-container">
           {visibleZones.map((z) => (
@@ -930,7 +908,13 @@ export function MapPage() {
             <input
               type="checkbox"
               checked={zoneAutoDiscover}
-              onChange={(e) => setZoneAutoDiscover(e.target.checked)}
+              onChange={(e) => {
+                setZoneAutoDiscover(e.target.checked);
+                zoneAutoDiscoverRef.current = e.target.checked;
+                if (e.target.checked && map.current && map.current.getZoom() >= ZONE_AUTO_ZOOM) {
+                  setBoundsVersion((v) => v + 1);
+                }
+              }}
             />
             Discover Zones
           </label>
@@ -938,7 +922,10 @@ export function MapPage() {
             <input
               type="checkbox"
               checked={geohashEnabled}
-              onChange={(e) => setGeohashEnabled(e.target.checked)}
+              onChange={(e) => {
+                setGeohashEnabled(e.target.checked);
+                geohashEnabledRef.current = e.target.checked;
+              }}
             />
             Geohashes
           </label>
