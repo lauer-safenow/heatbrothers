@@ -256,3 +256,44 @@
 .hot-loading {
   color: #ff8800;
 }
+
+/* ── replay link ── */
+.hot-replay-link {
+  font-family: monospace;
+  font-size: 0.65rem;
+  color: rgba(255, 136, 0, 0.6);
+  text-decoration: none;
+  border: 1px solid rgba(255, 136, 0, 0.2);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.hot-replay-link:hover {
+  color: #ff8800;
+  border-color: rgba(255, 136, 0, 0.5);
+  background: rgba(255, 136, 0, 0.1);
+}
+
+.hot-replay-link--dach {
+  color: rgba(68, 204, 119, 0.6);
+  border-color: rgba(68, 204, 119, 0.2);
+}
+
+.hot-replay-link--dach:hover {
+  color: #44cc77;
+  border-color: rgba(68, 204, 119, 0.5);
+  background: rgba(68, 204, 119, 0.1);
+}
+
+.hot-replay-link--de {
+  color: rgba(68, 153, 255, 0.6);
+  border-color: rgba(68, 153, 255, 0.2);
+}
+
+.hot-replay-link--de:hover {
+  color: #4499ff;
+  border-color: rgba(68, 153, 255, 0.5);
+  background: rgba(68, 153, 255, 0.1);
+}

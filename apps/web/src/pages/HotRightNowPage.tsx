@@ -41,6 +41,15 @@ function countryFlag(code: string): string {
   );
 }
 
+function replayUrl(h: Hotspot, from: string, to: string): string {
+  const [minLng, minLat, maxLng, maxLat] = h.bbox;
+  const poly = [
+    minLng, minLat, maxLng, minLat,
+    maxLng, maxLat, minLng, maxLat,
+  ].map((n) => n.toFixed(4)).join(",");
+  return `/live?mode=replay&from=${from}T00:00&to=${to}T23:59&poly=${poly}&fly=free`;
+}
+
 export function HotRightNowPage() {
   const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -301,6 +310,15 @@ export function HotRightNowPage() {
                       {h.degree}
                       <span className="hot-degree-label">nearby alarms</span>
                     </div>
+                    <a
+                      className="hot-replay-link"
+                      href={replayUrl(h, data.from, data.to)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      replay
+                    </a>
                   </div>
                 ))}
               </div>
@@ -325,6 +343,15 @@ export function HotRightNowPage() {
                       {h.degree}
                       <span className="hot-degree-label">nearby alarms</span>
                     </div>
+                    <a
+                      className="hot-replay-link hot-replay-link--dach"
+                      href={replayUrl(h, data.from, data.to)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      replay
+                    </a>
                   </div>
                 ))}
               </div>
@@ -349,6 +376,15 @@ export function HotRightNowPage() {
                       {h.degree}
                       <span className="hot-degree-label">nearby alarms</span>
                     </div>
+                    <a
+                      className="hot-replay-link hot-replay-link--de"
+                      href={replayUrl(h, data.from, data.to)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      replay
+                    </a>
                   </div>
                 ))}
               </div>

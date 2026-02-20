@@ -9,6 +9,7 @@ const ALARM_TYPES = [
   "DETAILED_ALARM_STARTED_ZONE",
 ];
 const EDGE_DISTANCE_KM = 3;
+const MIN_PTS = 3; // DBSCAN: minimum neighbors (incl. self) for a core point
 const DEFAULT_LIMIT = 10;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -63,12 +64,15 @@ interface HotspotResult {
   hotspotsWorld: HotspotEntry[];
 }
 
-/** Run graph + greedy extraction on a set of alarms, return up to maxResults hotspots. */
-function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntry[] {
+/** DBSCAN clustering: extract density-connected hotspots, return up to maxResults. */
+function extractHotspots(events: CachedEvent[], maxResults: number, minPts: number = MIN_PTS): HotspotEntry[] {
   if (events.length === 0) return [];
 
-  // Spatial grid (~50km cells)
-  const CELL_SIZE = 0.027;
+  const eps = EDGE_DISTANCE_KM;
+
+  // 1. Spatial grid for efficient range queries
+  // 0.045° ≈ 3.2km at 55°N — ensures ±1 cell covers eps at European latitudes
+  const CELL_SIZE = 0.045;
   const grid = new Map<string, number[]>();
   for (let i = 0; i < events.length; i++) {
     const key = `${Math.floor(events[i].latitude / CELL_SIZE)},${Math.floor(events[i].longitude / CELL_SIZE)}`;
@@ -77,59 +81,95 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
     else grid.set(key, [i]);
   }
 
-  // Degrees + adjacency
-  const degree = new Int32Array(events.length);
-  const adj: Set<number>[] = Array.from({ length: events.length }, () => new Set());
-  for (const [key, indices] of grid) {
-    const [r, c] = key.split(",").map(Number);
+  // 2. Range query: all indices within eps km of point idx
+  function rangeQuery(idx: number): number[] {
+    const ev = events[idx];
+    const r = Math.floor(ev.latitude / CELL_SIZE);
+    const c = Math.floor(ev.longitude / CELL_SIZE);
+    const result: number[] = [];
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
-        const neighborIndices = grid.get(`${r + dr},${c + dc}`);
-        if (!neighborIndices) continue;
-        for (const i of indices) {
-          for (const j of neighborIndices) {
-            if (j <= i) continue;
-            if (haversineKm(events[i].latitude, events[i].longitude, events[j].latitude, events[j].longitude) <= EDGE_DISTANCE_KM) {
-              degree[i]++;
-              degree[j]++;
-              adj[i].add(j);
-              adj[j].add(i);
-            }
+        const cell = grid.get(`${r + dr},${c + dc}`);
+        if (!cell) continue;
+        for (const j of cell) {
+          if (haversineKm(ev.latitude, ev.longitude, events[j].latitude, events[j].longitude) <= eps) {
+            result.push(j);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  // 3. DBSCAN
+  const NOISE = -1;
+  const UNVISITED = -2;
+  const label = new Int32Array(events.length).fill(UNVISITED);
+  let clusterId = 0;
+
+  for (let i = 0; i < events.length; i++) {
+    if (label[i] !== UNVISITED) continue;
+
+    const neighbors = rangeQuery(i);
+    if (neighbors.length < minPts) {
+      label[i] = NOISE;
+      continue;
+    }
+
+    // New cluster
+    const cId = clusterId++;
+    label[i] = cId;
+
+    const seedQueue = neighbors.filter((j) => j !== i);
+    let head = 0;
+
+    while (head < seedQueue.length) {
+      const q = seedQueue[head++];
+
+      if (label[q] === NOISE) {
+        label[q] = cId; // reclaim noise as border point
+        continue;
+      }
+      if (label[q] !== UNVISITED) continue; // already assigned
+
+      label[q] = cId;
+      const qNeighbors = rangeQuery(q);
+      if (qNeighbors.length >= minPts) {
+        // Core point — expand
+        for (const n of qNeighbors) {
+          if (label[n] === UNVISITED || label[n] === NOISE) {
+            seedQueue.push(n);
           }
         }
       }
     }
   }
 
-  // BFS connected-component extraction
-  const consumed = new Set<number>();
-  const candidates = Array.from({ length: events.length }, (_, i) => i)
-    .filter((i) => degree[i] > 0)
-    .sort((a, b) => degree[b] - degree[a]);
+  // 4. Group indices by cluster label (skip noise)
+  const clusters = new Map<number, number[]>();
+  for (let i = 0; i < events.length; i++) {
+    if (label[i] < 0) continue;
+    const list = clusters.get(label[i]);
+    if (list) list.push(i);
+    else clusters.set(label[i], [i]);
+  }
 
+  // 5. Build HotspotEntry per cluster
   const result: HotspotEntry[] = [];
-  for (const i of candidates) {
-    if (consumed.has(i)) continue;
-    // BFS to find connected component, max 5 edge hops from seed
-    const MAX_HOPS = 10;
-    const component: number[] = [];
-    const queue: [number, number][] = [[i, 0]]; // [node, depth]
-    consumed.add(i);
-    while (queue.length > 0) {
-      const [cur, depth] = queue.shift()!;
-      component.push(cur);
-      if (depth >= MAX_HOPS) continue;
-      for (const n of adj[cur]) {
-        if (!consumed.has(n)) {
-          consumed.add(n);
-          queue.push([n, depth + 1]);
-        }
-      }
+
+  for (const [, members] of clusters) {
+    // Seed = densest point (most neighbors within eps)
+    let seedIdx = members[0];
+    let maxCount = 0;
+    for (const m of members) {
+      const count = rangeQuery(m).length;
+      if (count > maxCount) { maxCount = count; seedIdx = m; }
     }
-    // Bbox from all nodes in the component
-    let minLat = events[i].latitude, maxLat = minLat;
-    let minLng = events[i].longitude, maxLng = minLng;
-    for (const n of component) {
+
+    // Bounding box
+    let minLat = events[members[0]].latitude, maxLat = minLat;
+    let minLng = events[members[0]].longitude, maxLng = minLng;
+    for (const n of members) {
       const { latitude, longitude } = events[n];
       if (latitude < minLat) minLat = latitude;
       if (latitude > maxLat) maxLat = latitude;
@@ -138,40 +178,44 @@ function extractHotspots(events: CachedEvent[], maxResults: number): HotspotEntr
     }
     const MIN_PAD = 0.1;
     if (maxLat - minLat < MIN_PAD) {
-      const midLat = (minLat + maxLat) / 2;
-      minLat = midLat - MIN_PAD / 2;
-      maxLat = midLat + MIN_PAD / 2;
+      const mid = (minLat + maxLat) / 2;
+      minLat = mid - MIN_PAD / 2;
+      maxLat = mid + MIN_PAD / 2;
     }
     if (maxLng - minLng < MIN_PAD) {
-      const midLng = (minLng + maxLng) / 2;
-      minLng = midLng - MIN_PAD / 2;
-      maxLng = midLng + MIN_PAD / 2;
+      const mid = (minLng + maxLng) / 2;
+      minLng = mid - MIN_PAD / 2;
+      maxLng = mid + MIN_PAD / 2;
     }
-    // Collect node positions and edges for visualization
-    const nodes: [number, number][] = component.map(n => [events[n].longitude, events[n].latitude]);
+
+    // Nodes & edges for visualization
+    const nodes: [number, number][] = members.map((n) => [events[n].longitude, events[n].latitude]);
+    const memberSet = new Set(members);
     const edges: [number, number, number, number][] = [];
-    for (const n of component) {
-      for (const m of adj[n]) {
-        if (m > n) {
+    for (const n of members) {
+      for (const m of rangeQuery(n)) {
+        if (m > n && memberSet.has(m)) {
           edges.push([events[n].longitude, events[n].latitude, events[m].longitude, events[m].latitude]);
         }
       }
     }
-    const [city, countryCode] = geocode(events[i].latitude, events[i].longitude);
+
+    const [city, countryCode] = geocode(events[seedIdx].latitude, events[seedIdx].longitude);
     result.push({
       rank: 0,
-      lat: events[i].latitude,
-      lng: events[i].longitude,
-      degree: component.length,
+      lat: events[seedIdx].latitude,
+      lng: events[seedIdx].longitude,
+      degree: members.length,
       city,
       countryCode,
-      timestamp: events[i].timestamp,
+      timestamp: events[seedIdx].timestamp,
       bbox: [minLng, minLat, maxLng, maxLat],
       nodes,
       edges,
     });
   }
-  // Sort by component size descending, assign ranks, return top N
+
+  // 6. Sort by cluster size, assign ranks, return top N
   result.sort((a, b) => b.degree - a.degree);
   const top = result.slice(0, maxResults);
   for (let r = 0; r < top.length; r++) top[r].rank = r + 1;
@@ -182,6 +226,7 @@ let cached: { result: HotspotResult; expiresAt: number; cacheKey: string } | nul
 
 hotspotsRouter.get("/hotspots", (req, res) => {
   const limit = Math.min(20, Math.max(1, parseInt(req.query.limit as string) || DEFAULT_LIMIT));
+  const minPts = Math.min(20, Math.max(2, parseInt(req.query.minPts as string) || MIN_PTS));
 
   // 10-day window ending yesterday
   const toDate = new Date();
@@ -191,7 +236,7 @@ hotspotsRouter.get("/hotspots", (req, res) => {
 
   const toKey = toDate.toISOString().slice(0, 10);
   const fromKey = fromDate.toISOString().slice(0, 10);
-  const cacheKey = `${fromKey}_${toKey}`;
+  const cacheKey = `${fromKey}_${toKey}_mp${minPts}`;
 
   // Check cache
   if (cached && cached.cacheKey === cacheKey && Date.now() < cached.expiresAt) {
@@ -231,10 +276,12 @@ hotspotsRouter.get("/hotspots", (req, res) => {
     else world.push(alarm);
   }
 
-  // 3. Run graph extraction on all three sets
-  const hotspotsDE = extractHotspots(deOnly, 20);
-  const hotspotsDACH = extractHotspots(dachOnly, 20);
-  const hotspotsWorld = extractHotspots(world, 20);
+  // 3. DBSCAN clustering on all three sets
+  console.log(`[hotspots] DBSCAN minPts=${minPts} eps=${EDGE_DISTANCE_KM}km — ${totalAlarms} alarms (DE:${deOnly.length} DACH:${dachOnly.length} World:${world.length})`);
+  const hotspotsDE = extractHotspots(deOnly, 20, minPts);
+  const hotspotsDACH = extractHotspots(dachOnly, 20, minPts);
+  const hotspotsWorld = extractHotspots(world, 20, minPts);
+  console.log(`[hotspots] DBSCAN done — DE:${hotspotsDE.length} DACH:${hotspotsDACH.length} World:${hotspotsWorld.length} clusters`);
 
   const result: HotspotResult = {
     from: fromKey,

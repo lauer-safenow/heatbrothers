@@ -1037,3 +1037,53 @@
 .ctt-row-clickable:hover .ctt-city {
   color: #ff8800;
 }
+
+/* ── polygon toolbar within replay controls ── */
+.replay-poly-toolbar {
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 0.35rem;
+}
+
+.replay-poly-toolbar .polygon-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.replay-poly-toolbar .poly-btn {
+  background: rgba(255, 140, 0, 0.08);
+  border: 1px solid rgba(255, 140, 0, 0.25);
+  border-radius: 6px;
+  color: rgba(255, 140, 0, 0.8);
+  font-family: monospace;
+  font-size: 0.65rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.replay-poly-toolbar .poly-btn:hover:not(:disabled) {
+  background: rgba(255, 140, 0, 0.15);
+  border-color: rgba(255, 140, 0, 0.45);
+}
+
+.replay-poly-toolbar .poly-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.replay-poly-toolbar .poly-btn-cancel {
+  border-color: rgba(255, 60, 60, 0.25);
+  color: rgba(255, 90, 90, 0.7);
+}
+
+.replay-poly-toolbar .poly-btn-cancel:hover {
+  border-color: rgba(255, 60, 60, 0.5);
+}
+
+.replay-poly-toolbar .poly-info {
+  color: rgba(255, 255, 255, 0.4);
+  font-family: monospace;
+  font-size: 0.6rem;
+}

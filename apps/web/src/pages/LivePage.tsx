@@ -3,13 +3,14 @@ import { useSearchParams } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import { PolygonLayer } from "deck.gl";
+import { PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "../datepicker-dark.css";
 import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import { CITIES } from "../data/cities";
 import { pointInPolygon } from "../utils/pointInPolygon";
+import { PolygonToolbar } from "../components/PolygonToolbar";
 import "./LivePage.css";
 
 type EventTuple = [number, number, number, number, string, string]; // [lng, lat, unixSeconds, id, city, countryCode]
@@ -121,6 +122,19 @@ function paramToDate(s: string | null): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+function parsePolyParam(s: string | null): LngLat[] | null {
+  if (!s) return null;
+  const nums = s.split(",").map(Number);
+  if (nums.length < 6 || nums.length % 2 !== 0 || nums.some(isNaN)) return null;
+  const verts: LngLat[] = [];
+  for (let i = 0; i < nums.length; i += 2) {
+    verts.push([nums[i], nums[i + 1]]);
+  }
+  return verts;
+}
+
+type DrawingState = "idle" | "drawing" | "complete";
+
 function TimeScroller({ value, count, onChange }: { value: number; count: number; onChange: (v: number) => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -190,6 +204,12 @@ export function LivePage() {
   const initTo = useRef(paramToDate(searchParams.get("to")) ?? new Date());
   const autoPlay = useRef(initMode.current === "replay" && !!searchParams.get("from") && !!searchParams.get("to"));
   const initZoneId = useRef<string | null>(searchParams.get("zoneid"));
+  const initPoly = useRef<LngLat[] | null>(parsePolyParam(searchParams.get("poly")));
+
+  // Auto-fly / free-move toggle
+  const initFlyMode = useRef<"auto" | "free">(searchParams.get("fly") === "free" ? "free" : "auto");
+  const [flyMode, setFlyMode] = useState<"auto" | "free">(initFlyMode.current);
+  const flyModeRef = useRef<"auto" | "free">(initFlyMode.current);
 
   // mode state
   const [todayMode, setTodayMode] = useState(false);
@@ -210,6 +230,24 @@ export function LivePage() {
   const zoneDropdownRef = useRef<HTMLDivElement>(null);
   const selectedZoneRef = useRef<ParsedZone | null>(null);
   const [zoneTooltipPos, setZoneTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Polygon drawing state
+  const [drawingState, setDrawingState] = useState<DrawingState>(
+    initPoly.current ? "complete" : "idle"
+  );
+  const [polyVertices, setPolyVertices] = useState<LngLat[]>(initPoly.current ?? []);
+  const drawingStateRef = useRef<DrawingState>(initPoly.current ? "complete" : "idle");
+  const polyVerticesRef = useRef<LngLat[]>(initPoly.current ?? []);
+
+  // Keep refs in sync with state (for use inside closures like processReplay)
+  useEffect(() => { drawingStateRef.current = drawingState; }, [drawingState]);
+  useEffect(() => { polyVerticesRef.current = polyVertices; }, [polyVertices]);
+
+  // Sync polygon state to URL
+  useEffect(() => {
+    if (mode === "replay") updateUrl("replay");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawingState, polyVertices]);
 
   // Timeline / scrubbing state (replay only)
   const replayEvents = useRef<EventTuple[]>([]);
@@ -266,9 +304,17 @@ export function LivePage() {
         to: dateToParam(to || replayTo),
       };
       if (selectedZoneRef.current) params.zoneid = selectedZoneRef.current.data.id;
+      const poly = polyVerticesRef.current;
+      if (drawingStateRef.current === "complete" && poly.length >= 3) {
+        params.poly = poly
+          .map(([lng, lat]) => `${lng.toFixed(4)},${lat.toFixed(4)}`)
+          .join(",");
+      }
+      params.fly = flyModeRef.current;
       setSearchParams(params, { replace: true });
     } else {
-      setSearchParams({}, { replace: true });
+      const params: Record<string, string> = { fly: flyModeRef.current };
+      setSearchParams(params, { replace: true });
     }
   }
 
@@ -377,6 +423,13 @@ export function LivePage() {
       }
     });
 
+    // If URL has a polygon, fly to it immediately (no globe flash)
+    if (initPoly.current && initPoly.current.length >= 3) {
+      const bounds = computePolygonBounds(initPoly.current);
+      map.current.fitBounds(bounds, { padding: 120, maxZoom: 13, duration: 0 });
+      idleSpin.current = false;
+    }
+
     const spin = () => {
       if (idleSpin.current && map.current) {
         currentLng.current += 0.03;
@@ -458,6 +511,52 @@ export function LivePage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [zoneDropdownOpen]);
 
+  // Polygon click handler — add vertices on map click during drawing
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      if (drawingState !== "drawing") return;
+
+      const newPt: LngLat = [e.lngLat.lng, e.lngLat.lat];
+
+      // Snap-to-close: if near first vertex, complete the polygon
+      if (polyVertices.length >= 3) {
+        const firstPx = m.project(new maplibregl.LngLat(polyVertices[0][0], polyVertices[0][1]));
+        const clickPx = m.project(e.lngLat);
+        const dist = Math.hypot(clickPx.x - firstPx.x, clickPx.y - firstPx.y);
+        if (dist < 20) {
+          setDrawingState("complete");
+          return;
+        }
+      }
+
+      setPolyVertices((prev) => [...prev, newPt]);
+    };
+
+    m.on("click", handleClick);
+    return () => { m.off("click", handleClick); };
+  }, [drawingState, polyVertices]);
+
+  // ESC to cancel polygon drawing
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && drawingState === "drawing") {
+        setPolyVertices([]);
+        setDrawingState("idle");
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [drawingState]);
+
+  // Crosshair cursor during polygon drawing
+  useEffect(() => {
+    if (!map.current) return;
+    map.current.getCanvas().style.cursor = drawingState === "drawing" ? "crosshair" : "";
+  }, [drawingState]);
+
   async function fetchNewEvents() {
     if (modeRef.current !== "live") return;
     try {
@@ -488,12 +587,11 @@ export function LivePage() {
     }
   }
 
-  // Enable map interaction only in zone replay mode
+  // Enable map interaction in replay mode or free-move mode
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    const zoneMode = mode === "replay" && selectedZone !== null;
-    if (zoneMode) {
+    if (mode === "replay" || flyMode === "free") {
       m.scrollZoom.enable();
       m.doubleClickZoom.enable();
       m.dragPan.enable();
@@ -504,7 +602,7 @@ export function LivePage() {
       m.dragPan.disable();
       m.touchZoomRotate.disable();
     }
-  }, [mode, selectedZone]);
+  }, [mode, flyMode]);
 
   // Draw event density on timeline canvas when replay events change
   useEffect(() => {
@@ -539,19 +637,18 @@ export function LivePage() {
     }
   }, [replayVersion]);
 
-  // Render zone polygon via deck.gl (same approach as MapPage)
+  // Render zone polygon + user polygon via deck.gl
   useEffect(() => {
     if (!overlay.current) return;
-    if (!selectedZone) {
-      overlay.current.setProps({ layers: [] });
-      return;
-    }
-    const polygon = selectedZone.polygon;
-    overlay.current.setProps({
-      layers: [
+
+    const layers: Layer[] = [];
+
+    // Zone polygon
+    if (selectedZone) {
+      layers.push(
         new PolygonLayer({
           id: "zone-fill",
-          data: [{ polygon }],
+          data: [{ polygon: selectedZone.polygon }],
           getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
           getFillColor: [0, 150, 255, 20],
           getLineColor: [0, 150, 255, 180],
@@ -560,9 +657,54 @@ export function LivePage() {
           filled: true,
           stroked: true,
         }),
-      ],
-    });
-  }, [selectedZone]);
+      );
+    }
+
+    // Completed user polygon
+    if (drawingState === "complete" && polyVertices.length >= 3) {
+      layers.push(
+        new PolygonLayer({
+          id: "user-polygon-fill",
+          data: [{ polygon: polyVertices }],
+          getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
+          getFillColor: [255, 140, 0, 35],
+          getLineColor: [255, 140, 0, 200],
+          getLineWidth: 2,
+          lineWidthUnits: "pixels" as const,
+          filled: true,
+          stroked: true,
+        }),
+      );
+    }
+
+    // Drawing in progress — edges
+    if (drawingState === "drawing" && polyVertices.length > 0) {
+      layers.push(
+        new PathLayer({
+          id: "polygon-edges",
+          data: [{ path: polyVertices }],
+          getPath: (d: { path: LngLat[] }) => d.path,
+          getColor: [255, 140, 0, 200],
+          getWidth: 2,
+          widthUnits: "pixels" as const,
+        }),
+      );
+      layers.push(
+        new ScatterplotLayer({
+          id: "polygon-vertices",
+          data: polyVertices,
+          getPosition: (d: LngLat) => d,
+          getFillColor: (_d: LngLat, o: { index: number }) =>
+            o.index === 0 ? [255, 220, 50, 255] : [255, 140, 0, 255],
+          getRadius: (_d: LngLat, o: { index: number }) =>
+            o.index === 0 ? 8 : 5,
+          radiusUnits: "pixels" as const,
+        }),
+      );
+    }
+
+    overlay.current.setProps({ layers });
+  }, [selectedZone, drawingState, polyVertices]);
 
   function clearQueue() {
     replayGen.current++;
@@ -588,7 +730,7 @@ export function LivePage() {
     setMode("replay");
     setTodayMode(false);
     clearQueue();
-    idleSpin.current = true;
+    idleSpin.current = false;
     setReplayInfo(null);
     setLastAdded(0);
     setGhostText(null);
@@ -604,7 +746,7 @@ export function LivePage() {
     setMode("replay");
     setTodayMode(true);
     clearQueue();
-    idleSpin.current = true;
+    idleSpin.current = false;
     setReplayInfo(null);
     setLastAdded(0);
     setGhostText(null);
@@ -627,6 +769,9 @@ export function LivePage() {
     selectedZoneRef.current = null;
     setSelectedZone(null);
     setZoneTooltipPos(null);
+    // Clear polygon
+    setPolyVertices([]);
+    setDrawingState("idle");
     // Resume live: last 10 minutes
     lastSeenTs.current = Math.floor(Date.now() / 1000) - 10 * 60;
     if (countdownRef.current) countdownRef.current.textContent = `${POLL_INTERVAL / 1000}s`;
@@ -650,6 +795,18 @@ export function LivePage() {
     }
   }
 
+  function toggleFlyMode() {
+    const next = flyModeRef.current === "auto" ? "free" : "auto";
+    flyModeRef.current = next;
+    setFlyMode(next);
+    if (next === "free") {
+      idleSpin.current = false;
+    } else if (mapViewRef.current === "3d" && queue.current.length === 0 && !processing.current) {
+      idleSpin.current = true;
+    }
+    updateUrl(modeRef.current);
+  }
+
   async function startReplayWithDates(from: Date, to: Date) {
     const fromEpoch = Math.floor(from.getTime() / 1000);
     const toEpoch = Math.floor(to.getTime() / 1000);
@@ -658,9 +815,11 @@ export function LivePage() {
       return;
     }
 
-    // Snapshot zone at play-time so processQueue closure has a stable reference
+    // Snapshot zone and polygon at play-time so closures have stable references
     const zone = selectedZone;
     selectedZoneRef.current = zone;
+    const poly = polyVerticesRef.current;
+    const polyComplete = drawingStateRef.current === "complete" && poly.length >= 3;
 
     clearQueue();
     setReplayLoading(true);
@@ -669,6 +828,9 @@ export function LivePage() {
 
     if (zone) {
       const bounds = computePolygonBounds(zone.polygon);
+      map.current?.fitBounds(bounds, { padding: 120, duration: 1200, maxZoom: 13 });
+    } else if (polyComplete) {
+      const bounds = computePolygonBounds(poly);
       map.current?.fitBounds(bounds, { padding: 120, duration: 1200, maxZoom: 13 });
     }
 
@@ -684,6 +846,9 @@ export function LivePage() {
       if (zone) {
         events = events.filter(([lng, lat]) => pointInPolygon([lng, lat], zone.polygon));
         setReplayInfo(`${events.length.toLocaleString()} events in zone`);
+      } else if (polyComplete) {
+        events = events.filter(([lng, lat]) => pointInPolygon([lng, lat], poly));
+        setReplayInfo(`${events.length.toLocaleString()} events in polygon`);
       } else {
         const info = data.capped
           ? `${data.count.toLocaleString()} of ${data.total.toLocaleString()} events (capped)`
@@ -692,7 +857,6 @@ export function LivePage() {
       }
 
       if (events.length === 0) {
-        idleSpin.current = true;
         return;
       }
 
@@ -716,9 +880,9 @@ export function LivePage() {
       setReplayVersion((v) => v + 1);
 
       idleSpin.current = false;
-      if (zone) {
+      if (zone || polyComplete) {
         // Delay start so fitBounds animation finishes before blinking begins
-        setTimeout(() => { processReplay(); updateZoneTooltipPos(); }, 1300);
+        setTimeout(() => { processReplay(); if (zone) updateZoneTooltipPos(); }, 1300);
       } else {
         processReplay();
       }
@@ -792,8 +956,10 @@ export function LivePage() {
       setDisplayQueue([]);
       setActiveEvent(null);
       hideBlink();
-      if (mapViewRef.current === "3d") {
-        idleSpin.current = true;
+      const hasRegion = selectedZoneRef.current !== null ||
+        (drawingStateRef.current === "complete" && polyVerticesRef.current.length >= 3);
+      if (!hasRegion && mapViewRef.current === "3d") {
+        // No polygon/zone — fly back to overview but stay still (no spin in replay)
         map.current?.flyTo({ center: [currentLng.current, 50], zoom: 0.8, duration: 1500, essential: true });
       }
       return;
@@ -830,9 +996,11 @@ export function LivePage() {
     };
 
     const isZoneMode = selectedZoneRef.current !== null;
+    const isPolyMode = drawingStateRef.current === "complete" && polyVerticesRef.current.length >= 3;
     const is2D = mapViewRef.current === "2d";
+    const isFreeMove = flyModeRef.current === "free";
 
-    if (isZoneMode || is2D) {
+    if (isZoneMode || isPolyMode || is2D || isFreeMove) {
       showBlink(lng, lat, event[2]);
       setDisplayQueue((prev) =>
         prev.map((item) => item.id === eventId ? { ...item, exiting: true, active: false } : item),
@@ -950,7 +1118,7 @@ export function LivePage() {
       processing.current = false;
       syncQueueSize();
 
-      if (mapViewRef.current === "3d") {
+      if (mapViewRef.current === "3d" && flyModeRef.current !== "free") {
         idleSpin.current = true;
         map.current?.flyTo({
           center: [currentLng.current, 50],
@@ -981,9 +1149,11 @@ export function LivePage() {
 
     if (map.current) {
       const isZoneMode = selectedZoneRef.current !== null;
+      const isPolyMode = drawingStateRef.current === "complete" && polyVerticesRef.current.length >= 3;
       const is2D = mapViewRef.current === "2d";
+      const isFreeMove = flyModeRef.current === "free";
 
-      if (isZoneMode || is2D) {
+      if (isZoneMode || isPolyMode || is2D || isFreeMove) {
         // No map navigation: blink immediately at event location
         showBlink(lng, lat, event[2]);
         setDisplayQueue((prev) =>
@@ -1118,6 +1288,20 @@ export function LivePage() {
             3D
           </button>
         </div>
+        <div className="live-mode-toggle">
+          <button
+            className={`mode-btn${flyMode === "auto" ? " active" : ""}`}
+            onClick={() => toggleFlyMode()}
+          >
+            AUTO
+          </button>
+          <button
+            className={`mode-btn${flyMode === "free" ? " active" : ""}`}
+            onClick={() => toggleFlyMode()}
+          >
+            FREE
+          </button>
+        </div>
       </div>
 
       {/* Live mode header */}
@@ -1241,6 +1425,9 @@ export function LivePage() {
                           selectedZoneRef.current = z;
                           setZoneDropdownOpen(false);
                           setZoneSearch("");
+                          // Clear polygon (mutually exclusive)
+                          setPolyVertices([]);
+                          setDrawingState("idle");
                           updateUrl("replay");
                         }}
                       >
@@ -1258,6 +1445,27 @@ export function LivePage() {
                 </div>
               </div>
             )}
+          </div>
+          <div className="replay-poly-toolbar">
+            <PolygonToolbar
+              drawingState={drawingState}
+              vertexCount={polyVertices.length}
+              onStartDraw={() => {
+                setPolyVertices([]);
+                setDrawingState("drawing");
+                // Clear zone (mutually exclusive)
+                setSelectedZone(null);
+                selectedZoneRef.current = null;
+                setZoneTooltipPos(null);
+              }}
+              onFinishDraw={() => {
+                if (polyVertices.length >= 3) setDrawingState("complete");
+              }}
+              onClear={() => {
+                setPolyVertices([]);
+                setDrawingState("idle");
+              }}
+            />
           </div>
         </div>
       )}

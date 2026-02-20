@@ -10,7 +10,6 @@
     "db:deploy": "pnpm --filter @heatbrothers/db run db:deploy",
     "db:studio": "pnpm --filter @heatbrothers/db run db:studio",
     "sync": "pnpm --filter @heatbrothers/api run sync",
-    "seed": "pnpm --filter @heatbrothers/api run seed",
     "bootstrap": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm dev",
     "prodbs": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm --filter @heatbrothers/web build && pnpm serve"
   },
