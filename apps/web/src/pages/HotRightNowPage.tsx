@@ -26,6 +26,10 @@ function displayName(eventType: string): string {
 
 const DEFAULT_PRIVATE_TYPE = "DETAILED_ALARM_STARTED_PRIVATE_GROUP";
 
+function isZoneType(t: string): boolean {
+  return t.endsWith("_ZONE");
+}
+
 interface Hotspot {
   rank: number;
   lat: number;
@@ -103,8 +107,8 @@ export function HotRightNowPage() {
   const [newsOpen, setNewsOpen] = useState(true);
   const [eventTypes, setEventTypes] = useState<EventTypeInfo[]>([]);
   const typeParam = searchParams.get("type");
-  const isZoneMode = typeParam === ZONE_EVENT_TYPE;
-  const alarmType = isZoneMode ? ZONE_EVENT_TYPE : (typeParam || DEFAULT_PRIVATE_TYPE);
+  const isZoneMode = typeParam ? isZoneType(typeParam) : false;
+  const alarmType = isZoneMode ? (typeParam || ZONE_EVENT_TYPE) : (typeParam || DEFAULT_PRIVATE_TYPE);
 
   // ── Draggable news panel divider ──
   const newsColRef = useRef<HTMLDivElement>(null);
@@ -465,14 +469,14 @@ export function HotRightNowPage() {
             Zone
           </button>
         </div>
-        {!isZoneMode && eventTypes.length > 0 && (
+        {eventTypes.length > 0 && (
           <select
             className="hot-type-select"
             value={alarmType}
             onChange={(e) => setAlarmType(e.target.value)}
           >
             {eventTypes
-              .filter((t) => t.event_type !== ZONE_EVENT_TYPE)
+              .filter((t) => isZoneMode ? isZoneType(t.event_type) : !isZoneType(t.event_type))
               .map((t) => (
                 <option key={t.event_type} value={t.event_type}>
                   {displayName(t.event_type)} ({t.count.toLocaleString()})

@@ -6,7 +6,7 @@ import { getZonesMap } from "./zones.js";
 export const hotspotsRouter: RouterType = Router();
 
 const DEFAULT_TYPE = "DETAILED_ALARM_STARTED_PRIVATE_GROUP";
-const ZONE_TYPE = "DETAILED_ALARM_STARTED_ZONE";
+function isZoneType(t: string) { return t.endsWith("_ZONE"); }
 const EDGE_DISTANCE_KM = 3;
 const EPS_TEMPORAL_S = 2 * 3600; // ST-DBSCAN: temporal epsilon (2 hours in seconds)
 const MIN_PTS = 3; // ST-DBSCAN: minimum neighbors (incl. self) for a core point
@@ -282,7 +282,7 @@ hotspotsRouter.get("/hotspots", async (req, res) => {
   const epsKm = Math.min(50, Math.max(0.5, parseFloat(req.query.epsKm as string) || EDGE_DISTANCE_KM));
   const typeParam = req.query.type as string | undefined;
   const alarmType = typeParam && getEventsByType(typeParam).length > 0 ? typeParam : DEFAULT_TYPE;
-  const isZoneMode = alarmType === ZONE_TYPE;
+  const isZoneMode = isZoneType(alarmType);
 
   // Lookback window ending yesterday
   const toDate = new Date();

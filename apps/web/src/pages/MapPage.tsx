@@ -920,17 +920,36 @@ export function MapPage() {
             />
             Discover Zones
           </label>
-          <label className="geohash-toggle">
-            <input
-              type="checkbox"
-              checked={geohashEnabled}
-              onChange={(e) => {
-                setGeohashEnabled(e.target.checked);
-                geohashEnabledRef.current = e.target.checked;
-              }}
-            />
-            Geohashes
-          </label>
+          <div className="geohash-group">
+            <label className="geohash-toggle">
+              <input
+                type="checkbox"
+                checked={geohashEnabled}
+                onChange={(e) => {
+                  setGeohashEnabled(e.target.checked);
+                  geohashEnabledRef.current = e.target.checked;
+                }}
+              />
+              Geohashes
+            </label>
+            {geohashEnabled && (
+              <div className="geohash-precision-toggle">
+                {([5, 6] as const).map((p) => (
+                  <button
+                    key={p}
+                    className={`geohash-precision-btn${geohashPrecision === p ? " active" : ""}`}
+                    onClick={() => {
+                      setGeohashPrecision(p);
+                      geohashPrecisionRef.current = p;
+                      setHoveredGeohash(null);
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <input
             className="city-search"
             type="text"
@@ -944,23 +963,6 @@ export function MapPage() {
               }
             }}
           />
-          {geohashEnabled && (
-            <div className="geohash-precision-toggle">
-              {([5, 6] as const).map((p) => (
-                <button
-                  key={p}
-                  className={`geohash-precision-btn${geohashPrecision === p ? " active" : ""}`}
-                  onClick={() => {
-                    setGeohashPrecision(p);
-                    geohashPrecisionRef.current = p;
-                    setHoveredGeohash(null);
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         <div

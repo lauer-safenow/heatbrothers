@@ -328,6 +328,12 @@
 }
 
 /* ── geohash toggle ── */
+.geohash-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
 .geohash-toggle {
   display: flex;
   align-items: center;
@@ -342,6 +348,11 @@
   font-size: 0.8rem;
   cursor: pointer;
   user-select: none;
+}
+
+.geohash-group .geohash-toggle {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .geohash-toggle:hover {
@@ -360,7 +371,8 @@
   background: rgba(20, 20, 20, 0.85);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
   padding: 2px;
 }
 
