@@ -1,6 +1,7 @@
 /* ── print / PDF export ── */
 @media print {
   /* hide all chrome, show only the map */
+  .map-home-btn,
   .map-controls,
   .bottom-toolbar,
   .bottom-panel,
@@ -37,6 +38,26 @@
 .map-container {
   position: absolute;
   inset: 0;
+}
+
+.map-home-btn {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+}
+
+.map-home-btn:hover {
+  border-color: rgba(255, 136, 0, 0.5);
+  color: #fff;
 }
 
 /* ── city HTML labels (on top of heatmap) ── */

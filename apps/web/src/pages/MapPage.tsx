@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import DatePicker from "react-datepicker";
@@ -153,6 +153,7 @@ function parsePolyParam(s: string | null): LngLat[] | null {
 }
 
 export function MapPage() {
+  const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const overlay = useRef<MapboxOverlay | null>(null);
@@ -712,6 +713,7 @@ export function MapPage() {
     <div className="map-page">
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
+        <button className="map-home-btn" onClick={() => navigate("/")}>&#8592; Home</button>
 
 
         <div ref={zoneLabelRef} className="zone-label-container">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
@@ -159,6 +159,7 @@ function TimeScroller({ value, count, onChange }: { value: number; count: number
 }
 
 export function LivePage() {
+  const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
   const cityLabelRef = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -1281,6 +1282,7 @@ export function LivePage() {
 
       {/* Mode toggles */}
       <div className="live-controls-row">
+        <button className="live-home-btn" onClick={() => navigate("/")}>&#8592; Home</button>
         <div className="live-mode-toggle">
           <button
             className={`mode-btn${mode === "live" ? " active" : ""}`}

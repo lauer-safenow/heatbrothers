@@ -418,7 +418,7 @@ export function HotRightNowPage() {
     <div className="hot-page">
       <div className="hot-header">
         <button className="hot-back-btn" onClick={() => navigate("/")}>
-          Back
+          &#8592; Home
         </button>
         <span className="hot-title">HOT RIGHT NOW</span>
         <div className="hot-type-toggle">

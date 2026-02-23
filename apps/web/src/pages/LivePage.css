@@ -10,6 +10,24 @@
   height: 100%;
 }
 
+.live-home-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  font-family: monospace;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+
+.live-home-btn:hover {
+  border-color: rgba(255, 136, 0, 0.5);
+  color: #fff;
+}
+
 /* ── city HTML labels ── */
 .city-label-container {
   position: absolute;

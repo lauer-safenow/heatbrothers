@@ -74,7 +74,7 @@ export function FeatureRequestPage() {
   return (
     <div className="fr-page">
       <div className="fr-header">
-        <button className="fr-back" onClick={() => navigate("/")}>&#8592; Back</button>
+        <button className="fr-back" onClick={() => navigate("/")}>&#8592; Home</button>
         <h1 className="fr-title">Feature Requests</h1>
       </div>
 
