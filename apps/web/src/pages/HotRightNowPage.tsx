@@ -4,8 +4,27 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { LineLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "deck.gl";
-import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
+import { ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import "./HotRightNowPage.css";
+
+interface EventTypeInfo {
+  event_type: string;
+  count: number;
+}
+
+const DISPLAY_NAMES: Record<string, string> = {
+  DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm started private",
+  DETAILED_ATTENTION_STARTED_PRIVATE_GROUP: "Attention private",
+  app_opening_ZONE: "App opening zone",
+  FIRST_TIME_PHONE_STATUS_SENT: "Installs",
+  DETAILED_ALARM_STARTED_ZONE: "Alarm started zone",
+};
+
+function displayName(eventType: string): string {
+  return DISPLAY_NAMES[eventType] ?? eventType;
+}
+
+const DEFAULT_PRIVATE_TYPE = "DETAILED_ALARM_STARTED_PRIVATE_GROUP";
 
 interface Hotspot {
   rank: number;
@@ -82,7 +101,10 @@ export function HotRightNowPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [editing, setEditing] = useState(false);
   const [newsOpen, setNewsOpen] = useState(true);
-  const alarmType = (searchParams.get("type") === ZONE_EVENT_TYPE ? ZONE_EVENT_TYPE : LIVE_EVENT_TYPE) as string;
+  const [eventTypes, setEventTypes] = useState<EventTypeInfo[]>([]);
+  const typeParam = searchParams.get("type");
+  const isZoneMode = typeParam === ZONE_EVENT_TYPE;
+  const alarmType = isZoneMode ? ZONE_EVENT_TYPE : (typeParam || DEFAULT_PRIVATE_TYPE);
 
   // ── Draggable news panel divider ──
   const newsColRef = useRef<HTMLDivElement>(null);
@@ -150,12 +172,20 @@ export function HotRightNowPage() {
     Object.fromEntries(SETTINGS_CONFIG.map((s) => [s.key, getVal(s.key, s.default)])),
   );
 
+  // Fetch available event types
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((data: { byType: EventTypeInfo[] }) => setEventTypes(data.byType))
+      .catch(() => {});
+  }, []);
+
   // Fetch hotspot data from URL search params
   useEffect(() => {
     setLoading(true);
     setSelected(null);
     const qs = new URLSearchParams(searchParams);
-    if (!qs.has("type")) qs.set("type", LIVE_EVENT_TYPE);
+    if (!qs.has("type")) qs.set("type", DEFAULT_PRIVATE_TYPE);
     fetch(`/api/hotspots?${qs.toString()}`)
       .then((r) => r.json())
       .then((d: HotspotResponse) => setData(d))
@@ -165,14 +195,14 @@ export function HotRightNowPage() {
 
   const setAlarmType = (t: string) => {
     const next = new URLSearchParams(searchParams);
-    if (t === LIVE_EVENT_TYPE) next.delete("type");
+    if (t === DEFAULT_PRIVATE_TYPE) next.delete("type");
     else next.set("type", t);
     setSearchParams(next);
   };
 
   const applySettings = () => {
     const next = new URLSearchParams();
-    if (alarmType !== LIVE_EVENT_TYPE) next.set("type", alarmType);
+    if (alarmType !== DEFAULT_PRIVATE_TYPE) next.set("type", alarmType);
     for (const s of SETTINGS_CONFIG) {
       const v = draft[s.key];
       if (v !== s.default) next.set(s.key, String(v));
@@ -396,14 +426,14 @@ export function HotRightNowPage() {
       return;
     }
     setNewsLoading(true);
-    const now = new Date();
-    const from14 = new Date(now);
-    from14.setDate(from14.getDate() - 30);
+    // Widen news window: start 2 days before the lookback
+    const newsFrom = new Date(data.from);
+    newsFrom.setDate(newsFrom.getDate() - 2);
     const qs = new URLSearchParams({
       city: selected.city,
       country: selected.countryCode,
-      from: from14.toISOString().slice(0, 10),
-      to: now.toISOString().slice(0, 10),
+      from: newsFrom.toISOString().slice(0, 10),
+      to: data.to,
     });
     if (selected.zoneName) qs.set("zone", selected.zoneName);
     if (selected.nearbyCities?.length) qs.set("cities", selected.nearbyCities.join(","));
@@ -423,18 +453,33 @@ export function HotRightNowPage() {
         <span className="hot-title">HOT RIGHT NOW</span>
         <div className="hot-type-toggle">
           <button
-            className={`hot-type-btn${alarmType === LIVE_EVENT_TYPE ? " active" : ""}`}
-            onClick={() => setAlarmType(LIVE_EVENT_TYPE)}
+            className={`hot-type-btn${!isZoneMode ? " active" : ""}`}
+            onClick={() => setAlarmType(DEFAULT_PRIVATE_TYPE)}
           >
             Private
           </button>
           <button
-            className={`hot-type-btn${alarmType === ZONE_EVENT_TYPE ? " active" : ""}`}
+            className={`hot-type-btn${isZoneMode ? " active" : ""}`}
             onClick={() => setAlarmType(ZONE_EVENT_TYPE)}
           >
             Zone
           </button>
         </div>
+        {!isZoneMode && eventTypes.length > 0 && (
+          <select
+            className="hot-type-select"
+            value={alarmType}
+            onChange={(e) => setAlarmType(e.target.value)}
+          >
+            {eventTypes
+              .filter((t) => t.event_type !== ZONE_EVENT_TYPE)
+              .map((t) => (
+                <option key={t.event_type} value={t.event_type}>
+                  {displayName(t.event_type)} ({t.count.toLocaleString()})
+                </option>
+              ))}
+          </select>
+        )}
         <span className="hot-subtitle">
           {data ? `${data.from} — ${data.to}` : "Loading..."}
         </span>
@@ -533,7 +578,7 @@ export function HotRightNowPage() {
                         </div>
                         <div className="hot-degree">
                           {h.degree}
-                          <span className="hot-degree-label">nearby alarms</span>
+                          <span className="hot-degree-label">nearby events</span>
                         </div>
                         <a
                           className="hot-replay-link"
@@ -566,7 +611,7 @@ export function HotRightNowPage() {
                         </div>
                         <div className="hot-degree hot-degree--dach">
                           {h.degree}
-                          <span className="hot-degree-label">nearby alarms</span>
+                          <span className="hot-degree-label">nearby events</span>
                         </div>
                         <a
                           className="hot-replay-link hot-replay-link--dach"
@@ -599,7 +644,7 @@ export function HotRightNowPage() {
                         </div>
                         <div className="hot-degree hot-degree--de">
                           {h.degree}
-                          <span className="hot-degree-label">nearby alarms</span>
+                          <span className="hot-degree-label">nearby events</span>
                         </div>
                         <a
                           className="hot-replay-link hot-replay-link--de"

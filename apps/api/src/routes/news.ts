@@ -214,7 +214,18 @@ newsRouter.get("/news", async (req, res) => {
 
   try {
     let articles: Array<{ title: string; url: string; source: string; dateTime: string }>;
-    articles = (await fetchGoogleNews(cityQuery, locale, after, before)).slice(0, 30);
+    articles = (await fetchGoogleNews(cityQuery, locale, after, before)).slice(0, 20);
+
+    // Google News ignores after:/before: sometimes — hard-filter by pubDate
+    if (after || before) {
+      const afterMs = after ? new Date(after).getTime() : 0;
+      const beforeMs = before ? new Date(before).getTime() + 86400_000 : Infinity;
+      articles = articles.filter((a) => {
+        if (!a.dateTime) return true; // keep articles with no date
+        const t = new Date(a.dateTime).getTime();
+        return t >= afterMs && t <= beforeMs;
+      });
+    }
 
     // Translate titles to English if source language isn't English
     const origTitles = articles.map((a) => a.title);

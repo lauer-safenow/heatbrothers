@@ -5,11 +5,8 @@ import { getZonesMap } from "./zones.js";
 
 export const hotspotsRouter: RouterType = Router();
 
-const ALARM_TYPES = [
-  "DETAILED_ALARM_STARTED_PRIVATE_GROUP",
-  "DETAILED_ALARM_STARTED_ZONE",
-];
-const ALARM_TYPE_SET = new Set(ALARM_TYPES);
+const DEFAULT_TYPE = "DETAILED_ALARM_STARTED_PRIVATE_GROUP";
+const ZONE_TYPE = "DETAILED_ALARM_STARTED_ZONE";
 const EDGE_DISTANCE_KM = 3;
 const EPS_TEMPORAL_S = 2 * 3600; // ST-DBSCAN: temporal epsilon (2 hours in seconds)
 const MIN_PTS = 3; // ST-DBSCAN: minimum neighbors (incl. self) for a core point
@@ -284,8 +281,8 @@ hotspotsRouter.get("/hotspots", async (req, res) => {
   const lookbackDays = Math.min(30, Math.max(1, parseInt(req.query.lookbackDays as string) || LOOKBACK_DAYS));
   const epsKm = Math.min(50, Math.max(0.5, parseFloat(req.query.epsKm as string) || EDGE_DISTANCE_KM));
   const typeParam = req.query.type as string | undefined;
-  const alarmTypes = typeParam && ALARM_TYPE_SET.has(typeParam) ? [typeParam] : ALARM_TYPES;
-  const isZoneMode = alarmTypes.length === 1 && alarmTypes[0] === "DETAILED_ALARM_STARTED_ZONE";
+  const alarmType = typeParam && getEventsByType(typeParam).length > 0 ? typeParam : DEFAULT_TYPE;
+  const isZoneMode = alarmType === ZONE_TYPE;
 
   // Lookback window ending yesterday
   const toDate = new Date();
@@ -295,7 +292,7 @@ hotspotsRouter.get("/hotspots", async (req, res) => {
 
   const toKey = toDate.toISOString().slice(0, 10);
   const fromKey = fromDate.toISOString().slice(0, 10);
-  const cacheKey = `${fromKey}_${toKey}_mp${minPts}_et${epsTemporal}_ek${epsKm}_t${alarmTypes.join("+")}`;
+  const cacheKey = `${fromKey}_${toKey}_mp${minPts}_et${epsTemporal}_ek${epsKm}_t${alarmType}`;
 
   // Check cache
   if (cached && cached.cacheKey === cacheKey && Date.now() < cached.expiresAt) {
@@ -314,8 +311,8 @@ hotspotsRouter.get("/hotspots", async (req, res) => {
 
   // 1. Gather all alarms for the lookback window
   const allAlarms: CachedEvent[] = [];
-  for (const type of alarmTypes) {
-    const events = getEventsByType(type);
+  {
+    const events = getEventsByType(alarmType);
     const start = lowerBound(events, startTs);
     const end = lowerBound(events, endTs);
     for (let i = start; i < end; i++) {
