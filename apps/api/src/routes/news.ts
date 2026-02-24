@@ -208,9 +208,10 @@ newsRouter.get("/news", async (req, res) => {
   const cityList = cities ? cities.split(",").map((c) => c.trim()).filter(Boolean) : [];
   const allTerms = zone ? [zone, ...cityList] : cityList;
   const uniqueTerms = [...new Set(allTerms.length > 0 ? allTerms : city ? [city] : [])];
+  const singleTerm = uniqueTerms[0] || city;
   const cityQuery = uniqueTerms.length > 1
     ? `(${uniqueTerms.map((c) => `"${c}"`).join(" OR ")})`
-    : uniqueTerms[0] || city;
+    : singleTerm.includes(" ") ? `"${singleTerm}"` : singleTerm;
 
   try {
     let articles: Array<{ title: string; url: string; source: string; dateTime: string }>;

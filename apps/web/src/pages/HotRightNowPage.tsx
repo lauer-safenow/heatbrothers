@@ -434,19 +434,24 @@ export function HotRightNowPage() {
     const newsFrom = new Date(data.from);
     newsFrom.setDate(newsFrom.getDate() - 2);
     const qs = new URLSearchParams({
-      city: selected.city,
       country: selected.countryCode,
       from: newsFrom.toISOString().slice(0, 10),
       to: data.to,
     });
-    if (selected.zoneName) qs.set("zone", selected.zoneName);
-    if (selected.nearbyCities?.length) qs.set("cities", selected.nearbyCities.join(","));
+    if (isZoneMode && selected.zoneName) {
+      // Zone mode: search only for the zone name
+      qs.set("zone", selected.zoneName);
+    } else {
+      qs.set("city", selected.city);
+      if (selected.zoneName) qs.set("zone", selected.zoneName);
+      if (selected.nearbyCities?.length) qs.set("cities", selected.nearbyCities.join(","));
+    }
     fetch(`/api/news?${qs}`)
       .then((r) => r.json())
       .then((d) => setNews(d.articles || []))
       .catch(() => setNews([]))
       .finally(() => setNewsLoading(false));
-  }, [selected, data]);
+  }, [selected, data, isZoneMode]);
 
   return (
     <div className="hot-page">
