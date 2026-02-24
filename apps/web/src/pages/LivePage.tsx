@@ -8,7 +8,6 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "../datepicker-dark.css";
 import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
-import { CITIES } from "../data/cities";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import "./LivePage.css";
@@ -161,7 +160,6 @@ function TimeScroller({ value, count, onChange }: { value: number; count: number
 export function LivePage() {
   const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const cityLabelRef = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const overlay = useRef<MapboxOverlay | null>(null);
   const queue = useRef<EventTuple[]>([]);
@@ -387,15 +385,10 @@ export function LivePage() {
     map.current.on("load", () => {
       map.current?.setProjection({ type: "globe" });
 
-      // Hide city/place labels and sub-national boundary lines
+      // Hide sub-national boundary lines (keep only country borders)
       const style = map.current?.getStyle();
       if (style?.layers) {
         for (const layer of style.layers) {
-          // hide all symbol layers except country labels
-          if (layer.type === "symbol" && !layer.id.startsWith("place_country")) {
-            map.current!.setLayoutProperty(layer.id, "visibility", "none");
-          }
-          // hide admin/state boundary lines (keep only country borders)
           if (layer.type === "line" && layer.id.includes("boundary") && !layer.id.includes("country")) {
             map.current!.setLayoutProperty(layer.id, "visibility", "none");
           }
@@ -405,27 +398,6 @@ export function LivePage() {
 
     map.current.on("move", updateBlinkPosition);
     map.current.on("moveend", updateZoneTooltipPos);
-
-    // Position HTML city labels
-    map.current.on("move", () => {
-      const container = cityLabelRef.current;
-      if (!container || !map.current) return;
-      const z = map.current.getZoom();
-      const children = container.children;
-      for (let i = 0; i < CITIES.length; i++) {
-        const el = children[i] as HTMLElement | undefined;
-        if (!el) continue;
-        const city = CITIES[i];
-        if (z < city.minZoom) {
-          el.style.display = "none";
-          continue;
-        }
-        const pos = map.current.project(new maplibregl.LngLat(city.lng, city.lat));
-        el.style.left = `${pos.x}px`;
-        el.style.top = `${pos.y}px`;
-        el.style.display = "";
-      }
-    });
 
     // If URL has a polygon, fly to it immediately (no globe flash)
     if (initPoly.current && initPoly.current.length >= 3) {
@@ -1252,13 +1224,6 @@ export function LivePage() {
   return (
     <div className="live-page">
       <div ref={mapContainer} className="live-map" />
-      <div ref={cityLabelRef} className="city-label-container">
-        {CITIES.map((c) => (
-          <div key={c.name} className="city-html-label">
-            {c.name}
-          </div>
-        ))}
-      </div>
       <div ref={blinkRef} className="live-blink-marker" style={{ display: "none" }} />
       <div ref={blinkLabelRef} className="live-blink-label" style={{ display: "none" }} />
 
