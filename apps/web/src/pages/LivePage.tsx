@@ -15,6 +15,23 @@ import "./LivePage.css";
 type EventTuple = [number, number, number, number, string, string]; // [lng, lat, unixSeconds, id, city, countryCode]
 type LngLat = [number, number];
 
+interface EventType {
+  event_type: string;
+  count: number;
+}
+
+const DISPLAY_NAMES: Record<string, string> = {
+  DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm started private",
+  DETAILED_ATTENTION_STARTED_PRIVATE_GROUP: "Attention private",
+  app_opening_ZONE: "App opening zone",
+  FIRST_TIME_PHONE_STATUS_SENT: "Installs",
+  DETAILED_ALARM_STARTED_ZONE: "Alarm started zone",
+};
+
+function displayName(eventType: string): string {
+  return DISPLAY_NAMES[eventType] ?? eventType;
+}
+
 interface ZoneData {
   id: string;
   name: string;
@@ -174,6 +191,11 @@ export function LivePage() {
   const countdownRef = useRef<HTMLSpanElement>(null);
   const [hintDismissed, setHintDismissed] = useState(false);
 
+  // event type selection
+  const [eventTypes, setEventTypes] = useState<EventType[]>([]);
+  const [liveEventType, setLiveEventType] = useState(LIVE_EVENT_TYPE);
+  const liveEventTypeRef = useRef(LIVE_EVENT_TYPE);
+
   // queue display list with city names
   const [displayQueue, setDisplayQueue] = useState<QueueItem[]>([]);
 
@@ -316,6 +338,9 @@ export function LivePage() {
       setSearchParams(params, { replace: true });
     } else {
       const params: Record<string, string> = { fly: flyModeRef.current };
+      if (liveEventTypeRef.current && liveEventTypeRef.current !== LIVE_EVENT_TYPE) {
+        params.etype = liveEventTypeRef.current;
+      }
       setSearchParams(params, { replace: true });
     }
   }
@@ -453,6 +478,26 @@ export function LivePage() {
     };
   }, []);
 
+  // Fetch event types once on mount
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((data: { byType: EventType[] }) => {
+        setEventTypes(data.byType);
+        const urlType = initEtype.current;
+        if (urlType) {
+          const found = data.byType.find((t) => t.event_type === urlType);
+          if (found) {
+            setLiveEventType(found.event_type);
+            liveEventTypeRef.current = found.event_type;
+            etypeRef.current = found.event_type;
+            return;
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Fetch zones once on mount
   useEffect(() => {
     fetch("/api/zones")
@@ -543,7 +588,7 @@ export function LivePage() {
     if (modeRef.current !== "live") return;
     try {
       const res = await fetch(
-        `/api/events/${encodeURIComponent(LIVE_EVENT_TYPE)}/since/${lastSeenTs.current}`,
+        `/api/events/${encodeURIComponent(liveEventTypeRef.current)}/since/${lastSeenTs.current}`,
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -758,6 +803,18 @@ export function LivePage() {
     lastSeenTs.current = Math.floor(Date.now() / 1000) - 10 * 60;
     if (countdownRef.current) countdownRef.current.textContent = `${POLL_INTERVAL / 1000}s`;
     fetchNewEvents();
+  }
+
+  function changeEventType(newType: string) {
+    setLiveEventType(newType);
+    liveEventTypeRef.current = newType;
+    etypeRef.current = newType;
+    clearQueue();
+    lastSeenTs.current = Math.floor(Date.now() / 1000) - 10 * 60;
+    if (modeRef.current === "live") {
+      fetchNewEvents();
+    }
+    updateUrl(modeRef.current);
   }
 
   function toggleMapView() {
@@ -1296,6 +1353,20 @@ export function LivePage() {
             FREE
           </button>
         </div>
+        <select
+          className="live-event-select"
+          value={liveEventType}
+          onChange={(e) => changeEventType(e.target.value)}
+        >
+          {eventTypes.length === 0 && (
+            <option value={LIVE_EVENT_TYPE}>{displayName(LIVE_EVENT_TYPE)}</option>
+          )}
+          {eventTypes.map((t) => (
+            <option key={t.event_type} value={t.event_type}>
+              {displayName(t.event_type)} ({t.count.toLocaleString()})
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Live mode header */}
@@ -1353,7 +1424,7 @@ export function LivePage() {
             onClick={startReplay}
             disabled={replayLoading}
           >
-            {replayLoading ? "Loading..." : "Play"}
+            {replayLoading ? "Loading..." : "Load"}
           </button>
           <button
             className="replay-hide-btn"
