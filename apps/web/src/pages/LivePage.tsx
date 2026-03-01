@@ -236,6 +236,9 @@ export function LivePage() {
 
   // mode state
   const [todayMode, setTodayMode] = useState(false);
+  const initLoop = useRef(searchParams.get("loop") === "1");
+  const [loop, setLoop] = useState(initLoop.current);
+  const loopRef = useRef(initLoop.current);
   const [mode, setMode] = useState<Mode>(initMode.current);
   const modeRef = useRef<Mode>(initMode.current);
   const [replayFrom, setReplayFrom] = useState<Date>(initFrom.current);
@@ -265,6 +268,7 @@ export function LivePage() {
   // Keep refs in sync with state (for use inside closures like processReplay)
   useEffect(() => { drawingStateRef.current = drawingState; }, [drawingState]);
   useEffect(() => { polyVerticesRef.current = polyVertices; }, [polyVertices]);
+  useEffect(() => { loopRef.current = loop; }, [loop]);
 
   // Sync polygon state to URL
   useEffect(() => {
@@ -335,6 +339,7 @@ export function LivePage() {
       }
       params.fly = flyModeRef.current;
       if (etypeRef.current) params.etype = etypeRef.current;
+      if (loopRef.current) params.loop = "1";
       setSearchParams(params, { replace: true });
     } else {
       const params: Record<string, string> = { fly: flyModeRef.current };
@@ -756,6 +761,8 @@ export function LivePage() {
     modeRef.current = "replay";
     setMode("replay");
     setTodayMode(false);
+    setLoop(false);
+    loopRef.current = false;
     clearQueue();
     idleSpin.current = false;
     setReplayInfo(null);
@@ -785,10 +792,19 @@ export function LivePage() {
     setTimeout(() => startReplayWithDates(todayStart, todayEnd), 50);
   }
 
+  function toggleLoop() {
+    const next = !loopRef.current;
+    loopRef.current = next;
+    setLoop(next);
+    updateUrl("replay");
+  }
+
   function switchToLive() {
     modeRef.current = "live";
     setMode("live");
     setTodayMode(false);
+    setLoop(false);
+    loopRef.current = false;
     clearQueue();
     idleSpin.current = true;
     setReplayInfo(null);
@@ -1006,6 +1022,13 @@ export function LivePage() {
       setDisplayQueue([]);
       setActiveEvent(null);
       hideBlink();
+
+      // Loop: if in TODAY mode with loop active, re-trigger switchToToday()
+      if (loopRef.current && todayMode) {
+        setTimeout(() => switchToToday(), 1500);
+        return;
+      }
+
       const hasRegion = selectedZoneRef.current !== null ||
         (drawingStateRef.current === "complete" && polyVerticesRef.current.length >= 3);
       if (!hasRegion && mapViewRef.current === "3d") {
@@ -1305,25 +1328,34 @@ export function LivePage() {
       {/* Mode toggles */}
       <div className="live-controls-row">
         <button className="live-home-btn" onClick={() => navigate("/")}>&#8592; Home</button>
-        <div className="live-mode-toggle">
-          <button
-            className={`mode-btn${mode === "live" ? " active" : ""}`}
-            onClick={mode === "live" ? undefined : () => { switchToLive(); setHintDismissed(true); }}
-          >
-            LIVE
-          </button>
-          <button
-            className={`mode-btn${mode === "replay" && !todayMode ? " active" : ""}`}
-            onClick={() => { switchToReplay(); setHintDismissed(true); }}
-          >
-            REPLAY
-          </button>
-          <button
-            className={`mode-btn${mode === "replay" && todayMode ? " active" : ""}`}
-            onClick={() => { switchToToday(); setHintDismissed(true); }}
-          >
-            TODAY
-          </button>
+        <div className="today-toggle-wrap">
+          <div className="live-mode-toggle">
+            <button
+              className={`mode-btn${mode === "live" ? " active" : ""}`}
+              onClick={mode === "live" ? undefined : () => { switchToLive(); setHintDismissed(true); }}
+            >
+              LIVE
+            </button>
+            <button
+              className={`mode-btn${mode === "replay" && !todayMode ? " active" : ""}`}
+              onClick={() => { switchToReplay(); setHintDismissed(true); }}
+            >
+              REPLAY
+            </button>
+            <button
+              className={`mode-btn${mode === "replay" && todayMode ? " active" : ""}`}
+              onClick={() => { switchToToday(); setHintDismissed(true); }}
+            >
+              TODAY
+            </button>
+          </div>
+          <label className={`today-loop-toggle${todayMode ? " visible" : ""}${loop ? " checked" : ""}`}>
+            <input type="checkbox" checked={loop} onChange={toggleLoop} />
+            <span className="loop-switch">
+              <span className="loop-switch-thumb" />
+            </span>
+            <span className="loop-label">LOOP</span>
+          </label>
         </div>
         <div className="live-mode-toggle">
           <button
