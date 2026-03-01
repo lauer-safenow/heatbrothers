@@ -5,7 +5,7 @@ export const SYNC_INTERVAL_S = 30;
 export const SLOW_SYNC_INTERVAL_M = 30;
 
 /** The event type used by the live map */
-export const LIVE_EVENT_TYPE = "app_opening_ZONE";
+export const LIVE_EVENT_TYPE = "DETAILED_ALARM_STARTED_PRIVATE_GROUP";
 
 /** The event type used for zone-specific replay */
 export const ZONE_EVENT_TYPE = "DETAILED_ALARM_STARTED_ZONE";
