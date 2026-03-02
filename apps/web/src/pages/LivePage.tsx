@@ -220,10 +220,12 @@ export function LivePage() {
 
   // URL params for shareable replay links
   const [searchParams, setSearchParams] = useSearchParams();
-  const initMode = useRef((searchParams.get("mode") === "replay" ? "replay" : "live") as Mode);
+  const initModeParam = useRef(searchParams.get("mode"));
+  const initIsToday = useRef(initModeParam.current === "today");
+  const initMode = useRef((initModeParam.current === "replay" || initIsToday.current ? "replay" : "live") as Mode);
   const initFrom = useRef(paramToDate(searchParams.get("from")) ?? new Date(Date.now() - 60 * 60 * 1000));
   const initTo = useRef(paramToDate(searchParams.get("to")) ?? new Date());
-  const autoPlay = useRef(initMode.current === "replay" && !!searchParams.get("from") && !!searchParams.get("to"));
+  const autoPlay = useRef(initMode.current === "replay" && !initIsToday.current && !!searchParams.get("from") && !!searchParams.get("to"));
   const initZoneId = useRef<string | null>(searchParams.get("zoneid"));
   const initPoly = useRef<LngLat[] | null>(parsePolyParam(searchParams.get("poly")));
 
@@ -235,7 +237,8 @@ export function LivePage() {
   const etypeRef = useRef<string | null>(initEtype.current);
 
   // mode state
-  const [todayMode, setTodayMode] = useState(false);
+  const [todayMode, setTodayMode] = useState(initIsToday.current);
+  const todayModeRef = useRef(initIsToday.current);
   const initLoop = useRef(searchParams.get("loop") === "1");
   const [loop, setLoop] = useState(initLoop.current);
   const loopRef = useRef(initLoop.current);
@@ -326,7 +329,7 @@ export function LivePage() {
   function updateUrl(m: Mode, from?: Date, to?: Date) {
     if (m === "replay") {
       const params: Record<string, string> = {
-        mode: "replay",
+        mode: todayModeRef.current ? "today" : "replay",
         from: dateToParam(from || replayFrom),
         to: dateToParam(to || replayTo),
       };
@@ -448,7 +451,10 @@ export function LivePage() {
 
     // If URL says replay with from/to, auto-play; otherwise start live
     // When zoneid is present, defer autoplay until zone is loaded
-    if (autoPlay.current && !initZoneId.current) {
+    if (initIsToday.current) {
+      initIsToday.current = false;
+      switchToToday();
+    } else if (autoPlay.current && !initZoneId.current) {
       autoPlay.current = false;
       startReplay();
     } else if (!autoPlay.current) {
@@ -760,6 +766,7 @@ export function LivePage() {
   function switchToReplay() {
     modeRef.current = "replay";
     setMode("replay");
+    todayModeRef.current = false;
     setTodayMode(false);
     setLoop(false);
     loopRef.current = false;
@@ -778,6 +785,7 @@ export function LivePage() {
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     modeRef.current = "replay";
     setMode("replay");
+    todayModeRef.current = true;
     setTodayMode(true);
     clearQueue();
     idleSpin.current = false;
@@ -802,6 +810,7 @@ export function LivePage() {
   function switchToLive() {
     modeRef.current = "live";
     setMode("live");
+    todayModeRef.current = false;
     setTodayMode(false);
     setLoop(false);
     loopRef.current = false;
