@@ -328,11 +328,14 @@ export function LivePage() {
 
   function updateUrl(m: Mode, from?: Date, to?: Date) {
     if (m === "replay") {
+      const isToday = todayModeRef.current;
       const params: Record<string, string> = {
-        mode: todayModeRef.current ? "today" : "replay",
-        from: dateToParam(from || replayFrom),
-        to: dateToParam(to || replayTo),
+        mode: isToday ? "today" : "replay",
       };
+      if (!isToday) {
+        params.from = dateToParam(from || replayFrom);
+        params.to = dateToParam(to || replayTo);
+      }
       if (selectedZoneRef.current) params.zoneid = selectedZoneRef.current.data.id;
       const poly = polyVerticesRef.current;
       if (drawingStateRef.current === "complete" && poly.length >= 3) {
