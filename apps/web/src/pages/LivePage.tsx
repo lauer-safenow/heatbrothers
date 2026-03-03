@@ -250,6 +250,7 @@ export function LivePage() {
   const [replayInfo, setReplayInfo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"from" | "to">("from");
   const [pickerOpen, setPickerOpen] = useState(true);
+  const [replayMinimized, setReplayMinimized] = useState(false);
 
   // Zone replay state
   const [zones, setZones] = useState<ParsedZone[]>([]);
@@ -1420,7 +1421,23 @@ export function LivePage() {
 
       {/* Replay controls */}
       {mode === "replay" && (
+        replayMinimized ? (
+          <button
+            className="replay-restore-btn"
+            onClick={() => setReplayMinimized(false)}
+            title="Show date picker"
+          >
+            {"\uD83D\uDCC5"}
+          </button>
+        ) : (
         <div className={`replay-controls${!pickerOpen ? " mini" : ""}`}>
+          <button
+            className="replay-minimize-btn"
+            onClick={() => setReplayMinimized(true)}
+            title="Minimize"
+          >
+            {"\u2212"}
+          </button>
           <div className="replay-tabs">
             <button
               className={`replay-tab${activeTab === "from" ? " active" : ""}`}
@@ -1577,6 +1594,7 @@ export function LivePage() {
             />
           </div>
         </div>
+        )
       )}
 
       {/* Queue list above stats */}

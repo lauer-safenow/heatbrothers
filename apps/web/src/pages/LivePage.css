@@ -607,6 +607,55 @@
   }
 }
 
+/* ── replay minimize / restore ── */
+.replay-minimize-btn {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.85rem;
+  font-weight: normal;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 1;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.replay-minimize-btn:hover {
+  background: rgba(255, 140, 0, 0.3);
+  border-color: rgba(255, 140, 0, 0.5);
+  color: #ff8800;
+  transform: scale(1.1);
+}
+
+.replay-restore-btn {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.replay-restore-btn:hover {
+  border-color: rgba(255, 140, 0, 0.5);
+}
+
 /* ── replay controls ── */
 .replay-controls {
   position: absolute;
