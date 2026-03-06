@@ -68,6 +68,14 @@ export function App() {
         </div>
       </div>
 
+      {/* secret bufo feature-request easter egg */}
+      <div className="bufo-secret">
+        <img src="/bufo-pointing-down-there.gif" alt="" className="bufo-gif" />
+        <button className="bufo-btn" onClick={() => navigate("/feature-request")}>
+          feature-request
+        </button>
+      </div>
+
       {stats && (
         <div className="stats">
           <div className="stats-total">{stats.total.toLocaleString()} events synced</div>
