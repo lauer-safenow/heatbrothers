@@ -25,17 +25,9 @@ RUN pnpm install --frozen-lockfile
 # Copy all source
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client + build web app
 RUN pnpm db:generate
-
-# Build web app
 RUN pnpm --filter @heatbrothers/web build
-
-# Remove web from workspace (dist/ already built), reinstall prod-only
-RUN printf 'packages:\n  - "apps/api"\n  - "packages/*"\n' > pnpm-workspace.yaml \
-    && rm -rf node_modules apps/*/node_modules packages/*/node_modules \
-    && CI=1 pnpm install --prod --no-frozen-lockfile \
-    && mkdir -p /app/packages/shared/node_modules
 
 # ===========================================================
 # Stage 2: runtime — no build tools, non-root user
@@ -56,20 +48,18 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/packages/db/package.json ./packages/db/
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 
-# Copy production node_modules (pruned — no web app deps, no devDeps)
+# Copy node_modules (multi-stage COPY already excludes web dist/build tools)
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/packages/db/node_modules ./packages/db/node_modules
-# shared has no deps today; empty dir ensures COPY works if deps are added later
-COPY --from=builder /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy API source (tsx runs TypeScript directly)
 COPY --from=builder /app/apps/api/src ./apps/api/src
 
-# Copy built web assets (served as static files)
+# Copy built web assets
 COPY --from=builder /app/apps/web/dist ./apps/web/dist
 
-# Copy DB package: Prisma config, schema, migrations, generated client, and source
+# Copy DB package: Prisma config, migrations, generated client, source
 COPY --from=builder /app/packages/db/prisma.config.ts ./packages/db/
 COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
 COPY --from=builder /app/packages/db/src ./packages/db/src
@@ -77,10 +67,9 @@ COPY --from=builder /app/packages/db/src ./packages/db/src
 # Copy shared package source
 COPY --from=builder /app/packages/shared/src ./packages/shared/src
 
-# Create data directory and set ownership before switching user
+# Data directory for SQLite (volume-mounted in compose)
 RUN mkdir -p /app/data && chown -R node:node /app/data
 
-# Copy entrypoint script
 COPY docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
