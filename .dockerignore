@@ -1,0 +1,41 @@
+# Dependencies (installed fresh in container)
+node_modules
+**/node_modules
+
+# Database files (bind-mounted as volume)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Generated files (rebuilt in container)
+packages/db/prisma/generated/
+apps/web/dist/
+dist/
+
+# Build artifacts
+*.tsbuildinfo
+.turbo/
+
+# Git
+.git
+.gitignore
+
+# Environment (secrets passed via docker-compose)
+.env
+.env.local
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs
+README.md
+setup/

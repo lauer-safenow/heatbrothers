@@ -1,0 +1,23 @@
+services:
+  heatbrothers:
+    build: .
+    container_name: heatbrothers
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - POSTHOG_API_KEY=${POSTHOG_API_KEY}
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.posthog.com}
+      - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID}
+      - EMAIL=${EMAIL}
+      - PASSWORD=${PASSWORD}
+      - AUTH_ENDPOINT=${AUTH_ENDPOINT}
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
