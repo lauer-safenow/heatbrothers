@@ -83,8 +83,7 @@ pnpm dev              # starts API + Vite dev server on port 3001
 
 ## Deploy Pipeline
 
-Full spec: `/home/guru/repos/monorepo/heatbrothers-deploy-spec.md`
-Visual explainer: `/home/guru/repos/monorepo/docs/visuals/heatbrothers-deploy-pipeline.html`
+Visual explainer: https://visual-plans.safenow-experiments.com/others/heatbrothers-deploy-pipeline.html
 
 ### Servers
 
