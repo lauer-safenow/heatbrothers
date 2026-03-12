@@ -346,6 +346,7 @@ export function MapPage() {
         return r.json() as Promise<{ zones: ZoneData[] }>;
       })
       .then(({ zones: list }) => {
+        if (!Array.isArray(list)) throw new Error("zones response is not an array");
         const parsed: ParsedZone[] = [];
         for (const data of list) {
           const polygon = parseAreaJson(data.area_json);

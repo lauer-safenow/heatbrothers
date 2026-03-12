@@ -10,9 +10,10 @@ import "../datepicker-dark.css";
 import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { PolygonToolbar } from "../components/PolygonToolbar";
+import { EventTrail } from "../components/EventTrail";
 import "./LivePage.css";
 
-type EventTuple = [number, number, number, number, string, string]; // [lng, lat, unixSeconds, id, city, countryCode]
+type EventTuple = [number, number, number, number, string, string, string]; // [lng, lat, unixSeconds, id, city, countryCode, distinctId]
 type LngLat = [number, number];
 
 interface EventType {
@@ -184,6 +185,18 @@ export function LivePage() {
   const replayGen = useRef(0); // incremented on clearQueue; stale timeout callbacks check this and bail
   const lastSeenTs = useRef(0);
   const [activeEvent, setActiveEvent] = useState<EventTuple | null>(null);
+
+  // Event trail: all events persisted on map
+  const trailRef = useRef<EventTuple[]>([]);
+  const [trailEvents, setTrailEvents] = useState<EventTuple[]>([]);
+  function addToTrail(event: EventTuple) {
+    trailRef.current.push(event);
+    setTrailEvents([...trailRef.current]);
+  }
+  function clearTrail() {
+    trailRef.current = [];
+    setTrailEvents([]);
+  }
   const [queueSize, setQueueSize] = useState(0);
   const [lastAdded, setLastAdded] = useState(0);
   const [ghostText, setGhostText] = useState<string | null>(null);
@@ -406,7 +419,7 @@ export function LivePage() {
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+      style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
       center: [10, 50],
       zoom: 0.8,
       pitch: 0,
@@ -421,6 +434,17 @@ export function LivePage() {
 
     map.current.on("load", () => {
       map.current?.setProjection({ type: "globe" });
+
+      // Atmosphere halo around the globe
+      map.current?.setSky({
+        "sky-color": "#050510",
+        "sky-horizon-blend": 0.7,
+        "horizon-color": "#2a5aaa",
+        "horizon-fog-blend": 0.9,
+        "fog-color": "#050510",
+        "fog-ground-blend": 0.02,
+        "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 5, 1.2, 7, 0],
+      });
 
       // Hide sub-national boundary lines (keep only country borders)
       const style = map.current?.getStyle();
@@ -756,6 +780,7 @@ export function LivePage() {
     setDisplayQueue([]);
     setActiveEvent(null);
     hideBlink();
+    clearTrail();
     // Reset replay timeline state
     replayEvents.current = [];
     countryIndex.current = new Map();
@@ -1088,6 +1113,7 @@ export function LivePage() {
 
     if (isZoneMode || isPolyMode || is2D || isFreeMove) {
       showBlink(lng, lat, event[2]);
+      addToTrail(event);
       setDisplayQueue((prev) =>
         prev.map((item) => item.id === eventId ? { ...item, exiting: true, active: false } : item),
       );
@@ -1100,6 +1126,7 @@ export function LivePage() {
         map.current?.off("moveend", onArrival);
         if (gen !== replayGen.current) return;
         showBlink(lng, lat, event[2]);
+        addToTrail(event);
         setDisplayQueue((prev) =>
           prev.map((item) => item.id === eventId ? { ...item, exiting: true, active: false } : item),
         );
@@ -1171,6 +1198,21 @@ export function LivePage() {
       updateBlinkPosition();
     }
 
+    // Trim trail to current scrub position (removes "future" events when scrubbing back)
+    const ts = event[2];
+    trailRef.current = trailRef.current.filter((e) => e[2] <= ts);
+
+    // Backfill all events up to the current index (so jumping ahead shows intermediate dots)
+    const lastTrailTs = trailRef.current.length > 0
+      ? trailRef.current[trailRef.current.length - 1][2]
+      : -Infinity;
+    for (let i = 0; i <= index; i++) {
+      const ev = replayEvents.current[i];
+      if (ev[2] > lastTrailTs) {
+        trailRef.current.push(ev);
+      }
+    }
+    setTrailEvents([...trailRef.current]);
     setActiveEvent(event);
     rebuildDisplayWindow(index);
   }
@@ -1245,10 +1287,10 @@ export function LivePage() {
       const isPolyMode = drawingStateRef.current === "complete" && polyVerticesRef.current.length >= 3;
       const is2D = mapViewRef.current === "2d";
       const isFreeMove = flyModeRef.current === "free";
-
       if (isZoneMode || isPolyMode || is2D || isFreeMove) {
         // No map navigation: blink immediately at event location
         showBlink(lng, lat, event[2]);
+        addToTrail(event);
         setDisplayQueue((prev) =>
           prev.map((item) =>
             item.id === eventId ? { ...item, exiting: true, active: false } : item,
@@ -1267,6 +1309,7 @@ export function LivePage() {
           if (gen !== replayGen.current) return; // stale: clearQueue was called, bail
 
           showBlink(lng, lat, event[2]);
+          addToTrail(event);
 
           // Mark as exiting when blink starts
           setDisplayQueue((prev) =>
@@ -1317,6 +1360,7 @@ export function LivePage() {
   return (
     <div className="live-page">
       <div ref={mapContainer} className="live-map" />
+      <EventTrail map={map.current} events={trailEvents} />
       <div ref={blinkRef} className="live-blink-marker" style={{ display: "none" }} />
       <div ref={blinkLabelRef} className="live-blink-label" style={{ display: "none" }} />
 

@@ -1,6 +1,10 @@
 import "./env.js";
+import { ROOT_DIR } from "./env.js";
+import fs from "fs";
+import path from "path";
 
 const HASURA_ENDPOINT = "https://prod-eu.hasura.app/v1/graphql";
+const TOKEN_FILE = path.join(ROOT_DIR, "data", ".hasura-token.json");
 
 // ── in-memory token cache ──
 let cachedToken: string | null = null;
@@ -9,6 +13,28 @@ let tokenExpiresAt = 0; // unix ms
 function decodeExp(jwt: string): number {
   const payload = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString());
   return (payload.exp as number) * 1000; // → ms
+}
+
+function loadTokenFromDisk(): boolean {
+  try {
+    const raw = fs.readFileSync(TOKEN_FILE, "utf-8");
+    const { token, expiresAt } = JSON.parse(raw) as { token: string; expiresAt: number };
+    if (token && expiresAt && Date.now() < expiresAt - 60_000) {
+      cachedToken = token;
+      tokenExpiresAt = expiresAt;
+      console.log("[hasura] restored token from disk, expires", new Date(expiresAt).toISOString());
+      return true;
+    }
+  } catch { /* file missing or corrupt, ignore */ }
+  return false;
+}
+
+function saveTokenToDisk(): void {
+  try {
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify({ token: cachedToken, expiresAt: tokenExpiresAt }));
+  } catch (err) {
+    console.warn("[hasura] failed to persist token:", err);
+  }
 }
 
 async function authenticate(): Promise<string> {
@@ -34,6 +60,7 @@ async function authenticate(): Promise<string> {
   const data = (await res.json()) as { accessToken: string };
   cachedToken = data.accessToken;
   tokenExpiresAt = decodeExp(cachedToken);
+  saveTokenToDisk();
   console.log("[hasura] got token, expires", new Date(tokenExpiresAt).toISOString());
   return cachedToken;
 }
@@ -42,6 +69,10 @@ async function getToken(): Promise<string> {
   // refresh 60s before expiry
   if (cachedToken && Date.now() < tokenExpiresAt - 60_000) {
     return cachedToken;
+  }
+  // try disk cache before hitting the auth endpoint
+  if (loadTokenFromDisk()) {
+    return cachedToken!;
   }
   return authenticate();
 }

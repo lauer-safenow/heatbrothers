@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { getEventsByType, type CachedEvent } from "../cache.js";
 import { geocode } from "../geocode.js";
+import { sqlite } from "@heatbrothers/db";
 import { REPLAY_MAX_EVENTS } from "@heatbrothers/shared";
 
 export const eventsRouter = Router();
 
-function eventTuple(e: CachedEvent): [number, number, number, number, string, string] {
+function eventTuple(e: CachedEvent): [number, number, number, number, string, string, string] {
   const [city, cc] = geocode(e.latitude, e.longitude);
-  return [e.longitude, e.latitude, e.timestamp, e.id, city, cc];
+  return [e.longitude, e.latitude, e.timestamp, e.id, city, cc, e.distinctId];
 }
 
 /** Returns the first index where arr[i][field] >= key. Array must be sorted ascending by field. */
@@ -19,6 +20,40 @@ function lowerBound(arr: CachedEvent[], field: "id" | "timestamp", key: number):
   }
   return lo;
 }
+
+const DISPLAY_NAMES: Record<string, string> = {
+  DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm",
+  DETAILED_ATTENTION_STARTED_PRIVATE_GROUP: "Attention",
+  app_opening_ZONE: "App opening (zone)",
+  FIRST_TIME_PHONE_STATUS_SENT: "Installed",
+  DETAILED_ALARM_STARTED_ZONE: "Alarm (zone)",
+};
+
+const userEventsStmt = sqlite.prepare(
+  `SELECT DISTINCT event_type, timestamp, latitude, longitude FROM events WHERE distinct_id = ? ORDER BY timestamp ASC, CASE WHEN event_type LIKE '%ATTENTION%' THEN 0 WHEN event_type LIKE '%ALARM%' THEN 1 ELSE 2 END`,
+);
+
+interface UserEventRow {
+  event_type: string;
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+}
+
+eventsRouter.get("/events/user/:distinctId", (req, res) => {
+  const rows = userEventsStmt.all(req.params.distinctId) as UserEventRow[];
+  const events = rows.map((r) => {
+    const [city, cc] = geocode(r.latitude, r.longitude);
+    return {
+      type: r.event_type,
+      displayName: DISPLAY_NAMES[r.event_type] ?? r.event_type,
+      timestamp: r.timestamp,
+      city,
+      countryCode: cc,
+    };
+  });
+  res.json({ count: events.length, events });
+});
 
 eventsRouter.get("/events/:type", (req, res) => {
   const events = getEventsByType(req.params.type);
