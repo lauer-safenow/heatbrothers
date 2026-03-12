@@ -84,3 +84,72 @@ pnpm dev              # starts API + Vite dev server on port 3001
 - Raw better-sqlite3 for bulk reads (cache), Prisma for schema/migrations
 - SQLite database stored at `data/heatbrothers.db` (WAL mode)
 - Environment variables in `.env` (never committed)
+
+## Deploy Pipeline
+
+Visual explainer: https://visual-plans.safenow-experiments.com/others/heatbrothers-deploy-pipeline.html
+
+### Servers
+
+| | Dev | Prod |
+|---|---|---|
+| IP | 91.99.152.244 | 91.98.82.133 |
+| SSH alias | `map-analytics-sn-old` | `jupyter-hetzner-sn` |
+| SSH command | `ssh map-analytics-sn-old` | `ssh jupyter-hetzner-sn` |
+| SSH port | 2222 | 2222 |
+| User | ubuntu | ubuntu |
+| Deploy strategy | Push-based (poll main) | Tag-based (poll for `v*` tags on main) |
+
+### Deploy Mechanism
+
+Both servers use **systemd user timers** polling every 2 minutes.
+
+| File | Dev | Prod |
+|---|---|---|
+| Script | `/home/ubuntu/ci/deploy.sh` | `/home/ubuntu/ci/deploy.sh` |
+| Timer | `~/.config/systemd/user/deploy.timer` | `~/.config/systemd/user/deploy.timer` |
+| Service | `~/.config/systemd/user/deploy.service` | `~/.config/systemd/user/deploy.service` |
+| Log | `/home/ubuntu/ci/deploy.log` | `/home/ubuntu/ci/deploy.log` |
+| Tag tracker | N/A | `/home/ubuntu/ci/.current-tag` |
+
+### How to Deploy
+
+- **Dev**: Push to `main`. Timer picks it up within 2 min.
+- **Prod**: Create a semver tag on main and push it.
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+
+### Common Operations
+
+```bash
+# Check timer status
+ssh <server> 'systemctl --user status deploy.timer'
+
+# Check last deploy run
+ssh <server> 'systemctl --user status deploy.service'
+
+# View recent deploy logs
+ssh <server> 'tail -20 /home/ubuntu/ci/deploy.log'
+
+# Check currently deployed tag (prod only)
+ssh <server> 'cat /home/ubuntu/ci/.current-tag'
+
+# Manually trigger a deploy
+ssh <server> 'systemctl --user start deploy.service'
+
+# Check app service
+ssh <server> 'systemctl --user status heatbrothers'
+```
+
+### Log Rotation
+
+Both `deploy.sh` scripts rotate `deploy.log` when it exceeds 100 MB (`mv deploy.log deploy.log.old`).
+
+### Static HTML Files (Prod)
+
+Visual explainers and static HTML are served from `/home/ubuntu/static-html-files/html/others/` on prod. To copy a new file:
+```bash
+scp -P 2222 docs/visuals/<file>.html ubuntu@91.98.82.133:/home/ubuntu/static-html-files/html/others/
+```
