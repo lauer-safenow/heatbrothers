@@ -21,12 +21,101 @@
   }
 }
 
-/* ── layout ── */
+/* ── Night theme (default) ── */
 .map-page {
+  --ctrl-bg: rgba(20, 20, 20, 0.85);
+  --ctrl-bg-solid: #1a1a1a;
+  --panel-bg: rgba(15, 15, 15, 0.96);
+  --panel-bg-alt: rgba(17, 17, 17, 0.95);
+  --tooltip-bg: rgba(10, 10, 10, 0.94);
+  --ctrl-border: rgba(255, 255, 255, 0.15);
+  --ctrl-border-faint: rgba(255, 255, 255, 0.12);
+  --ctrl-border-subtle: rgba(255, 255, 255, 0.08);
+  --text: #fff;
+  --text-dim: rgba(255, 255, 255, 0.8);
+  --text-muted: rgba(255, 255, 255, 0.6);
+  --text-faint: rgba(255, 255, 255, 0.5);
+  --text-ghost: rgba(255, 255, 255, 0.35);
+  --text-barely: rgba(255, 255, 255, 0.3);
+  --accent-orange: #ff8800;
+  --accent-orange-hover: rgba(255, 140, 0, 0.5);
+  --accent-orange-glow: rgba(255, 100, 0, 0.3);
+  --accent-orange-bg: rgba(255, 140, 0, 0.2);
+  --accent-orange-fill: rgba(255, 136, 0, 0.8);
+  --accent-cyan: #0096ff;
+  --accent-cyan-hover: rgba(0, 150, 255, 0.5);
+  --accent-cyan-border: rgba(0, 150, 255, 0.25);
+  --accent-cyan-bg: rgba(0, 150, 255, 0.2);
+  --accent-cyan-bg-faint: rgba(0, 150, 255, 0.15);
+  --accent-cyan-bg-hover: rgba(0, 150, 255, 0.1);
+  --accent-cyan-text: rgba(0, 150, 255, 0.8);
+  --accent-cyan-strong: rgba(0, 150, 255, 0.6);
+  --subtle-bg: rgba(255, 255, 255, 0.06);
+  --loading-text: #ffcc33;
+  --cancel-border: rgba(255, 60, 60, 0.3);
+  --cancel-hover: rgba(255, 60, 60, 0.6);
+  --export-border: rgba(60, 140, 255, 0.3);
+  --export-hover: rgba(60, 140, 255, 0.6);
+  --zone-label-bg: rgba(255, 255, 255, 0.7);
+  --zone-label-text: #1a1a1a;
+  --zone-label-hover: rgba(255, 255, 255, 0.9);
+  --panel-border-top: rgba(255, 140, 0, 0.15);
+  --drag-handle: rgba(255, 255, 255, 0.15);
+  --drag-handle-hover: rgba(255, 140, 0, 0.4);
+  --badge-border: rgba(255, 140, 0, 0.2);
+  --shadow: rgba(0, 0, 0, 0.6);
+  --color-scheme: dark;
+
   position: fixed;
   inset: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Day theme ── */
+.map-page[data-theme="light"] {
+  --ctrl-bg: rgba(255, 255, 255, 0.9);
+  --ctrl-bg-solid: #f5f5f5;
+  --panel-bg: rgba(245, 245, 245, 0.96);
+  --panel-bg-alt: rgba(248, 248, 248, 0.95);
+  --tooltip-bg: rgba(255, 255, 255, 0.96);
+  --ctrl-border: rgba(0, 0, 0, 0.15);
+  --ctrl-border-faint: rgba(0, 0, 0, 0.1);
+  --ctrl-border-subtle: rgba(0, 0, 0, 0.06);
+  --text: #1a1a1a;
+  --text-dim: rgba(30, 30, 30, 0.85);
+  --text-muted: rgba(30, 30, 30, 0.65);
+  --text-faint: rgba(30, 30, 30, 0.55);
+  --text-ghost: rgba(30, 30, 30, 0.4);
+  --text-barely: rgba(30, 30, 30, 0.3);
+  --accent-orange: #0869d8;
+  --accent-orange-hover: rgba(8, 105, 216, 0.5);
+  --accent-orange-glow: rgba(8, 105, 216, 0.25);
+  --accent-orange-bg: rgba(8, 105, 216, 0.12);
+  --accent-orange-fill: rgba(8, 105, 216, 0.85);
+  --accent-cyan: #0869d8;
+  --accent-cyan-hover: rgba(8, 105, 216, 0.45);
+  --accent-cyan-border: rgba(8, 105, 216, 0.25);
+  --accent-cyan-bg: rgba(8, 105, 216, 0.15);
+  --accent-cyan-bg-faint: rgba(8, 105, 216, 0.1);
+  --accent-cyan-bg-hover: rgba(8, 105, 216, 0.06);
+  --accent-cyan-text: rgba(0, 82, 180, 0.9);
+  --accent-cyan-strong: rgba(8, 105, 216, 0.6);
+  --subtle-bg: rgba(0, 0, 0, 0.04);
+  --loading-text: #0869d8;
+  --cancel-border: rgba(200, 40, 40, 0.3);
+  --cancel-hover: rgba(200, 40, 40, 0.5);
+  --export-border: rgba(8, 105, 216, 0.3);
+  --export-hover: rgba(8, 105, 216, 0.5);
+  --zone-label-bg: rgba(0, 0, 0, 0.65);
+  --zone-label-text: #fff;
+  --zone-label-hover: rgba(0, 0, 0, 0.8);
+  --panel-border-top: rgba(8, 105, 216, 0.2);
+  --drag-handle: rgba(0, 0, 0, 0.15);
+  --drag-handle-hover: rgba(8, 105, 216, 0.4);
+  --badge-border: rgba(8, 105, 216, 0.25);
+  --shadow: rgba(0, 0, 0, 0.15);
+  --color-scheme: light;
 }
 
 .map-section {
@@ -46,9 +135,9 @@
   left: 1rem;
   z-index: 10;
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--ctrl-border);
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-dim);
   font-size: 0.85rem;
   padding: 0.3rem 0.7rem;
   cursor: pointer;
@@ -56,8 +145,143 @@
 }
 
 .map-home-btn:hover {
-  border-color: rgba(255, 136, 0, 0.5);
-  color: #fff;
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+/* ── theme toggle (above zoom controls) ── */
+.map-theme-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+}
+
+.map-theme-toggle:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+/* ── heatmap color override (below theme toggle) ── */
+.map-color-override {
+  position: absolute;
+  top: 50px;
+  right: 10px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-color-override-toggle {
+  width: 34px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 6px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.map-color-override-toggle:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+.map-color-override-toggle input[type="checkbox"] {
+  display: none;
+}
+
+.map-color-override-toggle:has(input:checked) {
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
+}
+
+.map-heatmap-colors {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-heatmap-color {
+  width: 34px;
+  height: 18px;
+  padding: 1px;
+  border: 1px solid var(--ctrl-border);
+  background: var(--ctrl-bg);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.map-heatmap-color:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.map-heatmap-color:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
+.map-heatmap-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.map-heatmap-color::-webkit-color-swatch {
+  border: none;
+}
+
+.map-heatmap-color::-moz-color-swatch {
+  border: none;
+}
+
+.map-heatmap-color:hover {
+  border-color: var(--accent-orange-hover);
+}
+
+.map-color-export {
+  width: 34px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 6px;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0;
+}
+
+.map-color-export:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+.map-color-export:active {
+  background: var(--accent-orange-bg);
+}
+
+/* push MapLibre nav controls below the theme toggle + color override */
+.map-section .maplibregl-ctrl-top-right {
+  padding-top: 88px;
 }
 
 /* ── city HTML labels (on top of heatmap) ── */
@@ -75,10 +299,10 @@
 }
 
 .event-select {
-  background: rgba(20, 20, 20, 0.85);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  border: 1px solid var(--ctrl-border);
   border-radius: 8px;
   padding: 0.5rem 1rem;
   font-family: "Arial", sans-serif;
@@ -89,23 +313,23 @@
 }
 
 .event-select:hover {
-  border-color: rgba(255, 140, 0, 0.5);
+  border-color: var(--accent-orange-hover);
 }
 
 .event-select:focus {
-  border-color: #ff8800;
-  box-shadow: 0 0 12px rgba(255, 100, 0, 0.3);
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 12px var(--accent-orange-glow);
 }
 
 .event-select option {
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--ctrl-bg-solid);
+  color: var(--text);
 }
 
 .city-search {
-  background: rgba(20, 20, 20, 0.85);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--ctrl-bg);
+  color: var(--text);
+  border: 1px solid var(--ctrl-border);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
   font-family: "Arial", sans-serif;
@@ -115,21 +339,21 @@
 }
 
 .city-search::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-ghost);
 }
 
 .city-search:hover {
-  border-color: rgba(255, 140, 0, 0.5);
+  border-color: var(--accent-orange-hover);
 }
 
 .city-search:focus {
-  border-color: #ff8800;
-  box-shadow: 0 0 12px rgba(255, 100, 0, 0.3);
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 12px var(--accent-orange-glow);
 }
 
 .loading-badge {
-  background: rgba(255, 140, 0, 0.2);
-  color: #ffcc33;
+  background: var(--accent-orange-bg);
+  color: var(--loading-text);
   font-size: 0.75rem;
   font-weight: bold;
   padding: 0.3rem 0.6rem;
@@ -142,10 +366,10 @@
 }
 
 .zone-dropdown-btn {
-  background: rgba(20, 20, 20, 0.85);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  border: 1px solid var(--ctrl-border);
   border-radius: 8px;
   padding: 0.5rem 1rem;
   font-family: Arial, sans-serif;
@@ -156,7 +380,7 @@
 }
 
 .zone-dropdown-btn:hover {
-  border-color: rgba(0, 150, 255, 0.5);
+  border-color: var(--accent-cyan-hover);
 }
 
 .zone-dropdown-panel {
@@ -164,9 +388,9 @@
   top: calc(100% + 0.4rem);
   right: 0;
   width: 280px;
-  background: rgba(15, 15, 15, 0.96);
+  background: var(--panel-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 150, 255, 0.25);
+  border: 1px solid var(--accent-cyan-border);
   border-radius: 8px;
   padding: 0.5rem;
   z-index: 30;
@@ -176,10 +400,10 @@
 }
 
 .zone-dropdown-search {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--subtle-bg);
+  border: 1px solid var(--ctrl-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--text);
   padding: 0.35rem 0.5rem;
   font-size: 0.8rem;
   font-family: Arial, sans-serif;
@@ -187,11 +411,11 @@
 }
 
 .zone-dropdown-search:focus {
-  border-color: rgba(0, 150, 255, 0.5);
+  border-color: var(--accent-cyan-hover);
 }
 
 .zone-dropdown-search::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-barely);
 }
 
 .zone-dropdown-filters {
@@ -201,10 +425,10 @@
 }
 
 .zone-filter-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--subtle-bg);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 4px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
   font-size: 0.68rem;
   font-family: Arial, sans-serif;
   padding: 0.2rem 0.5rem;
@@ -213,13 +437,13 @@
 
 .zone-filter-btn:hover {
   border-color: rgba(0, 150, 255, 0.4);
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-dim);
 }
 
 .zone-filter-btn.active {
-  background: rgba(0, 150, 255, 0.2);
-  border-color: rgba(0, 150, 255, 0.6);
-  color: #fff;
+  background: var(--accent-cyan-bg);
+  border-color: var(--accent-cyan-strong);
+  color: var(--text);
 }
 
 .zone-dropdown-actions {
@@ -229,10 +453,10 @@
 
 .zone-dropdown-actions button {
   flex: 1;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--subtle-bg);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 4px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   font-size: 0.7rem;
   font-family: Arial, sans-serif;
   padding: 0.2rem 0;
@@ -240,7 +464,7 @@
 }
 
 .zone-dropdown-actions button:hover {
-  color: #fff;
+  color: var(--text);
   border-color: rgba(0, 150, 255, 0.4);
 }
 
@@ -261,16 +485,16 @@
   cursor: pointer;
   font-family: Arial, sans-serif;
   font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-dim);
   user-select: none;
 }
 
 .zone-dropdown-item:hover {
-  background: rgba(0, 150, 255, 0.1);
+  background: var(--accent-cyan-bg-hover);
 }
 
 .zone-dropdown-item input[type="checkbox"] {
-  accent-color: #0096ff;
+  accent-color: var(--accent-cyan);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -287,12 +511,12 @@
   padding: 0.1rem 0.35rem;
   border-radius: 3px;
   flex-shrink: 0;
-  background: rgba(0, 150, 255, 0.15);
-  color: rgba(0, 150, 255, 0.8);
+  background: var(--accent-cyan-bg-faint);
+  color: var(--accent-cyan-text);
 }
 
 .zone-dropdown-empty {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-barely);
   font-size: 0.75rem;
   text-align: center;
   padding: 0.5rem;
@@ -310,9 +534,9 @@
 .zone-html-label {
   position: absolute;
   transform: translate(-50%, -50%);
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--zone-label-bg);
   backdrop-filter: blur(4px);
-  color: #1a1a1a;
+  color: var(--zone-label-text);
   font-family: Arial, sans-serif;
   font-size: 0.78rem;
   font-weight: bold;
@@ -324,7 +548,7 @@
 }
 
 .zone-html-label:hover {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--zone-label-hover);
 }
 
 /* ── geohash toggle ── */
@@ -338,12 +562,12 @@
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  background: rgba(20, 20, 20, 0.85);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--ctrl-border);
   border-radius: 8px;
   padding: 0.4rem 0.7rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   font-family: monospace;
   font-size: 0.8rem;
   cursor: pointer;
@@ -356,21 +580,21 @@
 }
 
 .geohash-toggle:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff;
+  border-color: var(--ctrl-border-faint);
+  color: var(--text);
 }
 
 .geohash-toggle input[type="checkbox"] {
-  accent-color: #ff8800;
+  accent-color: var(--accent-orange);
   cursor: pointer;
 }
 
 .geohash-precision-toggle {
   display: flex;
   gap: 2px;
-  background: rgba(20, 20, 20, 0.85);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--ctrl-border);
   border-left: none;
   border-radius: 0 8px 8px 0;
   padding: 2px;
@@ -379,7 +603,7 @@
 .geohash-precision-btn {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
   font-family: monospace;
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
@@ -388,11 +612,11 @@
 }
 
 .geohash-precision-btn:hover {
-  color: #fff;
+  color: var(--text);
 }
 
 .geohash-precision-btn.active {
-  background: rgba(255, 136, 0, 0.8);
+  background: var(--accent-orange-fill);
   color: #fff;
 }
 
@@ -402,12 +626,12 @@
   top: 1rem;
   right: 4rem;
   z-index: 10;
-  background: rgba(20, 20, 20, 0.75);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 6px;
   padding: 0.25rem 0.6rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
   font-family: monospace;
   font-size: 0.75rem;
   pointer-events: none;
@@ -422,9 +646,9 @@
   display: inline-flex;
   align-items: flex-end;
   gap: 1.25rem;
-  background: rgba(20, 20, 20, 0.8);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 10px;
   padding: 0.75rem 1rem;
 }
@@ -436,10 +660,10 @@
 }
 
 .poly-btn {
-  background: rgba(20, 20, 20, 0.85);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  border: 1px solid var(--ctrl-border);
   border-radius: 8px;
   padding: 0.45rem 0.9rem;
   font-family: "Arial", sans-serif;
@@ -449,7 +673,7 @@
 }
 
 .poly-btn:hover:not(:disabled) {
-  border-color: rgba(255, 140, 0, 0.5);
+  border-color: var(--accent-orange-hover);
 }
 
 .poly-btn:disabled {
@@ -458,23 +682,23 @@
 }
 
 .poly-btn-cancel {
-  border-color: rgba(255, 60, 60, 0.3);
+  border-color: var(--cancel-border);
 }
 
 .poly-btn-cancel:hover {
-  border-color: rgba(255, 60, 60, 0.6);
+  border-color: var(--cancel-hover);
 }
 
 .poly-btn-export {
-  border-color: rgba(60, 140, 255, 0.3);
+  border-color: var(--export-border);
 }
 
 .poly-btn-export:hover {
-  border-color: rgba(60, 140, 255, 0.6);
+  border-color: var(--export-hover);
 }
 
 .poly-info {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-family: monospace;
 }
@@ -486,9 +710,9 @@
   left: 0;
   right: 0;
   z-index: 5;
-  background: rgba(17, 17, 17, 0.95);
+  background: var(--panel-bg-alt);
   backdrop-filter: blur(8px);
-  border-top: 1px solid rgba(255, 140, 0, 0.15);
+  border-top: 1px solid var(--panel-border-top);
   padding: 0 1.5rem 0.75rem;
   display: flex;
   flex-direction: column;
@@ -508,11 +732,11 @@
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--drag-handle);
 }
 
 .panel-drag-handle:hover::after {
-  background: rgba(255, 140, 0, 0.4);
+  background: var(--drag-handle-hover);
 }
 
 /* ── date filters ── */
@@ -525,7 +749,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-ghost);
   font-size: 0.7rem;
   font-family: Arial, sans-serif;
   text-transform: uppercase;
@@ -533,29 +757,29 @@
 }
 
 .date-filters input[type="date"] {
-  background: rgba(20, 20, 20, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--text);
   padding: 0.35rem 0.5rem;
   font-size: 0.8rem;
   font-family: monospace;
   outline: none;
   width: 140px;
-  color-scheme: dark;
+  color-scheme: var(--color-scheme);
 }
 
 .date-filters input[type="date"]:focus {
-  border-color: #ff8800;
-  box-shadow: 0 0 8px rgba(255, 100, 0, 0.3);
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 8px var(--accent-orange-glow);
 }
 
 .time-reset-btn {
   align-self: flex-end;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--subtle-bg);
+  border: 1px solid var(--ctrl-border);
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
   padding: 0.35rem 0.7rem;
   font-size: 0.75rem;
   font-family: Arial, sans-serif;
@@ -564,8 +788,8 @@
 }
 
 .time-reset-btn:hover {
-  color: #fff;
-  border-color: rgba(255, 140, 0, 0.5);
+  color: var(--text);
+  border-color: var(--accent-orange-hover);
 }
 
 /* ── event count badge (above toolbar) ── */
@@ -574,12 +798,12 @@
   bottom: 5.5rem;
   left: 1rem;
   z-index: 10;
-  background: rgba(20, 20, 20, 0.8);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 140, 0, 0.2);
+  border: 1px solid var(--badge-border);
   border-radius: 8px;
   padding: 0.35rem 0.9rem;
-  color: #ff8800;
+  color: var(--accent-orange);
   font-size: 0.95rem;
   font-weight: bold;
   font-family: monospace;
@@ -589,22 +813,22 @@
 .zone-context-menu {
   position: absolute;
   z-index: 30;
-  background: rgba(15, 15, 15, 0.96);
+  background: var(--panel-bg);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(0, 150, 255, 0.35);
+  border: 1px solid var(--accent-cyan-border);
   border-radius: 8px;
   padding: 0.3rem 0;
   min-width: 160px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 20px var(--shadow);
   user-select: none;
 }
 
 .zone-context-menu-title {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
   font-family: Arial, sans-serif;
   font-size: 0.7rem;
   padding: 0.3rem 0.75rem 0.3rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--ctrl-border-subtle);
   margin-bottom: 0.2rem;
   white-space: nowrap;
   overflow: hidden;
@@ -617,7 +841,7 @@
   width: 100%;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--text);
   font-family: Arial, sans-serif;
   font-size: 0.85rem;
   text-align: left;
@@ -626,7 +850,7 @@
 }
 
 .zone-context-menu-item:hover {
-  background: rgba(0, 150, 255, 0.2);
+  background: var(--accent-cyan-bg);
 }
 
 /* ── zone tooltip ── */
@@ -634,8 +858,8 @@
   position: absolute;
   pointer-events: none;
   z-index: 20;
-  background: rgba(10, 10, 10, 0.94);
-  border: 1px solid rgba(0, 150, 255, 0.3);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--accent-cyan-border);
   border-radius: 8px;
   padding: 0.6rem;
   max-width: 280px;
@@ -643,7 +867,7 @@
 }
 
 .zone-tooltip-name {
-  color: #fff;
+  color: var(--text);
   font-family: Arial, sans-serif;
   font-size: 0.85rem;
   font-weight: bold;
@@ -664,7 +888,7 @@
   gap: 0.2rem;
   font-family: Arial, sans-serif;
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-dim);
 }
 
 .zt-row {
@@ -673,7 +897,7 @@
 }
 
 .zt-label {
-  color: rgba(0, 150, 255, 0.8);
+  color: var(--accent-cyan-text);
   font-weight: bold;
   min-width: 70px;
   flex-shrink: 0;

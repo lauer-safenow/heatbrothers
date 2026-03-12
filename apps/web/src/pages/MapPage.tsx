@@ -14,6 +14,9 @@ import { TimeHistogram } from "../components/TimeHistogram";
 
 import "./MapPage.css";
 
+const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const LIGHT_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type LngLat = [number, number];
 type DrawingState = "idle" | "drawing" | "complete";
@@ -130,6 +133,23 @@ function getHeatmapParams(zoom: number) {
   return { radiusPixels, intensity, threshold };
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+const DEFAULT_OVERRIDE_COLORS = ["#f58ca0", "#f0506e", "#f0093f", "#dc0750", "#cc0560", "#960046"];
+
+// Standard heatmap gradient for light mode — #0995FF → #0869D8 → #0034E3
+const LIGHT_HEATMAP_COLORS: [number, number, number][] = [
+  [60, 160, 255],
+  [5, 120, 230],
+  [6, 88, 210],
+  [4, 78, 220],
+  [0, 52, 227],
+  [0, 30, 160],
+];
+
 function dateToDateParam(d: Date): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -201,6 +221,10 @@ export function MapPage() {
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
   // geohash hover
+  const [mapTheme, setMapTheme] = useState<"dark" | "light">("dark");
+  const [heatmapColors, setHeatmapColors] = useState(DEFAULT_OVERRIDE_COLORS);
+  const [colorOverride, setColorOverride] = useState(false);
+
   const [geohashEnabled, setGeohashEnabled] = useState(false);
   const geohashEnabledRef = useRef(false);
   const [geohashPrecision, setGeohashPrecision] = useState<5 | 6>(5);
@@ -387,7 +411,7 @@ export function MapPage() {
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+      style: DARK_STYLE,
       center: [10.4515, 51.1657],
       zoom: 5.5,
       // preserveDrawingBuffer lets getCanvas().toDataURL() work for PDF export
@@ -400,7 +424,8 @@ export function MapPage() {
     map.current.addControl(overlay.current);
 
     // Hide non-essential symbol layers, keep country + city/town labels
-    map.current.on("load", () => {
+    // Using style.load so it re-fires after theme switches too
+    map.current.on("style.load", () => {
       const keepPrefixes = ["place_country", "place_city", "place_capital", "place_town"];
       const style = map.current?.getStyle();
       if (style?.layers) {
@@ -585,6 +610,9 @@ export function MapPage() {
           radiusPixels,
           intensity,
           threshold,
+          ...(colorOverride
+            ? { colorRange: heatmapColors.map(hexToRgb) }
+            : mapTheme === "light" ? { colorRange: LIGHT_HEATMAP_COLORS } : {}),
         }),
       );
     }
@@ -623,7 +651,7 @@ export function MapPage() {
           id: "zone-leader-lines",
           data: labelData,
           getPath: (d: { path: LngLat[] }) => d.path,
-          getColor: [255, 255, 255, 210],
+          getColor: mapTheme === "dark" ? [255, 255, 255, 210] : [30, 30, 30, 200],
           getWidth: 2,
           widthUnits: "pixels" as const,
           capRounded: true,
@@ -690,9 +718,13 @@ export function MapPage() {
           data: cellData,
           getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
           getFillColor: (d: { isCenter: boolean }) =>
-            d.isCenter ? [255, 255, 255, 25] : [255, 255, 255, 8],
+            mapTheme === "dark"
+              ? (d.isCenter ? [255, 255, 255, 25] : [255, 255, 255, 8])
+              : (d.isCenter ? [0, 0, 0, 30] : [0, 0, 0, 10]),
           getLineColor: (d: { isCenter: boolean }) =>
-            d.isCenter ? [255, 255, 255, 120] : [255, 255, 255, 40],
+            mapTheme === "dark"
+              ? (d.isCenter ? [255, 255, 255, 120] : [255, 255, 255, 40])
+              : (d.isCenter ? [0, 0, 0, 100] : [0, 0, 0, 35]),
           getLineWidth: (d: { isCenter: boolean }) => d.isCenter ? 2 : 1,
           lineWidthUnits: "pixels" as const,
           filled: true,
@@ -702,7 +734,7 @@ export function MapPage() {
     }
 
     overlay.current.setProps({ layers });
-  }, [filteredEvents, drawingState, vertices, zoom, visibleZones, geohashEnabled, hoveredGeohash]);
+  }, [filteredEvents, drawingState, vertices, zoom, visibleZones, geohashEnabled, hoveredGeohash, mapTheme, heatmapColors, colorOverride]);
 
   // resize map after mount
   useEffect(() => {
@@ -711,11 +743,88 @@ export function MapPage() {
   }, []);
 
   return (
-    <div className="map-page">
+    <div className="map-page" data-theme={mapTheme === "light" ? "light" : undefined}>
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
         <button className="map-home-btn" onClick={() => navigate("/")}>&#8592; Home</button>
 
+        <button
+          className="map-theme-toggle"
+          title={mapTheme === "dark" ? "Switch to light map" : "Switch to dark map"}
+          onClick={() => {
+            const next = mapTheme === "dark" ? "light" : "dark";
+            setMapTheme(next);
+            map.current?.setStyle(next === "dark" ? DARK_STYLE : LIGHT_STYLE);
+          }}
+        >
+          {mapTheme === "dark" ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </button>
+
+        <div className="map-color-override">
+          <label className="map-color-override-toggle" title="Override heatmap color">
+            <input
+              type="checkbox"
+              checked={colorOverride}
+              onChange={(e) => setColorOverride(e.target.checked)}
+            />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+            </svg>
+          </label>
+          {colorOverride && (
+            <div className="map-heatmap-colors">
+              {heatmapColors.map((c, i) => (
+                <input
+                  key={i}
+                  type="color"
+                  className="map-heatmap-color"
+                  title={`Stop ${i + 1} (${i === 0 ? "low" : i === 5 ? "high" : "mid"} density)`}
+                  value={c}
+                  onChange={(e) => {
+                    const next = [...heatmapColors];
+                    next[i] = e.target.value;
+                    setHeatmapColors(next);
+                  }}
+                />
+              ))}
+              <button
+                className="map-color-export"
+                title="Copy gradient to clipboard"
+                onClick={() => {
+                  const rgbs = heatmapColors.map(hexToRgb);
+                  const hexes = heatmapColors.map(h => h.toUpperCase());
+                  const lines = rgbs.map(([r, g, b], i) => {
+                    const label = i === 0 ? "low density" : i === rgbs.length - 1 ? "high density" : `stop ${i + 1}`;
+                    return `  [${r}, ${g}, ${b}],${" ".repeat(Math.max(1, 18 - `${r}, ${g}, ${b}`.length))}// ${hexes[i]} - ${label}`;
+                  });
+                  const code = `// Heatmap gradient — ${hexes[0]} → ${hexes[Math.floor(hexes.length / 2)]} → ${hexes[hexes.length - 1]}\nconst HEATMAP_COLORS: [number, number, number][] = [\n${lines.join("\n")}\n];`;
+                  navigator.clipboard.writeText(code);
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
 
         <div ref={zoneLabelRef} className="zone-label-container">
           {visibleZones.map((z) => (
