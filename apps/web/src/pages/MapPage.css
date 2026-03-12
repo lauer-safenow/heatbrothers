@@ -220,6 +220,22 @@
   gap: 2px;
 }
 
+.map-heatmap-stop {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 4px;
+}
+
+.map-heatmap-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  text-align: right;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
 .map-heatmap-color {
   width: 34px;
   height: 18px;
@@ -231,11 +247,11 @@
   appearance: none;
 }
 
-.map-heatmap-color:first-child {
+.map-heatmap-stop:first-child .map-heatmap-color {
   border-radius: 6px 6px 0 0;
 }
 
-.map-heatmap-color:last-child {
+.map-heatmap-stop:last-of-type .map-heatmap-color {
   border-radius: 0 0 6px 6px;
 }
 
@@ -279,10 +295,6 @@
   background: var(--accent-orange-bg);
 }
 
-/* push MapLibre nav controls below the theme toggle + color override */
-.map-section .maplibregl-ctrl-top-right {
-  padding-top: 88px;
-}
 
 /* ── city HTML labels (on top of heatmap) ── */
 

@@ -418,7 +418,7 @@ export function MapPage() {
       ...({ preserveDrawingBuffer: true } as {}),
     });
 
-    map.current.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.current.addControl(new maplibregl.NavigationControl(), "bottom-right");
 
     overlay.current = new MapboxOverlay({ layers: [] });
     map.current.addControl(overlay.current);
@@ -789,20 +789,32 @@ export function MapPage() {
           </label>
           {colorOverride && (
             <div className="map-heatmap-colors">
-              {heatmapColors.map((c, i) => (
-                <input
-                  key={i}
-                  type="color"
-                  className="map-heatmap-color"
-                  title={`Stop ${i + 1} (${i === 0 ? "low" : i === 5 ? "high" : "mid"} density)`}
-                  value={c}
-                  onChange={(e) => {
-                    const next = [...heatmapColors];
-                    next[i] = e.target.value;
-                    setHeatmapColors(next);
-                  }}
-                />
-              ))}
+              {heatmapColors.map((c, i) => {
+                const labels = [
+                  "Lightest Tint / Low Density",
+                  "Light Tint / Low-Mid Density",
+                  "Mid-Light / Mid Density",
+                  "Mid-Dark / Mid-High Density",
+                  "Dark Tint / High Density",
+                  "Darkest Tint / Peak Density",
+                ];
+                return (
+                  <div key={i} className="map-heatmap-stop">
+                    <input
+                      type="color"
+                      className="map-heatmap-color"
+                      title={`Stop ${i + 1} — ${labels[i]}`}
+                      value={c}
+                      onChange={(e) => {
+                        const next = [...heatmapColors];
+                        next[i] = e.target.value;
+                        setHeatmapColors(next);
+                      }}
+                    />
+                    <span className="map-heatmap-label">{labels[i]}</span>
+                  </div>
+                );
+              })}
               <button
                 className="map-color-export"
                 title="Copy gradient to clipboard"
