@@ -138,6 +138,12 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
+function rgbToHex(rgb: [number, number, number]): string {
+  return "#" + rgb.map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+const DARK_HEATMAP_DEFAULTS = ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#f03b20", "#bd0026"];
+
 const DEFAULT_OVERRIDE_COLORS = ["#f58ca0", "#f0506e", "#f0093f", "#dc0750", "#cc0560", "#960046"];
 
 // Standard heatmap gradient for light mode — #0995FF → #0869D8 → #0034E3
@@ -220,6 +226,11 @@ export function MapPage() {
   const zoneDropdownRef = useRef<HTMLDivElement>(null);
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
+  // settings menu
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const [showZoomControls, setShowZoomControls] = useState(true);
+
   // geohash hover
   const [mapTheme, setMapTheme] = useState<"dark" | "light">("light");
   const [heatmapColors, setHeatmapColors] = useState(DEFAULT_OVERRIDE_COLORS);
@@ -231,6 +242,18 @@ export function MapPage() {
   const geohashPrecisionRef = useRef<5 | 6>(5);
   const [hoveredGeohash, setHoveredGeohash] = useState<string | null>(null);
   const zoneAutoDiscoverRef = useRef(true);
+
+  // close settings menu on outside click
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [settingsOpen]);
 
   const autoZoneMode = zoneAutoDiscover && zoom >= ZONE_AUTO_ZOOM;
 
@@ -325,6 +348,12 @@ export function MapPage() {
 
     return events;
   }, [allEvents, timeFrom, timeUntil, drawingState, vertices]);
+
+  const legendColors = useMemo(() => {
+    if (colorOverride) return heatmapColors;
+    if (mapTheme === "light") return LIGHT_HEATMAP_COLORS.map(rgbToHex);
+    return DARK_HEATMAP_DEFAULTS;
+  }, [colorOverride, heatmapColors, mapTheme]);
 
   // ---------- data fetching ----------
   useEffect(() => {
@@ -743,7 +772,7 @@ export function MapPage() {
   }, []);
 
   return (
-    <div className="map-page" data-theme={mapTheme === "light" ? "light" : undefined}>
+    <div className={`map-page${showZoomControls ? "" : " hide-zoom"}`} data-theme={mapTheme === "light" ? "light" : undefined}>
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
         <div className="map-logo" onClick={() => navigate("/")}>
@@ -754,105 +783,241 @@ export function MapPage() {
           </span>
         </div>
 
-        <div className="map-top-right">
-
-        <button
-          className="map-theme-toggle"
-          title={mapTheme === "dark" ? "Switch to light map" : "Switch to dark map"}
-          onClick={() => {
-            const next = mapTheme === "dark" ? "light" : "dark";
-            setMapTheme(next);
-            map.current?.setStyle(next === "dark" ? DARK_STYLE : LIGHT_STYLE);
-          }}
-        >
-          {mapTheme === "dark" ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          )}
-        </button>
-        </div>
-
-        <div className="map-color-override">
-          <label className="map-color-override-toggle" title="Override heatmap color">
-            <input
-              type="checkbox"
-              checked={colorOverride}
-              onChange={(e) => setColorOverride(e.target.checked)}
-            />
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-            </svg>
-          </label>
-          {colorOverride && (
-            <div className="map-heatmap-colors">
-              {heatmapColors.map((c, i) => {
-                const labels = [
-                  "Lightest Tint / Low Density",
-                  "Light Tint / Low-Mid Density",
-                  "Mid-Light / Mid Density",
-                  "Mid-Dark / Mid-High Density",
-                  "Dark Tint / High Density",
-                  "Darkest Tint / Peak Density",
-                ];
-                return (
-                  <div key={i} className="map-heatmap-stop">
-                    <input
-                      type="color"
-                      className="map-heatmap-color"
-                      title={`Stop ${i + 1} — ${labels[i]}`}
-                      value={c}
-                      onChange={(e) => {
-                        const next = [...heatmapColors];
-                        next[i] = e.target.value;
-                        setHeatmapColors(next);
-                      }}
+        <div className="map-top-right" ref={settingsRef}>
+          <div className="polygon-btn-wrap">
+            <button
+              className={`polygon-btn${drawingState !== "idle" ? " active" : ""}`}
+              title="Draw polygon"
+              onClick={() => {
+                if (drawingState === "idle") {
+                  setVertices([]);
+                  setDrawingState("drawing");
+                }
+              }}
+            >
+              <img src="/polygon.svg" alt="Draw polygon" width="18" height="18" />
+            </button>
+            {drawingState !== "idle" && (
+              <div className="polygon-menu">
+                <PolygonToolbar
+                  drawingState={drawingState}
+                  vertexCount={vertices.length}
+                  onStartDraw={() => {
+                    setVertices([]);
+                    setDrawingState("drawing");
+                  }}
+                  onFinishDraw={() => {
+                    if (vertices.length >= 3) setDrawingState("complete");
+                  }}
+                  onClear={() => {
+                    setVertices([]);
+                    setDrawingState("idle");
+                  }}
+                  onExport={handleExport}
+                />
+                <div className="date-filters">
+                  <label>
+                    From
+                    <DatePicker
+                      selected={timeFrom}
+                      onChange={(d: Date | null) => setTimeFrom(d)}
+                      dateFormat="dd.MM.yyyy"
+                      isClearable
+                      placeholderText="Select date"
                     />
-                    <span className="map-heatmap-label">{labels[i]}</span>
+                  </label>
+                  <label>
+                    Until
+                    <DatePicker
+                      selected={timeUntil}
+                      onChange={(d: Date | null) => setTimeUntil(d)}
+                      dateFormat="dd.MM.yyyy"
+                      isClearable
+                      placeholderText="Select date"
+                    />
+                  </label>
+                  {(timeFrom || timeUntil) && (
+                    <button
+                      className="time-reset-btn"
+                      onClick={() => {
+                        setTimeFrom(null);
+                        setTimeUntil(null);
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            className="settings-btn"
+            title="Settings"
+            onClick={() => setSettingsOpen((v) => !v)}
+          >
+            <img src="/gear.svg" alt="Settings" width="18" height="18" />
+          </button>
+          {settingsOpen && (
+            <div className="settings-menu">
+              <div className="settings-row">
+                <span className="settings-label">
+                  {mapTheme === "dark" ? "Dark" : "Light"} Mode
+                </span>
+                <button
+                  className="settings-theme-btn"
+                  onClick={() => {
+                    const next = mapTheme === "dark" ? "light" : "dark";
+                    setMapTheme(next);
+                    map.current?.setStyle(next === "dark" ? DARK_STYLE : LIGHT_STYLE);
+                  }}
+                >
+                  {mapTheme === "dark" ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="5" />
+                      <line x1="12" y1="1" x2="12" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="23" />
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                      <line x1="1" y1="12" x2="3" y2="12" />
+                      <line x1="21" y1="12" x2="23" y2="12" />
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">Geohashes</span>
+                <div className="settings-row-right">
+                  {geohashEnabled && (
+                    <div className="geohash-precision-toggle">
+                      {([5, 6] as const).map((p) => (
+                        <button
+                          key={p}
+                          className={`geohash-precision-btn${geohashPrecision === p ? " active" : ""}`}
+                          onClick={() => {
+                            setGeohashPrecision(p);
+                            geohashPrecisionRef.current = p;
+                            setHoveredGeohash(null);
+                          }}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <img
+                    className="settings-toggle"
+                    src={geohashEnabled ? "/on.svg" : "/off.svg"}
+                    alt={geohashEnabled ? "On" : "Off"}
+                    onClick={() => {
+                      setGeohashEnabled(!geohashEnabled);
+                      geohashEnabledRef.current = !geohashEnabled;
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">Discover Zones</span>
+                <img
+                  className="settings-toggle"
+                  src={zoneAutoDiscover ? "/on.svg" : "/off.svg"}
+                  alt={zoneAutoDiscover ? "On" : "Off"}
+                  onClick={() => {
+                    const next = !zoneAutoDiscover;
+                    setZoneAutoDiscover(next);
+                    zoneAutoDiscoverRef.current = next;
+                    if (next && map.current && map.current.getZoom() >= ZONE_AUTO_ZOOM) {
+                      setBoundsVersion((v) => v + 1);
+                    }
+                  }}
+                />
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">Zoom Controls</span>
+                <img
+                  className="settings-toggle"
+                  src={showZoomControls ? "/on.svg" : "/off.svg"}
+                  alt={showZoomControls ? "On" : "Off"}
+                  onClick={() => setShowZoomControls((v) => !v)}
+                />
+              </div>
+              <div className="settings-divider" />
+              <div className="settings-row">
+                <span className="settings-label">Heatmap Colors</span>
+                <img
+                  className="settings-toggle"
+                  src={colorOverride ? "/on.svg" : "/off.svg"}
+                  alt={colorOverride ? "On" : "Off"}
+                  onClick={() => setColorOverride(!colorOverride)}
+                />
+              </div>
+              {colorOverride && (
+                <div className="settings-colors">
+                  {heatmapColors.map((c, i) => {
+                    const labels = [
+                      "Lightest Tint / Low Density",
+                      "Light Tint / Low-Mid Density",
+                      "Mid-Light / Mid Density",
+                      "Mid-Dark / Mid-High Density",
+                      "Dark Tint / High Density",
+                      "Darkest Tint / Peak Density",
+                    ];
+                    return (
+                      <div key={i} className="map-heatmap-stop">
+                        <input
+                          type="color"
+                          className="map-heatmap-color"
+                          title={`Stop ${i + 1} — ${labels[i]}`}
+                          value={c}
+                          onChange={(e) => {
+                            const next = [...heatmapColors];
+                            next[i] = e.target.value;
+                            setHeatmapColors(next);
+                          }}
+                        />
+                        <span className="map-heatmap-label">{labels[i]}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="settings-color-actions">
+                    <button
+                      className="map-color-export"
+                      title="Copy gradient to clipboard"
+                      onClick={() => {
+                        const rgbs = heatmapColors.map(hexToRgb);
+                        const hexes = heatmapColors.map(h => h.toUpperCase());
+                        const lines = rgbs.map(([r, g, b], i) => {
+                          const label = i === 0 ? "low density" : i === rgbs.length - 1 ? "high density" : `stop ${i + 1}`;
+                          return `  [${r}, ${g}, ${b}],${" ".repeat(Math.max(1, 18 - `${r}, ${g}, ${b}`.length))}// ${hexes[i]} - ${label}`;
+                        });
+                        const code = `// Heatmap gradient — ${hexes[0]} → ${hexes[Math.floor(hexes.length / 2)]} → ${hexes[hexes.length - 1]}\nconst HEATMAP_COLORS: [number, number, number][] = [\n${lines.join("\n")}\n];`;
+                        navigator.clipboard.writeText(code);
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    </button>
+                    <button
+                      className="map-color-export"
+                      title="Reset to default colors"
+                      onClick={() => setHeatmapColors([...DEFAULT_OVERRIDE_COLORS])}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="1 4 1 10 7 10" />
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                      </svg>
+                    </button>
                   </div>
-                );
-              })}
-              <button
-                className="map-color-export"
-                title="Copy gradient to clipboard"
-                onClick={() => {
-                  const rgbs = heatmapColors.map(hexToRgb);
-                  const hexes = heatmapColors.map(h => h.toUpperCase());
-                  const lines = rgbs.map(([r, g, b], i) => {
-                    const label = i === 0 ? "low density" : i === rgbs.length - 1 ? "high density" : `stop ${i + 1}`;
-                    return `  [${r}, ${g}, ${b}],${" ".repeat(Math.max(1, 18 - `${r}, ${g}, ${b}`.length))}// ${hexes[i]} - ${label}`;
-                  });
-                  const code = `// Heatmap gradient — ${hexes[0]} → ${hexes[Math.floor(hexes.length / 2)]} → ${hexes[hexes.length - 1]}\nconst HEATMAP_COLORS: [number, number, number][] = [\n${lines.join("\n")}\n];`;
-                  navigator.clipboard.writeText(code);
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              </button>
-              <button
-                className="map-color-export"
-                title="Reset to default colors"
-                onClick={() => setHeatmapColors([...DEFAULT_OVERRIDE_COLORS])}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="1 4 1 10 7 10" />
-                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                </svg>
-              </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1047,50 +1212,6 @@ export function MapPage() {
               </div>
             )}
           </div>
-          <label className="geohash-toggle">
-            <input
-              type="checkbox"
-              checked={zoneAutoDiscover}
-              onChange={(e) => {
-                setZoneAutoDiscover(e.target.checked);
-                zoneAutoDiscoverRef.current = e.target.checked;
-                if (e.target.checked && map.current && map.current.getZoom() >= ZONE_AUTO_ZOOM) {
-                  setBoundsVersion((v) => v + 1);
-                }
-              }}
-            />
-            Discover Zones
-          </label>
-          <div className="geohash-group">
-            <label className="geohash-toggle">
-              <input
-                type="checkbox"
-                checked={geohashEnabled}
-                onChange={(e) => {
-                  setGeohashEnabled(e.target.checked);
-                  geohashEnabledRef.current = e.target.checked;
-                }}
-              />
-              Geohashes
-            </label>
-            {geohashEnabled && (
-              <div className="geohash-precision-toggle">
-                {([5, 6] as const).map((p) => (
-                  <button
-                    key={p}
-                    className={`geohash-precision-btn${geohashPrecision === p ? " active" : ""}`}
-                    onClick={() => {
-                      setGeohashPrecision(p);
-                      geohashPrecisionRef.current = p;
-                      setHoveredGeohash(null);
-                    }}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           <input
             className="city-search"
             type="text"
@@ -1106,68 +1227,26 @@ export function MapPage() {
           />
         </div>
 
-        <div
-          className="event-count-badge"
-          style={drawingState === "complete" ? { bottom: `calc(${panelHeight + 16}px + 4.5rem)` } : undefined}
-        >
+        <div className="event-count-badge">
           {filteredEvents.length.toLocaleString()} events
         </div>
 
-        <div
-          className="bottom-toolbar"
-          style={drawingState === "complete" ? { bottom: panelHeight + 16 } : undefined}
-        >
-          <PolygonToolbar
-            drawingState={drawingState}
-            vertexCount={vertices.length}
-            onStartDraw={() => {
-              setVertices([]);
-              setDrawingState("drawing");
-            }}
-            onFinishDraw={() => {
-              if (vertices.length >= 3) setDrawingState("complete");
-            }}
-            onClear={() => {
-              setVertices([]);
-              setDrawingState("idle");
-            }}
-            onExport={handleExport}
-          />
-
-          <div className="date-filters">
-            <label>
-              From
-              <DatePicker
-                selected={timeFrom}
-                onChange={(d: Date | null) => setTimeFrom(d)}
-                dateFormat="dd.MM.yyyy"
-                isClearable
-                placeholderText="Select date"
-              />
-            </label>
-            <label>
-              Until
-              <DatePicker
-                selected={timeUntil}
-                onChange={(d: Date | null) => setTimeUntil(d)}
-                dateFormat="dd.MM.yyyy"
-                isClearable
-                placeholderText="Select date"
-              />
-            </label>
-            {(timeFrom || timeUntil) && (
-              <button
-                className="time-reset-btn"
-                onClick={() => {
-                  setTimeFrom(null);
-                  setTimeUntil(null);
-                }}
-              >
-                Reset
-              </button>
-            )}
+        {filteredEvents.length > 0 && (
+          <div className="heatmap-legend">
+            <div className="heatmap-legend-title">Event Density</div>
+            <div
+              className="heatmap-legend-bar"
+              style={{
+                background: `linear-gradient(to right, ${legendColors.join(", ")})`,
+              }}
+            />
+            <div className="heatmap-legend-labels">
+              <span>0</span>
+              <span>{filteredEvents.length.toLocaleString()}</span>
+            </div>
           </div>
-        </div>
+        )}
+
 
         {drawingState === "complete" && (
           <div className="bottom-panel" style={{ height: panelHeight }}>

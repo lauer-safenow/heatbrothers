@@ -7,7 +7,8 @@
   .bottom-panel,
   .maplibregl-ctrl-bottom-right,
   .maplibregl-ctrl-top-right,
-  .event-count-badge {
+  .event-count-badge,
+  .heatmap-legend {
     display: none !important;
   }
 
@@ -19,6 +20,10 @@
     width: 100vw !important;
     height: 100vh !important;
   }
+}
+
+.map-page.hide-zoom .maplibregl-ctrl-bottom-right {
+  display: none;
 }
 
 /* ── Night theme (default) ── */
@@ -64,6 +69,7 @@
   --drag-handle-hover: rgba(255, 140, 0, 0.4);
   --badge-border: rgba(255, 140, 0, 0.2);
   --shadow: rgba(0, 0, 0, 0.6);
+  --ctrl-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   --color-scheme: dark;
 
   position: fixed;
@@ -115,7 +121,10 @@
   --drag-handle-hover: rgba(8, 105, 216, 0.4);
   --badge-border: rgba(8, 105, 216, 0.25);
   --shadow: rgba(0, 0, 0, 0.15);
+  --ctrl-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   --color-scheme: light;
+  --icon-filter: brightness(0.4);
+  --icon-filter-hover: brightness(0.1);
 }
 
 .map-section {
@@ -178,8 +187,8 @@
   gap: 4px;
 }
 
-/* ── theme toggle ── */
-.map-theme-toggle {
+/* ── settings button & menu ── */
+.settings-btn {
   width: 34px;
   height: 34px;
   display: flex;
@@ -187,62 +196,176 @@
   justify-content: center;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--ctrl-border);
-  border-radius: 6px;
+  border: 1px solid transparent;
+  border-radius: 60%;
+  box-shadow: var(--ctrl-shadow);
   color: var(--text-dim);
   cursor: pointer;
   padding: 0;
 }
 
-.map-theme-toggle:hover {
+/* ── polygon draw button ── */
+.polygon-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid transparent;
+  border-radius: 60%;
+  box-shadow: var(--ctrl-shadow);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+}
+
+.polygon-btn img {
+  filter: var(--icon-filter, invert(1) brightness(0.7));
+}
+
+.polygon-btn:hover {
+  border-color: var(--accent-orange-hover);
+}
+
+.polygon-btn:hover img {
+  filter: var(--icon-filter-hover, invert(1) brightness(1));
+}
+
+.polygon-btn.active {
+  border-color: var(--accent-orange);
+  background: var(--accent-orange-bg);
+}
+
+.polygon-btn.active img {
+  filter: var(--icon-filter-hover, invert(1) brightness(1));
+}
+
+.polygon-btn-wrap {
+  position: relative;
+}
+
+.polygon-menu {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: none;
+  border-radius: 10px;
+  box-shadow: var(--ctrl-shadow);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.settings-btn img {
+  filter: var(--icon-filter, invert(1) brightness(0.7));
+}
+
+.settings-btn:hover {
   border-color: var(--accent-orange-hover);
   color: var(--text);
 }
 
-/* ── heatmap color override (below theme toggle) ── */
-.map-color-override {
+.settings-btn:hover img {
+  filter: var(--icon-filter-hover, invert(1) brightness(1));
+}
+
+.settings-menu {
   position: absolute;
-  top: 50px;
-  right: 10px;
-  z-index: 10;
+  top: 40px;
+  right: 0;
+  min-width: 220px;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: none;
+  border-radius: 10px;
+  box-shadow: var(--ctrl-shadow);
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.map-color-override-toggle {
-  width: 34px;
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.settings-row:hover {
+  background: var(--ctrl-bg-solid);
+}
+
+.settings-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-toggle {
+  width: 36px;
+  height: 26px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-row-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-theme-btn {
+  width: 28px;
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--ctrl-border);
-  border-radius: 6px;
-  color: var(--text-faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 60%;
+  color: var(--text-dim);
   cursor: pointer;
+  padding: 0;
 }
 
-.map-color-override-toggle:hover {
+.settings-theme-btn:hover {
   border-color: var(--accent-orange-hover);
   color: var(--text);
 }
 
-.map-color-override-toggle input[type="checkbox"] {
-  display: none;
+/* ── heatmap color override (below theme toggle) ── */
+/* ── settings color section ── */
+.settings-divider {
+  height: 1px;
+  background: var(--ctrl-border);
+  margin: 2px 4px;
 }
 
-.map-color-override-toggle:has(input:checked) {
-  border-color: var(--accent-orange);
-  color: var(--accent-orange);
-}
-
-.map-heatmap-colors {
+.settings-colors {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 4px 8px 6px;
+}
+
+.settings-color-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .map-heatmap-stop {
@@ -629,11 +752,9 @@
 .geohash-precision-toggle {
   display: flex;
   gap: 2px;
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--ctrl-border);
-  border-left: none;
-  border-radius: 0 8px 8px 0;
+  background: var(--subtle-bg);
+  border: none;
+  border-radius: 6px;
   padding: 2px;
 }
 
@@ -642,10 +763,11 @@
   border: none;
   color: var(--text-faint);
   font-family: monospace;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
   cursor: pointer;
+  line-height: 1;
 }
 
 .geohash-precision-btn:hover {
@@ -832,8 +954,8 @@
 /* ── event count badge (above toolbar) ── */
 .event-count-badge {
   position: absolute;
-  bottom: 5.5rem;
-  left: 1rem;
+  bottom: 10px;
+  left: 10px;
   z-index: 10;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
@@ -938,4 +1060,45 @@
   font-weight: bold;
   min-width: 70px;
   flex-shrink: 0;
+}
+
+/* ── heatmap legend ── */
+.heatmap-legend {
+  position: absolute;
+  bottom: 46px;
+  left: 10px;
+  z-index: 10;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 180px;
+  pointer-events: auto;
+}
+
+.heatmap-legend-title {
+  font-family: Arial, sans-serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.heatmap-legend-bar {
+  height: 10px;
+  border-radius: 5px;
+  width: 100%;
+}
+
+.heatmap-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: Arial, sans-serif;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 4px;
 }
