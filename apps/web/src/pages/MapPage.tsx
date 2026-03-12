@@ -221,7 +221,7 @@ export function MapPage() {
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
   // geohash hover
-  const [mapTheme, setMapTheme] = useState<"dark" | "light">("dark");
+  const [mapTheme, setMapTheme] = useState<"dark" | "light">("light");
   const [heatmapColors, setHeatmapColors] = useState(DEFAULT_OVERRIDE_COLORS);
   const [colorOverride, setColorOverride] = useState(false);
 
@@ -411,7 +411,7 @@ export function MapPage() {
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: DARK_STYLE,
+      style: LIGHT_STYLE,
       center: [10.4515, 51.1657],
       zoom: 5.5,
       // preserveDrawingBuffer lets getCanvas().toDataURL() work for PDF export
@@ -746,7 +746,15 @@ export function MapPage() {
     <div className="map-page" data-theme={mapTheme === "light" ? "light" : undefined}>
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
-        <button className="map-home-btn" onClick={() => navigate("/")}>&#8592; Home</button>
+        <div className="map-logo" onClick={() => navigate("/")}>
+          <img src="/safenow-icon.svg" alt="SafeNow" className="map-logo-icon" />
+          <span className="map-logo-text">
+            <span className="map-logo-safe">SafeNow</span>{" "}
+            <span className="map-logo-world">World</span>
+          </span>
+        </div>
+
+        <div className="map-top-right">
 
         <button
           className="map-theme-toggle"
@@ -775,6 +783,7 @@ export function MapPage() {
             </svg>
           )}
         </button>
+        </div>
 
         <div className="map-color-override">
           <label className="map-color-override-toggle" title="Override heatmap color">
