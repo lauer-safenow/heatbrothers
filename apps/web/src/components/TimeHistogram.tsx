@@ -207,11 +207,11 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
         >
           <defs>
             <linearGradient id="fire-bar" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#fff7a0" />
-              <stop offset="15%" stopColor="#ffdd33" />
-              <stop offset="40%" stopColor="#ff8800" />
-              <stop offset="70%" stopColor="#ff4400" />
-              <stop offset="100%" stopColor="#cc2200" />
+              <stop offset="0%" stopColor="var(--hist-bar-grad-1)" />
+              <stop offset="15%" stopColor="var(--hist-bar-grad-2)" />
+              <stop offset="40%" stopColor="var(--hist-bar-grad-3)" />
+              <stop offset="70%" stopColor="var(--hist-bar-grad-4)" />
+              <stop offset="100%" stopColor="var(--hist-bar-grad-5)" />
             </linearGradient>
           </defs>
 
@@ -225,7 +225,7 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
                   y={maxCount - filtCount}
                   width={0.85}
                   height={filtCount}
-                  fill={isHovered ? "url(#fire-bar)" : "rgb(255,140,0)"}
+                  fill={isHovered ? "url(#fire-bar)" : "var(--hist-bar)"}
                 />
                 <rect
                   x={i}
@@ -255,13 +255,13 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
             <>
               <path
                 d={areaPath}
-                fill="rgba(255,140,0,0.1)"
+                fill="var(--hist-bar-area)"
                 vectorEffect="non-scaling-stroke"
               />
               <path
                 d={linePath}
                 fill="none"
-                stroke="rgb(255,140,0)"
+                stroke="var(--hist-bar-stroke)"
                 strokeWidth="2"
                 vectorEffect="non-scaling-stroke"
               />
@@ -300,8 +300,8 @@ export function TimeHistogram({ events, filteredEvents, onClose, onTimeRangeSele
               y={0}
               width={Math.abs(brush.endIdx - brush.startIdx) + 0.85}
               height={maxCount}
-              fill="rgba(255, 255, 255, 0.12)"
-              stroke="rgba(255, 140, 0, 0.8)"
+              fill="var(--hist-brush-fill)"
+              stroke="var(--hist-brush-stroke)"
               strokeWidth="0.15"
               pointerEvents="none"
             />

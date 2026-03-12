@@ -1,6 +1,7 @@
 # Design
 
-Every Corner has 60% smoothing
+- Every corner has 60% smoothing
+- Buttons use squircle shape: `border-radius: 14px`, `padding: 4px`, size `40x40px`
 
 # Heatbrothers
 

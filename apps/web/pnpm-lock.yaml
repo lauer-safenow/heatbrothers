@@ -1,0 +1,21 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@heatbrothers/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
+  ../..: {}
+
+  ../../packages/db: {}
+
+  ../../packages/shared: {}
+
+  ../api: {}

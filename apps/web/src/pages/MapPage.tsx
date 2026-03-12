@@ -203,6 +203,7 @@ export function MapPage() {
     initPoly.current ? "complete" : "idle"
   );
   const [vertices, setVertices] = useState<LngLat[]>(initPoly.current ?? []);
+  const [polyAnchorPx, setPolyAnchorPx] = useState<{ x: number; y: number } | null>(null);
 
   // zoom tracking for adaptive heatmap params (quantized to 0.5 steps to reduce re-renders)
   const [zoom, setZoom] = useState(5.5);
@@ -219,12 +220,14 @@ export function MapPage() {
   const [zoneContextMenu, setZoneContextMenu] = useState<{ x: number; y: number; zone: ParsedZone } | null>(null);
   const [selectedZoneIds, setSelectedZoneIds] = useState<Set<string>>(new Set());
   const [zoneSearch, setZoneSearch] = useState("");
-  const [zoneDropdownOpen, setZoneDropdownOpen] = useState(false);
   const [zoneFilterActive, setZoneFilterActive] = useState<boolean | null>(null);
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
   const [zoneAutoDiscover, setZoneAutoDiscover] = useState(true);
-  const zoneDropdownRef = useRef<HTMLDivElement>(null);
   const zoneLabelRef = useRef<HTMLDivElement>(null);
+
+  // bottom bar panels: which panel is open (null = none)
+  const [bottomPanel, setBottomPanel] = useState<"zones" | "date" | null>(null);
+  const bottomBarRef = useRef<HTMLDivElement>(null);
 
   // settings menu
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -254,6 +257,18 @@ export function MapPage() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [settingsOpen]);
+
+  // close bottom bar panels on outside click
+  useEffect(() => {
+    if (!bottomPanel) return;
+    const handler = (e: MouseEvent) => {
+      if (bottomBarRef.current && !bottomBarRef.current.contains(e.target as Node)) {
+        setBottomPanel(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [bottomPanel]);
 
   const autoZoneMode = zoneAutoDiscover && zoom >= ZONE_AUTO_ZOOM;
 
@@ -303,9 +318,6 @@ export function MapPage() {
   const dragStartY = useRef(0);
   const dragStartH = useRef(0);
 
-  const handleExport = useCallback(() => {
-    window.print();
-  }, []);
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -443,10 +455,12 @@ export function MapPage() {
       style: LIGHT_STYLE,
       center: [10.4515, 51.1657],
       zoom: 5.5,
+      attributionControl: false,
       // preserveDrawingBuffer lets getCanvas().toDataURL() work for PDF export
       ...({ preserveDrawingBuffer: true } as {}),
     });
 
+    map.current.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
     map.current.addControl(new maplibregl.NavigationControl(), "bottom-right");
 
     overlay.current = new MapboxOverlay({ layers: [] });
@@ -548,6 +562,30 @@ export function MapPage() {
     return () => document.removeEventListener("keydown", handleKey);
   }, [drawingState]);
 
+  // track top-rightmost vertex in screen-space for polygon action buttons
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+
+    const update = () => {
+      if (drawingState !== "complete" || vertices.length < 3) {
+        setPolyAnchorPx(null);
+        return;
+      }
+      // rightmost vertex in screen-space (largest x)
+      let best = m.project(vertices[0]);
+      for (let i = 1; i < vertices.length; i++) {
+        const pt = m.project(vertices[i]);
+        if (pt.x > best.x) best = pt;
+      }
+      setPolyAnchorPx({ x: best.x, y: best.y });
+    };
+
+    update();
+    m.on("move", update);
+    return () => { m.off("move", update); };
+  }, [drawingState, vertices]);
+
   // right-click context menu on zone polygons
   useEffect(() => {
     const m = map.current;
@@ -576,18 +614,6 @@ export function MapPage() {
       document.removeEventListener("keydown", handleDismiss);
     };
   }, [visibleZones]);
-
-  // close zone dropdown on outside click
-  useEffect(() => {
-    if (!zoneDropdownOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (zoneDropdownRef.current && !zoneDropdownRef.current.contains(e.target as Node)) {
-        setZoneDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [zoneDropdownOpen]);
 
   // zone HTML labels – position via map.project() on every frame
   useEffect(() => {
@@ -696,8 +722,8 @@ export function MapPage() {
           id: "polygon-fill",
           data: [{ polygon: vertices }],
           getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
-          getFillColor: [255, 140, 0, 35],
-          getLineColor: [255, 140, 0, 200],
+          getFillColor: mapTheme === "dark" ? [255, 140, 0, 35] : [120, 120, 120, 40],
+          getLineColor: mapTheme === "dark" ? [255, 140, 0, 200] : [100, 100, 100, 200],
           getLineWidth: 2,
           lineWidthUnits: "pixels" as const,
           filled: true,
@@ -713,7 +739,7 @@ export function MapPage() {
           id: "polygon-edges",
           data: [{ path: vertices }],
           getPath: (d: { path: LngLat[] }) => d.path,
-          getColor: [255, 140, 0, 200],
+          getColor: mapTheme === "dark" ? [255, 140, 0, 200] : [100, 100, 100, 200],
           getWidth: 2,
           widthUnits: "pixels" as const,
         }),
@@ -724,7 +750,9 @@ export function MapPage() {
           data: vertices,
           getPosition: (d: LngLat) => d,
           getFillColor: (_d: LngLat, o: { index: number }) =>
-            o.index === 0 ? [255, 220, 50, 255] : [255, 140, 0, 255],
+            mapTheme === "dark"
+              ? (o.index === 0 ? [255, 220, 50, 255] : [255, 140, 0, 255])
+              : (o.index === 0 ? [80, 80, 80, 255] : [120, 120, 120, 255]),
           getRadius: (_d: LngLat, o: { index: number }) =>
             o.index === 0 ? 8 : 5,
           radiusUnits: "pixels" as const,
@@ -784,73 +812,39 @@ export function MapPage() {
         </div>
 
         <div className="map-top-right" ref={settingsRef}>
-          <div className="polygon-btn-wrap">
-            <button
-              className={`polygon-btn${drawingState !== "idle" ? " active" : ""}`}
-              title="Draw polygon"
-              onClick={() => {
-                if (drawingState === "idle") {
-                  setVertices([]);
-                  setDrawingState("drawing");
-                }
-              }}
-            >
-              <img src="/polygon.svg" alt="Draw polygon" width="18" height="18" />
-            </button>
-            {drawingState !== "idle" && (
-              <div className="polygon-menu">
-                <PolygonToolbar
-                  drawingState={drawingState}
-                  vertexCount={vertices.length}
-                  onStartDraw={() => {
-                    setVertices([]);
-                    setDrawingState("drawing");
-                  }}
-                  onFinishDraw={() => {
-                    if (vertices.length >= 3) setDrawingState("complete");
-                  }}
-                  onClear={() => {
-                    setVertices([]);
-                    setDrawingState("idle");
-                  }}
-                  onExport={handleExport}
-                />
-                <div className="date-filters">
-                  <label>
-                    From
-                    <DatePicker
-                      selected={timeFrom}
-                      onChange={(d: Date | null) => setTimeFrom(d)}
-                      dateFormat="dd.MM.yyyy"
-                      isClearable
-                      placeholderText="Select date"
-                    />
-                  </label>
-                  <label>
-                    Until
-                    <DatePicker
-                      selected={timeUntil}
-                      onChange={(d: Date | null) => setTimeUntil(d)}
-                      dateFormat="dd.MM.yyyy"
-                      isClearable
-                      placeholderText="Select date"
-                    />
-                  </label>
-                  {(timeFrom || timeUntil) && (
-                    <button
-                      className="time-reset-btn"
-                      onClick={() => {
-                        setTimeFrom(null);
-                        setTimeUntil(null);
-                      }}
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            className="screenshot-btn"
+            title="Screenshot"
+            onClick={async () => {
+              try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                  video: { displaySurface: "browser" } as MediaTrackConstraints,
+                  preferCurrentTab: true,
+                } as DisplayMediaStreamOptions);
+                const video = document.createElement("video");
+                video.srcObject = stream;
+                await video.play();
+                // Wait a frame for the video to be ready
+                await new Promise((r) => requestAnimationFrame(r));
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext("2d")!.drawImage(video, 0, 0);
+                stream.getTracks().forEach((t) => t.stop());
+                const link = document.createElement("a");
+                link.download = `heatbrothers-${Date.now()}.png`;
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+              } catch {
+                // User cancelled the picker
+              }
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          </button>
           <button
             className="settings-btn"
             title="Settings"
@@ -1131,108 +1125,14 @@ export function MapPage() {
             ))}
           </select>
           {loading && <span className="loading-badge">Loading...</span>}
-          <div className="zone-dropdown" ref={zoneDropdownRef}>
-            <button
-              className="zone-dropdown-btn"
-              onClick={() => setZoneDropdownOpen((o) => !o)}
-            >
-              {autoZoneMode ? `Zones · ${visibleZones.length} in view` : `Zones${selectedZoneIds.size > 0 ? ` (${selectedZoneIds.size})` : ""}`}
-            </button>
-            {zoneDropdownOpen && (
-              <div className="zone-dropdown-panel">
-                <input
-                  className="zone-dropdown-search"
-                  type="text"
-                  placeholder="Search zones..."
-                  value={zoneSearch}
-                  onChange={(e) => setZoneSearch(e.target.value)}
-                  autoFocus
-                />
-                <div className="zone-dropdown-filters">
-                  <button
-                    className={`zone-filter-btn${zoneFilterActive === true ? " active" : ""}`}
-                    onClick={() => setZoneFilterActive((v) => v === true ? null : true)}
-                  >Active</button>
-                  <button
-                    className={`zone-filter-btn${zoneFilterActive === false ? " active" : ""}`}
-                    onClick={() => setZoneFilterActive((v) => v === false ? null : false)}
-                  >Inactive</button>
-                  <button
-                    className={`zone-filter-btn${zoneFilterPublic === true ? " active" : ""}`}
-                    onClick={() => setZoneFilterPublic((v) => v === true ? null : true)}
-                  >Public</button>
-                  <button
-                    className={`zone-filter-btn${zoneFilterPublic === false ? " active" : ""}`}
-                    onClick={() => setZoneFilterPublic((v) => v === false ? null : false)}
-                  >Not Public</button>
-                </div>
-                <div className="zone-dropdown-actions">
-                  <button onClick={() => setSelectedZoneIds(new Set(filteredZoneList.map((z) => z.data.id)))}>All</button>
-                  <button onClick={() => setSelectedZoneIds(new Set())}>None</button>
-                </div>
-                <div className="zone-dropdown-list">
-                  {filteredZoneList.map((z) => {
-                    const checked = selectedZoneIds.has(z.data.id);
-                    return (
-                      <label key={z.data.id} className="zone-dropdown-item">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            if (!checked && map.current) {
-                              let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-                              for (const [lng, lat] of z.polygon) {
-                                if (lng < minLng) minLng = lng;
-                                if (lng > maxLng) maxLng = lng;
-                                if (lat < minLat) minLat = lat;
-                                if (lat > maxLat) maxLat = lat;
-                              }
-                              map.current.fitBounds(
-                                [[minLng, minLat], [maxLng, maxLat]],
-                                { padding: 80, duration: 1500, maxZoom: 14 },
-                              );
-                            }
-                            setSelectedZoneIds((prev) => {
-                              const next = new Set(prev);
-                              if (checked) next.delete(z.data.id);
-                              else next.add(z.data.id);
-                              return next;
-                            });
-                          }}
-                        />
-                        <span className="zone-item-name">{z.data.name}</span>
-                        <span className="zone-item-badge">{z.data.is_active ? "active" : "inactive"}</span>
-                      </label>
-                    );
-                  })}
-                  {filteredZoneList.length === 0 && (
-                    <div className="zone-dropdown-empty">No zones match</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          <input
-            className="city-search"
-            type="text"
-            placeholder="Search city..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                flyToCity(searchQuery);
-                setSearchQuery("");
-              }
-            }}
-          />
         </div>
 
-        <div className="event-count-badge">
+        <div className="event-count-badge" style={drawingState === "complete" ? { bottom: panelHeight + 10 } : undefined}>
           {filteredEvents.length.toLocaleString()} events
         </div>
 
         {filteredEvents.length > 0 && (
-          <div className="heatmap-legend">
+          <div className="heatmap-legend" style={drawingState === "complete" ? { bottom: panelHeight + 46 } : undefined}>
             <div className="heatmap-legend-title">Event Density</div>
             <div
               className="heatmap-legend-bar"
@@ -1247,6 +1147,242 @@ export function MapPage() {
           </div>
         )}
 
+
+        {/* ── polygon action buttons anchored to top-right vertex ── */}
+        {drawingState === "complete" && polyAnchorPx && (
+          <div
+            className="poly-overlay-actions"
+            style={{
+              position: "absolute",
+              left: polyAnchorPx.x + 12,
+              top: polyAnchorPx.y,
+              transform: "translateY(-50%)",
+              zIndex: 12,
+              display: "flex",
+              gap: 4,
+              pointerEvents: "auto",
+            }}
+          >
+            <button
+              className="poly-overlay-btn"
+              title="Clear polygon"
+              onClick={() => { setVertices([]); setDrawingState("idle"); }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1.5 14a2 2 0 0 1-2 2H8.5a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+            </button>
+            <button
+              className="poly-overlay-btn"
+              title="Redraw polygon"
+              onClick={() => { setVertices([]); setDrawingState("drawing"); }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* ── bottom search bar ── */}
+        <div className="bottom-search-bar" ref={bottomBarRef} style={drawingState === "complete" ? { bottom: panelHeight + 12 } : undefined}>
+          {/* polygon toolbar floats above when drawing */}
+          {drawingState === "drawing" && (
+            <div className="bottom-bar-polygon-toolbar">
+              <PolygonToolbar
+                drawingState={drawingState}
+                vertexCount={vertices.length}
+                onStartDraw={() => {
+                  setVertices([]);
+                  setDrawingState("drawing");
+                }}
+                onFinishDraw={() => {
+                  if (vertices.length >= 3) setDrawingState("complete");
+                }}
+                onClear={() => {
+                  setVertices([]);
+                  setDrawingState("idle");
+                }}
+              />
+            </div>
+          )}
+
+          {/* zones panel opens upward */}
+          {bottomPanel === "zones" && (
+            <div className="bottom-bar-panel bottom-bar-zones-panel">
+              <input
+                className="zone-dropdown-search"
+                type="text"
+                placeholder="Search zones..."
+                value={zoneSearch}
+                onChange={(e) => setZoneSearch(e.target.value)}
+                autoFocus
+              />
+              <div className="zone-dropdown-filters">
+                <button
+                  className={`zone-filter-btn${zoneFilterActive === true ? " active" : ""}`}
+                  onClick={() => setZoneFilterActive((v) => v === true ? null : true)}
+                >Active</button>
+                <button
+                  className={`zone-filter-btn${zoneFilterActive === false ? " active" : ""}`}
+                  onClick={() => setZoneFilterActive((v) => v === false ? null : false)}
+                >Inactive</button>
+                <button
+                  className={`zone-filter-btn${zoneFilterPublic === true ? " active" : ""}`}
+                  onClick={() => setZoneFilterPublic((v) => v === true ? null : true)}
+                >Public</button>
+                <button
+                  className={`zone-filter-btn${zoneFilterPublic === false ? " active" : ""}`}
+                  onClick={() => setZoneFilterPublic((v) => v === false ? null : false)}
+                >Not Public</button>
+              </div>
+              <div className="zone-dropdown-actions">
+                <button onClick={() => setSelectedZoneIds(new Set(filteredZoneList.map((z) => z.data.id)))}>All</button>
+                <button onClick={() => setSelectedZoneIds(new Set())}>None</button>
+              </div>
+              <div className="zone-dropdown-list">
+                {filteredZoneList.map((z) => {
+                  const checked = selectedZoneIds.has(z.data.id);
+                  return (
+                    <label key={z.data.id} className="zone-dropdown-item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          if (!checked && map.current) {
+                            let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+                            for (const [lng, lat] of z.polygon) {
+                              if (lng < minLng) minLng = lng;
+                              if (lng > maxLng) maxLng = lng;
+                              if (lat < minLat) minLat = lat;
+                              if (lat > maxLat) maxLat = lat;
+                            }
+                            map.current.fitBounds(
+                              [[minLng, minLat], [maxLng, maxLat]],
+                              { padding: 80, duration: 1500, maxZoom: 14 },
+                            );
+                          }
+                          setSelectedZoneIds((prev) => {
+                            const next = new Set(prev);
+                            if (checked) next.delete(z.data.id);
+                            else next.add(z.data.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="zone-item-name">{z.data.name}</span>
+                      <span className="zone-item-badge">{z.data.is_active ? "active" : "inactive"}</span>
+                    </label>
+                  );
+                })}
+                {filteredZoneList.length === 0 && (
+                  <div className="zone-dropdown-empty">No zones match</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* date panel opens upward */}
+          {bottomPanel === "date" && (
+            <div className="bottom-bar-panel bottom-bar-date-panel">
+              <div className="date-filters">
+                <label>
+                  FROM
+                  <DatePicker
+                    selected={timeFrom}
+                    onChange={(d: Date | null) => setTimeFrom(d)}
+                    dateFormat="dd.MM.yyyy"
+                    isClearable
+                    placeholderText="Select date"
+                    popperPlacement="top-start"
+                  />
+                </label>
+                <label>
+                  UNTIL
+                  <DatePicker
+                    selected={timeUntil}
+                    onChange={(d: Date | null) => setTimeUntil(d)}
+                    dateFormat="dd.MM.yyyy"
+                    isClearable
+                    placeholderText="Select date"
+                    popperPlacement="top-end"
+                  />
+                </label>
+                {(timeFrom || timeUntil) && (
+                  <button
+                    className="time-reset-btn"
+                    onClick={() => {
+                      setTimeFrom(null);
+                      setTimeUntil(null);
+                    }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* main bar */}
+          <div className="bottom-bar-main">
+            <svg className="bottom-bar-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              className="bottom-bar-search-input"
+              type="text"
+              placeholder="City Search ..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  flyToCity(searchQuery);
+                  setSearchQuery("");
+                }
+              }}
+            />
+            <div className="bottom-bar-divider" />
+            <button
+              className={`bottom-bar-btn${drawingState !== "idle" ? " active" : ""}`}
+              onClick={() => {
+                if (drawingState === "idle") {
+                  setVertices([]);
+                  setDrawingState("drawing");
+                }
+              }}
+            >
+              <img src="/polygon.svg" alt="Polygon" width="16" height="16" className="bottom-bar-btn-icon" />
+              Polygon
+            </button>
+            <button
+              className={`bottom-bar-btn${bottomPanel === "zones" ? " active" : ""}`}
+              onClick={() => setBottomPanel(bottomPanel === "zones" ? null : "zones")}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              Zones
+            </button>
+            <button
+              className={`bottom-bar-btn${bottomPanel === "date" ? " active" : ""}`}
+              onClick={() => setBottomPanel(bottomPanel === "date" ? null : "date")}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              Date
+            </button>
+          </div>
+        </div>
 
         {drawingState === "complete" && (
           <div className="bottom-panel" style={{ height: panelHeight }}>

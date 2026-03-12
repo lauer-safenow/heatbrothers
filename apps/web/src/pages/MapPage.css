@@ -4,6 +4,7 @@
   .map-logo,
   .map-controls,
   .bottom-toolbar,
+  .bottom-search-bar,
   .bottom-panel,
   .maplibregl-ctrl-bottom-right,
   .maplibregl-ctrl-top-right,
@@ -22,7 +23,12 @@
   }
 }
 
-.map-page.hide-zoom .maplibregl-ctrl-bottom-right {
+.map-page.hide-zoom .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+  display: none;
+}
+
+/* Force attribution to start collapsed (MapLibre auto-expands on load) */
+.maplibregl-ctrl-attrib:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
   display: none;
 }
 
@@ -71,6 +77,22 @@
   --shadow: rgba(0, 0, 0, 0.6);
   --ctrl-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   --color-scheme: dark;
+  --hist-bar: rgb(255, 140, 0);
+  --hist-bar-area: rgba(255, 140, 0, 0.1);
+  --hist-bar-stroke: rgb(255, 140, 0);
+  --hist-bar-grad-1: #fff7a0;
+  --hist-bar-grad-2: #ffdd33;
+  --hist-bar-grad-3: #ff8800;
+  --hist-bar-grad-4: #ff4400;
+  --hist-bar-grad-5: #cc2200;
+  --hist-dot: rgb(255, 140, 0);
+  --hist-dot-glow: rgba(255, 140, 0, 0.5);
+  --hist-tooltip-bg: rgba(10, 10, 10, 0.92);
+  --hist-tooltip-border: rgba(255, 140, 0, 0.3);
+  --hist-tooltip-value: #ff8800;
+  --hist-brush-fill: rgba(255, 255, 255, 0.12);
+  --hist-brush-stroke: rgba(255, 140, 0, 0.8);
+  --hist-brush-label: rgba(255, 140, 0, 0.85);
 
   position: fixed;
   inset: 0;
@@ -125,6 +147,22 @@
   --color-scheme: light;
   --icon-filter: brightness(0.4);
   --icon-filter-hover: brightness(0.1);
+  --hist-bar: rgb(8, 105, 216);
+  --hist-bar-area: rgba(8, 105, 216, 0.1);
+  --hist-bar-stroke: rgb(8, 105, 216);
+  --hist-bar-grad-1: #b3d4f7;
+  --hist-bar-grad-2: #6ab0f0;
+  --hist-bar-grad-3: #0869d8;
+  --hist-bar-grad-4: #0550a8;
+  --hist-bar-grad-5: #033a7a;
+  --hist-dot: rgb(8, 105, 216);
+  --hist-dot-glow: rgba(8, 105, 216, 0.5);
+  --hist-tooltip-bg: rgba(255, 255, 255, 0.96);
+  --hist-tooltip-border: rgba(8, 105, 216, 0.3);
+  --hist-tooltip-value: #0869d8;
+  --hist-brush-fill: rgba(0, 0, 0, 0.08);
+  --hist-brush-stroke: rgba(8, 105, 216, 0.8);
+  --hist-brush-label: rgba(8, 105, 216, 0.85);
 }
 
 .map-section {
@@ -187,79 +225,43 @@
   gap: 4px;
 }
 
+/* ── screenshot button ── */
+.screenshot-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.screenshot-btn:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
 /* ── settings button & menu ── */
 .settings-btn {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   border: 1px solid transparent;
-  border-radius: 60%;
+  border-radius: 14px;
   box-shadow: var(--ctrl-shadow);
   color: var(--text-dim);
   cursor: pointer;
-  padding: 0;
-}
-
-/* ── polygon draw button ── */
-.polygon-btn {
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid transparent;
-  border-radius: 60%;
-  box-shadow: var(--ctrl-shadow);
-  color: var(--text-dim);
-  cursor: pointer;
-  padding: 0;
-}
-
-.polygon-btn img {
-  filter: var(--icon-filter, invert(1) brightness(0.7));
-}
-
-.polygon-btn:hover {
-  border-color: var(--accent-orange-hover);
-}
-
-.polygon-btn:hover img {
-  filter: var(--icon-filter-hover, invert(1) brightness(1));
-}
-
-.polygon-btn.active {
-  border-color: var(--accent-orange);
-  background: var(--accent-orange-bg);
-}
-
-.polygon-btn.active img {
-  filter: var(--icon-filter-hover, invert(1) brightness(1));
-}
-
-.polygon-btn-wrap {
-  position: relative;
-}
-
-.polygon-menu {
-  position: absolute;
-  top: 40px;
-  right: 0;
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  border: none;
-  border-radius: 10px;
-  box-shadow: var(--ctrl-shadow);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 240px;
+  padding: 4px;
 }
 
 .settings-btn img {
@@ -463,7 +465,7 @@
   backdrop-filter: blur(12px);
   color: var(--text);
   border: 1px solid var(--ctrl-border);
-  border-radius: 8px;
+  border-radius: 14px;
   padding: 0.5rem 1rem;
   font-family: "Arial", sans-serif;
   font-size: 0.9rem;
@@ -486,31 +488,6 @@
   color: var(--text);
 }
 
-.city-search {
-  background: var(--ctrl-bg);
-  color: var(--text);
-  border: 1px solid var(--ctrl-border);
-  border-radius: 6px;
-  padding: 0.35rem 0.5rem;
-  font-family: "Arial", sans-serif;
-  font-size: 0.8rem;
-  outline: none;
-  width: 130px;
-}
-
-.city-search::placeholder {
-  color: var(--text-ghost);
-}
-
-.city-search:hover {
-  border-color: var(--accent-orange-hover);
-}
-
-.city-search:focus {
-  border-color: var(--accent-orange);
-  box-shadow: 0 0 12px var(--accent-orange-glow);
-}
-
 .loading-badge {
   background: var(--accent-orange-bg);
   color: var(--loading-text);
@@ -519,6 +496,134 @@
   padding: 0.3rem 0.6rem;
   border-radius: 6px;
   letter-spacing: 0.05em;
+}
+
+/* ── bottom search bar ── */
+.bottom-search-bar {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: bottom 0.15s ease;
+}
+
+.bottom-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(16px);
+  border-radius: 28px;
+  box-shadow: 0 4px 24px var(--shadow);
+  padding: 6px 8px 6px 16px;
+  min-width: 420px;
+}
+
+.bottom-bar-search-icon {
+  color: var(--text-ghost);
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.bottom-bar-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: "Arial", sans-serif;
+  font-size: 0.9rem;
+  padding: 8px 4px;
+  min-width: 160px;
+}
+
+.bottom-bar-search-input::placeholder {
+  color: var(--text-ghost);
+}
+
+.bottom-bar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--ctrl-border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.bottom-bar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 14px;
+  color: var(--text-dim);
+  font-family: "Arial", sans-serif;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bottom-bar-btn:hover {
+  background: var(--subtle-bg);
+  color: var(--text);
+}
+
+.bottom-bar-btn.active {
+  background: var(--accent-orange-bg);
+  color: var(--accent-orange);
+}
+
+.bottom-bar-btn svg,
+.bottom-bar-btn-icon {
+  flex-shrink: 0;
+}
+
+.bottom-bar-btn-icon {
+  filter: var(--icon-filter, invert(1) brightness(0.7));
+}
+
+.bottom-bar-btn:hover .bottom-bar-btn-icon {
+  filter: var(--icon-filter-hover, invert(1) brightness(1));
+}
+
+.bottom-bar-btn.active .bottom-bar-btn-icon {
+  filter: var(--icon-filter-hover, invert(1) brightness(1));
+}
+
+/* panels that pop up above the bottom bar */
+.bottom-bar-panel {
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(16px);
+  border-radius: 14px;
+  box-shadow: 0 4px 24px var(--shadow);
+  padding: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.bottom-bar-zones-panel {
+  width: 340px;
+}
+
+.bottom-bar-date-panel {
+  width: auto;
+  overflow: visible;
+  padding: 16px;
+}
+
+.bottom-bar-polygon-toolbar {
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(16px);
+  border-radius: 14px;
+  box-shadow: 0 4px 24px var(--shadow);
+  padding: 8px 12px;
 }
 
 .zone-dropdown {
@@ -796,6 +901,28 @@
   pointer-events: none;
 }
 
+/* ── polygon overlay action buttons ── */
+.poly-overlay-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.poly-overlay-btn:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
 /* ── bottom toolbar (polygon + dates + count) ── */
 .bottom-toolbar {
   position: absolute;
@@ -957,6 +1084,7 @@
   bottom: 10px;
   left: 10px;
   z-index: 10;
+  transition: bottom 0.15s ease;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   border: 1px solid var(--badge-border);
@@ -1066,8 +1194,9 @@
 .heatmap-legend {
   position: absolute;
   bottom: 46px;
-  left: 10px;
+  right: 10px;
   z-index: 10;
+  transition: bottom 0.15s ease;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
