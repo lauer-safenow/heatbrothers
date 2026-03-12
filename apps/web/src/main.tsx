@@ -5,6 +5,7 @@ import { MapPage } from "./pages/MapPage";
 import { LivePage } from "./pages/LivePage";
 import { FeatureRequestPage } from "./pages/FeatureRequestPage";
 import { HotRightNowPage } from "./pages/HotRightNowPage";
+import { OldSplashPage } from "./pages/OldSplashPage";
 
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
@@ -14,6 +15,7 @@ createRoot(document.getElementById("root")!).render(
       <Route path="/live" element={<LivePage />} />
       <Route path="/feature-request" element={<FeatureRequestPage />} />
       <Route path="/hot-right-now" element={<HotRightNowPage />} />
+      <Route path="/heatbrothers" element={<OldSplashPage />} />
     </Routes>
   </BrowserRouter>,
 );

@@ -1,3 +1,7 @@
+# Design
+
+Every Corner has 60% smoothing
+
 # Heatbrothers
 
 PostHog event geo-visualization tool. Syncs events from PostHog to local SQLite, displays them as heatmaps on a map.

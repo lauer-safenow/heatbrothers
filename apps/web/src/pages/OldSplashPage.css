@@ -1,0 +1,585 @@
+/* ── override body/root for dark background when old splash is shown ── */
+body:has(.old-splash) {
+  background: #0a0a0a;
+  overflow: hidden;
+}
+
+/* ── reset & background (scoped to .old-splash) ── */
+.old-splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+}
+
+/* ── logo wrapper ── */
+.old-splash .logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  user-select: none;
+  position: relative;
+}
+
+/* ═══════════════════════════════════════
+   HEAT — fire text
+   ═══════════════════════════════════════ */
+.old-splash .heat-wrapper {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+}
+
+.old-splash .heat {
+  font-family: "Arial Black", "Impact", sans-serif;
+  font-size: 8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 2;
+
+  /* fire gradient text */
+  background: linear-gradient(
+    180deg,
+    #fff7a0 0%,
+    #ffdd33 15%,
+    #ff8800 40%,
+    #ff4400 65%,
+    #cc2200 85%,
+    #881100 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  /* glow */
+  filter: drop-shadow(0 0 8px rgba(255, 100, 0, 0.9))
+    drop-shadow(0 0 30px rgba(255, 60, 0, 0.6))
+    drop-shadow(0 -10px 50px rgba(255, 140, 0, 0.4));
+
+  animation: oldSplashHeatPulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes oldSplashHeatPulse {
+  0% {
+    filter: drop-shadow(0 0 8px rgba(255, 100, 0, 0.9))
+      drop-shadow(0 0 30px rgba(255, 60, 0, 0.6))
+      drop-shadow(0 -10px 50px rgba(255, 140, 0, 0.4));
+  }
+  100% {
+    filter: drop-shadow(0 0 14px rgba(255, 120, 0, 1))
+      drop-shadow(0 0 50px rgba(255, 80, 0, 0.8))
+      drop-shadow(0 -15px 70px rgba(255, 160, 0, 0.6));
+  }
+}
+
+/* ── fire flames behind HEAT ── */
+.old-splash .flames {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.old-splash .flame {
+  position: absolute;
+  bottom: 20%;
+  width: 30px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  opacity: 0;
+  animation: oldSplashFlameRise linear infinite;
+  filter: blur(4px);
+}
+
+/* generate a spread of flames across the word */
+.old-splash .flame:nth-child(1)  { left: 2%;  width: 22px; background: #ffcc33; animation-duration: 1.2s; animation-delay: 0s; }
+.old-splash .flame:nth-child(2)  { left: 10%; width: 28px; background: #ff8800; animation-duration: 1.5s; animation-delay: 0.2s; }
+.old-splash .flame:nth-child(3)  { left: 18%; width: 18px; background: #ff5500; animation-duration: 1.1s; animation-delay: 0.5s; }
+.old-splash .flame:nth-child(4)  { left: 26%; width: 32px; background: #ffaa00; animation-duration: 1.6s; animation-delay: 0.1s; }
+.old-splash .flame:nth-child(5)  { left: 34%; width: 24px; background: #ff6600; animation-duration: 1.3s; animation-delay: 0.4s; }
+.old-splash .flame:nth-child(6)  { left: 42%; width: 20px; background: #ffcc00; animation-duration: 1.0s; animation-delay: 0.7s; }
+.old-splash .flame:nth-child(7)  { left: 50%; width: 34px; background: #ff4400; animation-duration: 1.7s; animation-delay: 0.3s; }
+.old-splash .flame:nth-child(8)  { left: 58%; width: 26px; background: #ff9900; animation-duration: 1.4s; animation-delay: 0.6s; }
+.old-splash .flame:nth-child(9)  { left: 66%; width: 20px; background: #ffbb00; animation-duration: 1.2s; animation-delay: 0.15s; }
+.old-splash .flame:nth-child(10) { left: 74%; width: 30px; background: #ff5500; animation-duration: 1.5s; animation-delay: 0.45s; }
+.old-splash .flame:nth-child(11) { left: 82%; width: 22px; background: #ff7700; animation-duration: 1.1s; animation-delay: 0.25s; }
+.old-splash .flame:nth-child(12) { left: 90%; width: 28px; background: #ffdd33; animation-duration: 1.3s; animation-delay: 0.55s; }
+
+@keyframes oldSplashFlameRise {
+  0% {
+    height: 10px;
+    opacity: 0.9;
+    transform: translateY(0) scaleX(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(-50px) scaleX(1.3);
+  }
+  100% {
+    height: 60px;
+    opacity: 0;
+    transform: translateY(-120px) scaleX(0.5);
+  }
+}
+
+/* ── ember particles ── */
+.old-splash .embers {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.old-splash .ember {
+  position: absolute;
+  bottom: 40%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffcc00;
+  opacity: 0;
+  animation: oldSplashEmberFloat linear infinite;
+}
+
+.old-splash .ember:nth-child(1)  { left: 5%;  animation-duration: 2.0s; animation-delay: 0s;   background: #ffaa00; }
+.old-splash .ember:nth-child(2)  { left: 15%; animation-duration: 2.5s; animation-delay: 0.3s; background: #ff8800; }
+.old-splash .ember:nth-child(3)  { left: 25%; animation-duration: 1.8s; animation-delay: 0.7s; background: #ffcc33; }
+.old-splash .ember:nth-child(4)  { left: 35%; animation-duration: 2.2s; animation-delay: 0.1s; background: #ff6600; }
+.old-splash .ember:nth-child(5)  { left: 45%; animation-duration: 2.8s; animation-delay: 0.5s; background: #ffdd00; }
+.old-splash .ember:nth-child(6)  { left: 55%; animation-duration: 2.1s; animation-delay: 0.9s; background: #ff9900; }
+.old-splash .ember:nth-child(7)  { left: 65%; animation-duration: 2.4s; animation-delay: 0.2s; background: #ffbb33; }
+.old-splash .ember:nth-child(8)  { left: 75%; animation-duration: 1.9s; animation-delay: 0.6s; background: #ff7700; }
+.old-splash .ember:nth-child(9)  { left: 85%; animation-duration: 2.6s; animation-delay: 0.4s; background: #ffee00; }
+.old-splash .ember:nth-child(10) { left: 95%; animation-duration: 2.3s; animation-delay: 0.8s; background: #ffaa33; }
+
+@keyframes oldSplashEmberFloat {
+  0% {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-80px) translateX(10px) scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-180px) translateX(-8px) scale(0.2);
+  }
+}
+
+/* ═══════════════════════════════════════
+   BROTHERS — cool / chrome look
+   ═══════════════════════════════════════ */
+.old-splash .brothers {
+  font-family: "Arial Black", "Impact", sans-serif;
+  font-size: 4rem;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 2;
+  margin-top: -0.4rem;
+
+  /* chrome / steel gradient */
+  background: linear-gradient(
+    180deg,
+    #e8e8e8 0%,
+    #ffffff 20%,
+    #b0b0b0 40%,
+    #e0e0e0 50%,
+    #909090 70%,
+    #c8c8c8 85%,
+    #ffffff 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  /* cool steel glow */
+  filter: drop-shadow(0 0 6px rgba(180, 200, 255, 0.5))
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+
+  /* shimmer sweep */
+  background-size: 100% 100%;
+  position: relative;
+}
+
+.old-splash .brothers::after {
+  content: "BROTHERS";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.5) 45%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.5) 55%,
+    transparent 65%,
+    transparent 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 300% 100%;
+  animation: oldSplashShimmer 3s ease-in-out infinite;
+}
+
+@keyframes oldSplashShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* ── sunglasses on BROTHERS (the "cool" factor) ── */
+.old-splash .brothers-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* ── fist bump animation ── */
+.old-splash .fist {
+  position: absolute;
+  top: -1.5rem;
+  font-size: 2.2rem;
+  z-index: 12;
+  opacity: 0;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+
+.old-splash .fist-left {
+  left: 28%;
+  transform: translateX(-50%);
+  animation: oldSplashFistbumpLeft 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.4s forwards;
+}
+
+.old-splash .fist-right {
+  right: 28%;
+  transform: translateX(50%);
+  animation: oldSplashFistbumpRight 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.4s forwards;
+}
+
+@keyframes oldSplashFistbumpLeft {
+  0%   { left: 28%; transform: translateX(-50%); opacity: 1; }
+  38%  { left: 47%; transform: translateX(-50%); opacity: 1; }
+  50%  { left: 45%; transform: translateX(-50%); opacity: 1; }
+  65%  { left: 46%; transform: translateX(-50%); opacity: 1; }
+  80%  { left: 46%; transform: translateX(-50%); opacity: 1; }
+  100% { left: 46%; transform: translateX(-50%); opacity: 0; }
+}
+
+@keyframes oldSplashFistbumpRight {
+  0%   { right: 28%; transform: translateX(50%); opacity: 1; }
+  38%  { right: 47%; transform: translateX(50%); opacity: 1; }
+  50%  { right: 45%; transform: translateX(50%); opacity: 1; }
+  65%  { right: 46%; transform: translateX(50%); opacity: 1; }
+  80%  { right: 46%; transform: translateX(50%); opacity: 1; }
+  100% { right: 46%; transform: translateX(50%); opacity: 0; }
+}
+
+/* ── sunglasses load in after fistbump ── */
+.old-splash .sunglasses {
+  position: absolute;
+  top: -1.5rem;
+  font-size: 2.2rem;
+  z-index: 10;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+
+.old-splash .sunglasses-left {
+  left: 28%;
+  animation: oldSplashGlassesSlideLeft 0.8s ease-out 0.5s both;
+}
+
+.old-splash .sunglasses-right {
+  right: 28%;
+  animation: oldSplashGlassesSlideRight 0.8s ease-out 0.5s both;
+}
+
+@keyframes oldSplashGlassesSlideLeft {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-30px) rotate(-15deg); }
+  70%  { transform: translateX(-50%) translateY(3px) rotate(2deg); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) rotate(0deg); }
+}
+
+@keyframes oldSplashGlassesSlideRight {
+  0%   { opacity: 0; transform: translateX(50%) translateY(-30px) rotate(15deg); }
+  70%  { transform: translateX(50%) translateY(3px) rotate(-2deg); }
+  100% { opacity: 1; transform: translateX(50%) translateY(0) rotate(0deg); }
+}
+
+/* ── ambient background heat distortion ── */
+.old-splash .heat-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 60%,
+    rgba(255, 80, 0, 0.08) 0%,
+    rgba(255, 40, 0, 0.03) 40%,
+    transparent 70%
+  );
+  animation: oldSplashBgPulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes oldSplashBgPulse {
+  0%   { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════
+   Splash actions row
+   ═══════════════════════════════════════ */
+.old-splash .splash-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.old-splash .splash-actions-secondary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ═══════════════════════════════════════
+   ENTER button
+   ═══════════════════════════════════════ */
+.old-splash .enter-btn {
+  margin-top: 0;
+  padding: 0.8rem 3rem;
+  font-family: "Arial Black", "Impact", sans-serif;
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  z-index: 10;
+
+  background: linear-gradient(
+    180deg,
+    #ffdd33 0%,
+    #ff8800 50%,
+    #ff4400 100%
+  );
+
+  box-shadow:
+    0 0 20px rgba(255, 100, 0, 0.6),
+    0 0 60px rgba(255, 60, 0, 0.3);
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.old-splash .enter-btn:hover {
+  transform: scale(1.05);
+  box-shadow:
+    0 0 30px rgba(255, 120, 0, 0.8),
+    0 0 80px rgba(255, 80, 0, 0.5);
+}
+
+.old-splash .enter-btn:active {
+  transform: scale(0.97);
+}
+
+/* ═══════════════════════════════════════
+   LIVE button
+   ═══════════════════════════════════════ */
+.old-splash .live-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  font-family: "Arial Black", "Impact", sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff3333;
+  background: transparent;
+  border: 2px solid rgba(255, 50, 50, 0.5);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.old-splash .live-btn:hover {
+  border-color: rgba(255, 50, 50, 0.9);
+  color: #ff5555;
+}
+
+.old-splash .live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3333;
+  box-shadow: 0 0 6px #ff3333;
+  animation: oldSplashLivePulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes oldSplashLivePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* ═══════════════════════════════════════
+   HOT RIGHT NOW button
+   ═══════════════════════════════════════ */
+.old-splash .hot-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  font-family: "Arial Black", "Impact", sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff8800;
+  background: transparent;
+  border: 2px solid rgba(255, 136, 0, 0.5);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.old-splash .hot-btn:hover {
+  border-color: rgba(255, 136, 0, 0.9);
+  color: #ffaa33;
+}
+
+/* ═══════════════════════════════════════
+   Stats panel
+   ═══════════════════════════════════════ */
+.old-splash .stats {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.2rem 2rem;
+  min-width: 340px;
+  z-index: 10;
+}
+
+.old-splash .stats-total {
+  font-family: "Arial Black", sans-serif;
+  font-size: 1.3rem;
+  color: #ffcc33;
+  text-align: center;
+  margin-bottom: 0.8rem;
+  text-shadow: 0 0 12px rgba(255, 140, 0, 0.4);
+}
+
+.old-splash .stats-types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.old-splash .stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.old-splash .stats-type {
+  opacity: 0.6;
+}
+
+.old-splash .stats-count {
+  color: #fff;
+  font-weight: bold;
+}
+
+/* ═══════════════════════════════════════
+   Secret bufo easter egg
+   ═══════════════════════════════════════ */
+.old-splash .bufo-secret {
+  position: fixed;
+  bottom: 12px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  z-index: 20;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.old-splash .bufo-gif {
+  width: 64px;
+  height: auto;
+  margin-right: 6px;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.5));
+  pointer-events: auto;
+  animation: oldSplashBufoPeek 6s ease-in-out infinite;
+}
+
+.old-splash .bufo-secret:hover .bufo-gif {
+  opacity: 1;
+  animation-play-state: paused;
+  transform: translateX(0);
+}
+
+@keyframes oldSplashBufoPeek {
+  0%   { transform: translateX(120%); opacity: 0; }
+  12%  { transform: translateX(0);    opacity: 0.7; }
+  65%  { transform: translateX(0);    opacity: 0.7; }
+  80%  { transform: translateX(120%); opacity: 0; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+.old-splash .bufo-btn {
+  pointer-events: auto;
+  padding: 2px 10px;
+  font-size: 0.6rem;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.15);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 6px;
+  animation: oldSplashBufoBtnPeek 6s ease-in-out infinite;
+}
+
+@keyframes oldSplashBufoBtnPeek {
+  0%   { transform: translateX(120%); opacity: 0; }
+  12%  { transform: translateX(0);    opacity: 1; }
+  65%  { transform: translateX(0);    opacity: 1; }
+  80%  { transform: translateX(120%); opacity: 0; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+.old-splash .bufo-secret:hover .bufo-btn {
+  animation-play-state: paused;
+  transform: translateX(0);
+  opacity: 1;
+  color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.old-splash .bufo-btn:hover {
+  color: rgba(255, 200, 50, 0.9) !important;
+  border-color: rgba(255, 200, 50, 0.3) !important;
+  background: rgba(255, 200, 50, 0.05);
+}
