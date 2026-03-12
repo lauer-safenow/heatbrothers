@@ -822,6 +822,16 @@ export function MapPage() {
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>
               </button>
+              <button
+                className="map-color-export"
+                title="Reset to default colors"
+                onClick={() => setHeatmapColors([...DEFAULT_OVERRIDE_COLORS])}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="1 4 1 10 7 10" />
+                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                </svg>
+              </button>
             </div>
           )}
         </div>
