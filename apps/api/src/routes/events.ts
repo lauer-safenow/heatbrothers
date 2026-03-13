@@ -30,7 +30,7 @@ const DISPLAY_NAMES: Record<string, string> = {
 };
 
 const userEventsStmt = sqlite.prepare(
-  `SELECT DISTINCT event_type, timestamp, latitude, longitude FROM events WHERE distinct_id = ? ORDER BY timestamp ASC, CASE WHEN event_type LIKE '%ATTENTION%' THEN 0 WHEN event_type LIKE '%ALARM%' THEN 1 ELSE 2 END`,
+  `SELECT event_type, timestamp, latitude, longitude, pss_name, alarm_source, event_source FROM events WHERE distinct_id = ? ORDER BY timestamp ASC`,
 );
 
 interface UserEventRow {
@@ -38,6 +38,9 @@ interface UserEventRow {
   timestamp: number;
   latitude: number;
   longitude: number;
+  pss_name: string | null;
+  alarm_source: string | null;
+  event_source: string | null;
 }
 
 eventsRouter.get("/events/user/:distinctId", (req, res) => {
@@ -50,6 +53,9 @@ eventsRouter.get("/events/user/:distinctId", (req, res) => {
       timestamp: r.timestamp,
       city,
       countryCode: cc,
+      pssName: r.pss_name ?? undefined,
+      alarmSource: r.alarm_source ?? undefined,
+      eventSource: r.event_source ?? undefined,
     };
   });
   res.json({ count: events.length, events });

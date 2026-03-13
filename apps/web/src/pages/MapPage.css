@@ -27,6 +27,10 @@
   display: none;
 }
 
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+  margin-bottom: 42px; /* clear the density legend */
+}
+
 /* Force attribution to start collapsed (MapLibre auto-expands on load) */
 .maplibregl-ctrl-attrib:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
   display: none;
@@ -460,32 +464,84 @@
   gap: 0.75rem;
 }
 
-.event-select {
+/* ── custom event dropdown ── */
+.event-dropdown {
+  position: relative;
+}
+
+.event-dropdown-trigger {
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   color: var(--text);
   border: 1px solid var(--ctrl-border);
-  border-radius: 14px;
-  padding: 0.5rem 1rem;
-  font-family: "Arial", sans-serif;
+  border-radius: 20px;
+  padding: 0.6rem 1.2rem;
+  font-family: "Inter", sans-serif;
   font-size: 0.9rem;
   cursor: pointer;
   outline: none;
   min-width: 240px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: var(--ctrl-shadow);
 }
 
-.event-select:hover {
+.event-dropdown-trigger:hover {
   border-color: var(--accent-orange-hover);
 }
 
-.event-select:focus {
-  border-color: var(--accent-orange);
-  box-shadow: 0 0 12px var(--accent-orange-glow);
+.event-dropdown-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.event-select option {
+.event-dropdown-chevron {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  transition: transform 0.2s;
+}
+.event-dropdown-chevron.open {
+  transform: rotate(180deg);
+}
+
+.event-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
   background: var(--ctrl-bg-solid);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 14px;
+  padding: 0.35rem 0;
+  box-shadow: var(--ctrl-shadow);
+  z-index: 20;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.event-dropdown-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.88rem;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.12s;
+}
+
+.event-dropdown-item:hover {
+  background: var(--subtle-bg);
+}
+
+.event-dropdown-item.active {
+  color: var(--accent-orange);
+  font-weight: 600;
 }
 
 .loading-badge {
@@ -536,7 +592,7 @@
   border: none;
   outline: none;
   color: var(--text);
-  font-family: "Arial", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.9rem;
   padding: 8px 4px;
   min-width: 160px;
@@ -562,7 +618,7 @@
   border: none;
   border-radius: 14px;
   color: var(--text-dim);
-  font-family: "Arial", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.8rem;
   padding: 8px 12px;
   cursor: pointer;
@@ -597,6 +653,80 @@
   filter: var(--icon-filter-hover, invert(1) brightness(1));
 }
 
+.bottom-bar-btn-wrapper {
+  position: relative;
+}
+
+.filter-dot {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-orange);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* instant custom tooltip above button */
+.bottom-bar-btn-wrapper[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  font-family: "Arial", sans-serif;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  white-space: normal;
+  max-width: 240px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 20;
+  box-shadow: 0 2px 12px var(--shadow);
+}
+
+.bottom-bar-reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-family: "Inter", sans-serif;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  animation: reset-btn-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bottom-bar-reset-btn:hover {
+  background: var(--subtle-bg);
+  color: var(--text);
+}
+
+@keyframes reset-btn-enter {
+  from {
+    max-width: 0;
+    opacity: 0;
+    padding: 8px 0;
+  }
+  to {
+    max-width: 100px;
+    opacity: 1;
+    padding: 8px 12px;
+  }
+}
+
 /* panels that pop up above the bottom bar */
 .bottom-bar-panel {
   background: var(--ctrl-bg);
@@ -618,14 +748,6 @@
   padding: 16px;
 }
 
-.bottom-bar-polygon-toolbar {
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(16px);
-  border-radius: 14px;
-  box-shadow: 0 4px 24px var(--shadow);
-  padding: 8px 12px;
-}
-
 .zone-dropdown {
   position: relative;
 }
@@ -637,7 +759,7 @@
   border: 1px solid var(--ctrl-border);
   border-radius: 8px;
   padding: 0.5rem 1rem;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.9rem;
   cursor: pointer;
   outline: none;
@@ -671,7 +793,7 @@
   color: var(--text);
   padding: 0.35rem 0.5rem;
   font-size: 0.8rem;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   outline: none;
 }
 
@@ -695,7 +817,7 @@
   border-radius: 4px;
   color: var(--text-faint);
   font-size: 0.68rem;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   padding: 0.2rem 0.5rem;
   cursor: pointer;
 }
@@ -723,7 +845,7 @@
   border-radius: 4px;
   color: var(--text-muted);
   font-size: 0.7rem;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   padding: 0.2rem 0;
   cursor: pointer;
 }
@@ -748,7 +870,7 @@
   padding: 0.3rem 0.35rem;
   border-radius: 4px;
   cursor: pointer;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.78rem;
   color: var(--text-dim);
   user-select: none;
@@ -802,7 +924,7 @@
   background: var(--zone-label-bg);
   backdrop-filter: blur(4px);
   color: var(--zone-label-text);
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.78rem;
   font-weight: bold;
   padding: 0.2rem 0.55rem;
@@ -939,56 +1061,6 @@
   padding: 0.75rem 1rem;
 }
 
-.polygon-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.poly-btn {
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  color: var(--text);
-  border: 1px solid var(--ctrl-border);
-  border-radius: 8px;
-  padding: 0.45rem 0.9rem;
-  font-family: "Arial", sans-serif;
-  font-size: 0.8rem;
-  cursor: pointer;
-  outline: none;
-}
-
-.poly-btn:hover:not(:disabled) {
-  border-color: var(--accent-orange-hover);
-}
-
-.poly-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.poly-btn-cancel {
-  border-color: var(--cancel-border);
-}
-
-.poly-btn-cancel:hover {
-  border-color: var(--cancel-hover);
-}
-
-.poly-btn-export {
-  border-color: var(--export-border);
-}
-
-.poly-btn-export:hover {
-  border-color: var(--export-hover);
-}
-
-.poly-info {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-family: monospace;
-}
-
 /* ── bottom panel (histogram, shown only when polygon complete) ── */
 .bottom-panel {
   position: absolute;
@@ -1037,7 +1109,7 @@
   gap: 0.25rem;
   color: var(--text-ghost);
   font-size: 0.7rem;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1068,7 +1140,7 @@
   color: var(--text-faint);
   padding: 0.35rem 0.7rem;
   font-size: 0.75rem;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   cursor: pointer;
   outline: none;
 }
@@ -1088,7 +1160,8 @@
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   border: 1px solid var(--badge-border);
-  border-radius: 8px;
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
   padding: 0.35rem 0.9rem;
   color: var(--accent-orange);
   font-size: 0.95rem;
@@ -1112,7 +1185,7 @@
 
 .zone-context-menu-title {
   color: var(--text-faint);
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.7rem;
   padding: 0.3rem 0.75rem 0.3rem;
   border-bottom: 1px solid var(--ctrl-border-subtle);
@@ -1129,7 +1202,7 @@
   background: none;
   border: none;
   color: var(--text);
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.85rem;
   text-align: left;
   padding: 0.4rem 0.75rem;
@@ -1155,7 +1228,7 @@
 
 .zone-tooltip-name {
   color: var(--text);
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.85rem;
   font-weight: bold;
   margin-bottom: 0.4rem;
@@ -1173,7 +1246,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.7rem;
   color: var(--text-dim);
 }
@@ -1193,40 +1266,31 @@
 /* ── heatmap legend ── */
 .heatmap-legend {
   position: absolute;
-  bottom: 46px;
-  right: 10px;
+  bottom: 38px;
+  right: 0;
   z-index: 10;
   transition: bottom 0.15s ease;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 8px 12px;
-  min-width: 180px;
+  box-shadow: var(--ctrl-shadow);
+  width: 270px;
   pointer-events: auto;
 }
 
-.heatmap-legend-title {
-  font-family: Arial, sans-serif;
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 6px;
-}
-
 .heatmap-legend-bar {
-  height: 10px;
-  border-radius: 5px;
+  height: 6px;
+  border-radius: 3px;
   width: 100%;
 }
 
 .heatmap-legend-labels {
   display: flex;
   justify-content: space-between;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.65rem;
   color: var(--text-dim);
   margin-top: 4px;

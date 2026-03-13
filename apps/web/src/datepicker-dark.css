@@ -4,7 +4,7 @@
   background: var(--ctrl-bg-solid);
   border: 1px solid var(--ctrl-border);
   border-radius: 8px;
-  font-family: monospace;
+  font-family: "Inter", sans-serif;
   font-size: 0.8rem;
   color: var(--text-dim);
   box-shadow: 0 8px 32px var(--shadow);
@@ -139,7 +139,7 @@
   border: 1px solid var(--ctrl-border);
   border-radius: 4px;
   color: var(--text-dim);
-  font-family: monospace;
+  font-family: "Inter", sans-serif;
   font-size: 0.7rem;
   padding: 0.25rem 0.4rem;
   outline: none;

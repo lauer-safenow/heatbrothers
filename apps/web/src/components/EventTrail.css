@@ -44,6 +44,7 @@
 .event-trail-card-body {
   max-height: min(55vh, 400px);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .event-trail-card-header {
@@ -97,8 +98,10 @@
 }
 
 .event-trail-card-row.current {
-  color: rgba(255, 180, 0, 1);
-  font-weight: bold;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: 1px -4px;
 }
 
 .event-trail-card-loading {

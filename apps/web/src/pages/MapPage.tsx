@@ -9,8 +9,8 @@ import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { geohashEncode, geohashNeighbors, geohashToPolygon } from "../utils/geohash";
-import { PolygonToolbar } from "../components/PolygonToolbar";
 import { TimeHistogram } from "../components/TimeHistogram";
+import { usePersistedSettings, DEFAULT_OVERRIDE_COLORS } from "../hooks/usePersistedSettings";
 
 import "./MapPage.css";
 
@@ -38,6 +38,61 @@ const DISPLAY_NAMES: Record<string, string> = {
 
 function displayName(eventType: string): string {
   return DISPLAY_NAMES[eventType] ?? eventType;
+}
+
+/* ── Custom event-type dropdown (always opens downward, theme-aware) ── */
+function EventDropdown({
+  eventTypes,
+  selected,
+  onSelect,
+  displayName: dn,
+}: {
+  eventTypes: EventType[];
+  selected: string;
+  onSelect: (v: string) => void;
+  displayName: (t: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const label = selected ? `${dn(selected)} (${eventTypes.find((t) => t.event_type === selected)?.count.toLocaleString() ?? ""})` : "None";
+
+  return (
+    <div className="event-dropdown" ref={ref}>
+      <button className="event-dropdown-trigger" onClick={() => setOpen((o) => !o)}>
+        <span className="event-dropdown-label">{label}</span>
+        <span className={`event-dropdown-chevron${open ? " open" : ""}`}>▾</span>
+      </button>
+      {open && (
+        <div className="event-dropdown-menu">
+          <div
+            className={`event-dropdown-item${!selected ? " active" : ""}`}
+            onClick={() => { onSelect(""); setOpen(false); }}
+          >
+            None
+          </div>
+          {eventTypes.map((t) => (
+            <div
+              key={t.event_type}
+              className={`event-dropdown-item${t.event_type === selected ? " active" : ""}`}
+              onClick={() => { onSelect(t.event_type); setOpen(false); }}
+            >
+              {dn(t.event_type)} ({t.count.toLocaleString()})
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface ZoneData {
@@ -144,7 +199,6 @@ function rgbToHex(rgb: [number, number, number]): string {
 
 const DARK_HEATMAP_DEFAULTS = ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#f03b20", "#bd0026"];
 
-const DEFAULT_OVERRIDE_COLORS = ["#f58ca0", "#f0506e", "#f0093f", "#dc0750", "#cc0560", "#960046"];
 
 // Standard heatmap gradient for light mode — #0995FF → #0869D8 → #0034E3
 const LIGHT_HEATMAP_COLORS: [number, number, number][] = [
@@ -222,7 +276,10 @@ export function MapPage() {
   const [zoneSearch, setZoneSearch] = useState("");
   const [zoneFilterActive, setZoneFilterActive] = useState<boolean | null>(null);
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
-  const [zoneAutoDiscover, setZoneAutoDiscover] = useState(true);
+  // persisted settings (localStorage)
+  const [settings, updateSettings] = usePersistedSettings();
+  const { mapTheme, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones } = settings;
+
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
   // bottom bar panels: which panel is open (null = none)
@@ -232,19 +289,18 @@ export function MapPage() {
   // settings menu
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
-  const [showZoomControls, setShowZoomControls] = useState(true);
 
   // geohash hover
-  const [mapTheme, setMapTheme] = useState<"dark" | "light">("light");
-  const [heatmapColors, setHeatmapColors] = useState(DEFAULT_OVERRIDE_COLORS);
-  const [colorOverride, setColorOverride] = useState(false);
-
-  const [geohashEnabled, setGeohashEnabled] = useState(false);
-  const geohashEnabledRef = useRef(false);
-  const [geohashPrecision, setGeohashPrecision] = useState<5 | 6>(5);
-  const geohashPrecisionRef = useRef<5 | 6>(5);
+  const geohashEnabledRef = useRef(geohashEnabled);
+  const geohashPrecisionRef = useRef<5 | 6>(geohashPrecision);
   const [hoveredGeohash, setHoveredGeohash] = useState<string | null>(null);
-  const zoneAutoDiscoverRef = useRef(true);
+  const zoneAutoDiscoverRef = useRef(zoneAutoDiscover);
+
+  useEffect(() => {
+    geohashEnabledRef.current = geohashEnabled;
+    geohashPrecisionRef.current = geohashPrecision;
+    zoneAutoDiscoverRef.current = zoneAutoDiscover;
+  }, [geohashEnabled, geohashPrecision, zoneAutoDiscover]);
 
   // close settings menu on outside click
   useEffect(() => {
@@ -273,17 +329,33 @@ export function MapPage() {
   const autoZoneMode = zoneAutoDiscover && zoom >= ZONE_AUTO_ZOOM;
 
   const visibleZones = useMemo(() => {
+    const result: ParsedZone[] = [];
+    const seen = new Set<string>();
+
+    const add = (z: ParsedZone) => {
+      if (!seen.has(z.data.id)) {
+        seen.add(z.data.id);
+        result.push(z);
+      }
+    };
+
+    // Active public zones (always visible when setting is on)
+    if (showActiveZones) {
+      zones.filter((z) => z.data.is_active && z.data.is_public).forEach(add);
+    }
+
+    // Auto-discovered zones in viewport
     if (autoZoneMode && mapBoundsRef.current) {
       const bounds = mapBoundsRef.current;
-      const viewportZones = zones.filter((z) => polygonIntersectsViewport(z.polygon, bounds));
-      // Also include manually selected zones that aren't already in the viewport set
-      const viewportIds = new Set(viewportZones.map((z) => z.data.id));
-      const manualExtra = zones.filter((z) => selectedZoneIds.has(z.data.id) && !viewportIds.has(z.data.id));
-      return [...viewportZones, ...manualExtra];
+      zones.filter((z) => polygonIntersectsViewport(z.polygon, bounds)).forEach(add);
     }
-    return zones.filter((z) => selectedZoneIds.has(z.data.id));
+
+    // Manually selected zones
+    zones.filter((z) => selectedZoneIds.has(z.data.id)).forEach(add);
+
+    return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zones, autoZoneMode, boundsVersion, selectedZoneIds]);
+  }, [zones, autoZoneMode, boundsVersion, selectedZoneIds, showActiveZones]);
 
   const filteredZoneList = zones.filter((z) => {
     if (!z.data.name.toLowerCase().includes(zoneSearch.toLowerCase())) return false;
@@ -294,6 +366,23 @@ export function MapPage() {
 
   // city search
   const [searchQuery, setSearchQuery] = useState("");
+
+  const anyFilterActive =
+    drawingState !== "idle" ||
+    selectedZoneIds.size > 0 ||
+    timeFrom !== null ||
+    timeUntil !== null ||
+    searchQuery.trim() !== "";
+
+  const handleResetAllFilters = () => {
+    setDrawingState("idle");
+    setVertices([]);
+    setSelectedZoneIds(new Set());
+    setTimeFrom(null);
+    setTimeUntil(null);
+    setSearchQuery("");
+    setBottomPanel(null);
+  };
 
   const flyToCity = (query: string) => {
     if (!query.trim() || !map.current) return;
@@ -366,6 +455,31 @@ export function MapPage() {
     if (mapTheme === "light") return LIGHT_HEATMAP_COLORS.map(rgbToHex);
     return DARK_HEATMAP_DEFAULTS;
   }, [colorOverride, heatmapColors, mapTheme]);
+
+  const maxCellDensity = useMemo(() => {
+    void boundsVersion; // reactive dependency
+    const b = mapBoundsRef.current;
+    if (!b || filteredEvents.length === 0) return 0;
+
+    const { radiusPixels } = getHeatmapParams(zoom);
+    const pxPerDeg = (256 * Math.pow(2, zoom)) / 360;
+    const cellSizeDeg = radiusPixels / pxPerDeg;
+
+    const w = b.getWest(), s = b.getSouth();
+    const cells = new Map<string, number>();
+    let max = 0;
+
+    for (const ev of filteredEvents) {
+      if (ev[0] < b.getWest() || ev[0] > b.getEast() || ev[1] < b.getSouth() || ev[1] > b.getNorth()) continue;
+      const col = Math.floor((ev[0] - w) / cellSizeDeg);
+      const row = Math.floor((ev[1] - s) / cellSizeDeg);
+      const key = `${col},${row}`;
+      const count = (cells.get(key) ?? 0) + 1;
+      cells.set(key, count);
+      if (count > max) max = count;
+    }
+    return max;
+  }, [filteredEvents, boundsVersion, zoom]);
 
   // ---------- data fetching ----------
   useEffect(() => {
@@ -452,7 +566,7 @@ export function MapPage() {
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: LIGHT_STYLE,
+      style: mapTheme === "dark" ? DARK_STYLE : LIGHT_STYLE,
       center: [10.4515, 51.1657],
       zoom: 5.5,
       attributionControl: false,
@@ -490,9 +604,7 @@ export function MapPage() {
       const quantized = Math.round(raw * 2) / 2;
       setZoom(quantized);
       mapBoundsRef.current = map.current.getBounds();
-      if (zoneAutoDiscoverRef.current && raw >= ZONE_AUTO_ZOOM) {
-        setBoundsVersion((v) => v + 1);
-      }
+      setBoundsVersion((v) => v + 1);
     });
 
     map.current.on("mousemove", (e) => {
@@ -862,7 +974,7 @@ export function MapPage() {
                   className="settings-theme-btn"
                   onClick={() => {
                     const next = mapTheme === "dark" ? "light" : "dark";
-                    setMapTheme(next);
+                    updateSettings({ mapTheme: next });
                     map.current?.setStyle(next === "dark" ? DARK_STYLE : LIGHT_STYLE);
                   }}
                 >
@@ -895,8 +1007,7 @@ export function MapPage() {
                           key={p}
                           className={`geohash-precision-btn${geohashPrecision === p ? " active" : ""}`}
                           onClick={() => {
-                            setGeohashPrecision(p);
-                            geohashPrecisionRef.current = p;
+                            updateSettings({ geohashPrecision: p });
                             setHoveredGeohash(null);
                           }}
                         >
@@ -910,8 +1021,7 @@ export function MapPage() {
                     src={geohashEnabled ? "/on.svg" : "/off.svg"}
                     alt={geohashEnabled ? "On" : "Off"}
                     onClick={() => {
-                      setGeohashEnabled(!geohashEnabled);
-                      geohashEnabledRef.current = !geohashEnabled;
+                      updateSettings({ geohashEnabled: !geohashEnabled });
                     }}
                   />
                 </div>
@@ -924,12 +1034,20 @@ export function MapPage() {
                   alt={zoneAutoDiscover ? "On" : "Off"}
                   onClick={() => {
                     const next = !zoneAutoDiscover;
-                    setZoneAutoDiscover(next);
-                    zoneAutoDiscoverRef.current = next;
+                    updateSettings({ zoneAutoDiscover: next });
                     if (next && map.current && map.current.getZoom() >= ZONE_AUTO_ZOOM) {
                       setBoundsVersion((v) => v + 1);
                     }
                   }}
+                />
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">Active Zones</span>
+                <img
+                  className="settings-toggle"
+                  src={showActiveZones ? "/on.svg" : "/off.svg"}
+                  alt={showActiveZones ? "On" : "Off"}
+                  onClick={() => updateSettings({ showActiveZones: !showActiveZones })}
                 />
               </div>
               <div className="settings-row">
@@ -938,7 +1056,7 @@ export function MapPage() {
                   className="settings-toggle"
                   src={showZoomControls ? "/on.svg" : "/off.svg"}
                   alt={showZoomControls ? "On" : "Off"}
-                  onClick={() => setShowZoomControls((v) => !v)}
+                  onClick={() => updateSettings({ showZoomControls: !showZoomControls })}
                 />
               </div>
               <div className="settings-divider" />
@@ -948,7 +1066,7 @@ export function MapPage() {
                   className="settings-toggle"
                   src={colorOverride ? "/on.svg" : "/off.svg"}
                   alt={colorOverride ? "On" : "Off"}
-                  onClick={() => setColorOverride(!colorOverride)}
+                  onClick={() => updateSettings({ colorOverride: !colorOverride })}
                 />
               </div>
               {colorOverride && (
@@ -972,7 +1090,7 @@ export function MapPage() {
                           onChange={(e) => {
                             const next = [...heatmapColors];
                             next[i] = e.target.value;
-                            setHeatmapColors(next);
+                            updateSettings({ heatmapColors: next });
                           }}
                         />
                         <span className="map-heatmap-label">{labels[i]}</span>
@@ -1002,7 +1120,7 @@ export function MapPage() {
                     <button
                       className="map-color-export"
                       title="Reset to default colors"
-                      onClick={() => setHeatmapColors([...DEFAULT_OVERRIDE_COLORS])}
+                      onClick={() => updateSettings({ heatmapColors: [...DEFAULT_OVERRIDE_COLORS] })}
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="1 4 1 10 7 10" />
@@ -1021,6 +1139,11 @@ export function MapPage() {
             <div
               key={z.data.id}
               className="zone-html-label"
+              onMouseEnter={(e) => {
+                const rect = (e.currentTarget.closest(".map-section") as HTMLElement)?.getBoundingClientRect();
+                if (rect) setZoneHover({ x: e.clientX - rect.left, y: e.clientY - rect.top, zone: z });
+              }}
+              onMouseLeave={() => setZoneHover(null)}
               onClick={() => {
                 if (!map.current) return;
                 let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
@@ -1053,6 +1176,21 @@ export function MapPage() {
             <div
               className="zone-tooltip"
               style={{ left: zoneHover.x + 12, top: zoneHover.y - 12 }}
+              ref={(el) => {
+                if (!el) return;
+                const parent = el.offsetParent as HTMLElement;
+                if (!parent) return;
+                const pw = parent.clientWidth, ph = parent.clientHeight;
+                const r = el.getBoundingClientRect();
+                let left = zoneHover.x + 12, top = zoneHover.y - 12;
+                if (left + r.width > pw) left = Math.max(0, zoneHover.x - r.width - 12);
+                if (top + r.height > ph) top = Math.max(0, ph - r.height - 8);
+                if (top < 0) top = 8;
+                if (el.style.left !== `${left}px` || el.style.top !== `${top}px`) {
+                  el.style.left = `${left}px`;
+                  el.style.top = `${top}px`;
+                }
+              }}
             >
               <div className="zone-tooltip-name">{z.name}</div>
               {z.pss_image?.s3_location && (
@@ -1112,18 +1250,12 @@ export function MapPage() {
         )}
 
         <div className="map-controls">
-          <select
-            className="event-select"
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-          >
-            <option value="">None</option>
-            {eventTypes.map((t) => (
-              <option key={t.event_type} value={t.event_type}>
-                {displayName(t.event_type)} ({t.count.toLocaleString()})
-              </option>
-            ))}
-          </select>
+          <EventDropdown
+            eventTypes={eventTypes}
+            selected={selected}
+            onSelect={setSelected}
+            displayName={displayName}
+          />
           {loading && <span className="loading-badge">Loading...</span>}
         </div>
 
@@ -1132,8 +1264,7 @@ export function MapPage() {
         </div>
 
         {filteredEvents.length > 0 && (
-          <div className="heatmap-legend" style={drawingState === "complete" ? { bottom: panelHeight + 46 } : undefined}>
-            <div className="heatmap-legend-title">Event Density</div>
+          <div className="heatmap-legend" style={drawingState === "complete" ? { bottom: panelHeight + 38 } : undefined}>
             <div
               className="heatmap-legend-bar"
               style={{
@@ -1141,8 +1272,10 @@ export function MapPage() {
               }}
             />
             <div className="heatmap-legend-labels">
-              <span>0</span>
-              <span>{filteredEvents.length.toLocaleString()}</span>
+              {legendColors.map((_, i) => {
+                const value = Math.round((maxCellDensity * i) / (legendColors.length - 1));
+                return <span key={i}>{value.toLocaleString()}</span>;
+              })}
             </div>
           </div>
         )}
@@ -1191,27 +1324,6 @@ export function MapPage() {
 
         {/* ── bottom search bar ── */}
         <div className="bottom-search-bar" ref={bottomBarRef} style={drawingState === "complete" ? { bottom: panelHeight + 12 } : undefined}>
-          {/* polygon toolbar floats above when drawing */}
-          {drawingState === "drawing" && (
-            <div className="bottom-bar-polygon-toolbar">
-              <PolygonToolbar
-                drawingState={drawingState}
-                vertexCount={vertices.length}
-                onStartDraw={() => {
-                  setVertices([]);
-                  setDrawingState("drawing");
-                }}
-                onFinishDraw={() => {
-                  if (vertices.length >= 3) setDrawingState("complete");
-                }}
-                onClear={() => {
-                  setVertices([]);
-                  setDrawingState("idle");
-                }}
-              />
-            </div>
-          )}
-
           {/* zones panel opens upward */}
           {bottomPanel === "zones" && (
             <div className="bottom-bar-panel bottom-bar-zones-panel">
@@ -1348,39 +1460,69 @@ export function MapPage() {
               }}
             />
             <div className="bottom-bar-divider" />
-            <button
-              className={`bottom-bar-btn${drawingState !== "idle" ? " active" : ""}`}
-              onClick={() => {
-                if (drawingState === "idle") {
-                  setVertices([]);
-                  setDrawingState("drawing");
-                }
-              }}
+            <div className="bottom-bar-btn-wrapper">
+              {drawingState === "complete" && <span className="filter-dot" />}
+              <button
+                className={`bottom-bar-btn${drawingState === "drawing" ? " active" : ""}`}
+                onClick={() => {
+                  if (drawingState === "idle") {
+                    setVertices([]);
+                    setDrawingState("drawing");
+                  } else if (drawingState === "drawing") {
+                    setVertices([]);
+                    setDrawingState("idle");
+                  }
+                }}
+              >
+                <img src="/polygon.svg" alt="Polygon" width="16" height="16" className="bottom-bar-btn-icon" />
+                Polygon
+              </button>
+            </div>
+            <div
+              className="bottom-bar-btn-wrapper"
+              data-tooltip={selectedZoneIds.size > 0 ? zones.filter(z => selectedZoneIds.has(z.data.id)).map(z => z.data.name).join(", ") : undefined}
             >
-              <img src="/polygon.svg" alt="Polygon" width="16" height="16" className="bottom-bar-btn-icon" />
-              Polygon
-            </button>
-            <button
-              className={`bottom-bar-btn${bottomPanel === "zones" ? " active" : ""}`}
-              onClick={() => setBottomPanel(bottomPanel === "zones" ? null : "zones")}
+              {selectedZoneIds.size > 0 && <span className="filter-dot" />}
+              <button
+                className={`bottom-bar-btn${bottomPanel === "zones" ? " active" : ""}`}
+                onClick={() => setBottomPanel(bottomPanel === "zones" ? null : "zones")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                Zones
+              </button>
+            </div>
+            <div
+              className="bottom-bar-btn-wrapper"
+              data-tooltip={timeFrom || timeUntil ? `${timeFrom ? timeFrom.toLocaleDateString("de-DE") : "…"} – ${timeUntil ? timeUntil.toLocaleDateString("de-DE") : "…"}` : undefined}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
-              Zones
-            </button>
-            <button
-              className={`bottom-bar-btn${bottomPanel === "date" ? " active" : ""}`}
-              onClick={() => setBottomPanel(bottomPanel === "date" ? null : "date")}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-              Date
-            </button>
+              {(timeFrom !== null || timeUntil !== null) && <span className="filter-dot" />}
+              <button
+                className={`bottom-bar-btn${bottomPanel === "date" ? " active" : ""}`}
+                onClick={() => setBottomPanel(bottomPanel === "date" ? null : "date")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Date
+              </button>
+            </div>
+            {anyFilterActive && (
+              <>
+                <div className="bottom-bar-divider" />
+                <button className="bottom-bar-reset-btn" onClick={handleResetAllFilters} title="Reset all filters">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                  Reset
+                </button>
+              </>
+            )}
           </div>
         </div>
 

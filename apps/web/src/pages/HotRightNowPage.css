@@ -3,7 +3,7 @@
   height: 100vh;
   background: #0a0a0a;
   color: #e0e0e0;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -26,7 +26,7 @@
   font-size: 0.85rem;
   padding: 0.3rem 0.7rem;
   cursor: pointer;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
 .hot-back-btn:hover {
@@ -35,7 +35,7 @@
 }
 
 .hot-title {
-  font-family: "Arial Black", "Impact", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 1.5rem;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -152,7 +152,7 @@
   border-radius: 6px;
   padding: 0.4rem 0.6rem;
   color: rgba(255, 255, 255, 0.75);
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.7rem;
   line-height: 1.4;
   z-index: 100;
@@ -233,7 +233,7 @@
   background: rgba(255, 136, 0, 0.15);
   border: 1px solid rgba(255, 136, 0, 0.3);
   color: #ff8800;
-  font-family: "Arial Black", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.8rem;
   font-weight: 900;
   cursor: help;
@@ -258,7 +258,7 @@
   border-radius: 8px;
   padding: 1rem 1.2rem;
   color: rgba(255, 255, 255, 0.7);
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.78rem;
   line-height: 1.5;
   z-index: 100;
@@ -355,7 +355,7 @@
 }
 
 .hot-list-title {
-  font-family: "Arial Black", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.9rem;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -410,7 +410,7 @@
 }
 
 .hot-rank {
-  font-family: "Arial Black", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 1.4rem;
   font-weight: 900;
   min-width: 2rem;
@@ -452,7 +452,7 @@
 .hot-degree-label {
   font-size: 0.65rem;
   color: rgba(255, 255, 255, 0.35);
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-weight: normal;
   display: block;
   text-align: right;
@@ -645,7 +645,7 @@
 }
 
 .hot-news-city {
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-weight: normal;
   font-size: 0.75rem;
   letter-spacing: 0;
@@ -655,7 +655,7 @@
 }
 
 .hot-news-queried {
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 0.65rem;
   font-weight: normal;
   text-transform: none;

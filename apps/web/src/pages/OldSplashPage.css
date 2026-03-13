@@ -34,7 +34,7 @@ body:has(.old-splash) {
 }
 
 .old-splash .heat {
-  font-family: "Arial Black", "Impact", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 8rem;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -177,7 +177,7 @@ body:has(.old-splash) {
    BROTHERS — cool / chrome look
    ═══════════════════════════════════════ */
 .old-splash .brothers {
-  font-family: "Arial Black", "Impact", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 4rem;
   font-weight: 900;
   letter-spacing: 0.25em;
@@ -356,7 +356,7 @@ body:has(.old-splash) {
 .old-splash .enter-btn {
   margin-top: 0;
   padding: 0.8rem 3rem;
-  font-family: "Arial Black", "Impact", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 1.4rem;
   font-weight: 900;
   letter-spacing: 0.3em;
@@ -401,7 +401,7 @@ body:has(.old-splash) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.2rem;
-  font-family: "Arial Black", "Impact", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 1rem;
   font-weight: 900;
   letter-spacing: 0.2em;
@@ -442,7 +442,7 @@ body:has(.old-splash) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.2rem;
-  font-family: "Arial Black", "Impact", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 1rem;
   font-weight: 900;
   letter-spacing: 0.2em;
@@ -478,7 +478,7 @@ body:has(.old-splash) {
 }
 
 .old-splash .stats-total {
-  font-family: "Arial Black", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 1.3rem;
   color: #ffcc33;
   text-align: center;

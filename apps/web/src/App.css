@@ -8,6 +8,7 @@
 }
 
 body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #ebebeb;
   min-height: 100vh;
   display: flex;

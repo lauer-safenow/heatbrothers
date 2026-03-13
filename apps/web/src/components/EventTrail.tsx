@@ -17,6 +17,19 @@ interface AuditEntry {
   timestamp: number;
   city: string;
   countryCode: string;
+  pssName?: string;
+  alarmSource?: string;
+  eventSource?: string;
+}
+
+function eventColor(type: string): string {
+  if (type === "FIRST_TIME_PHONE_STATUS_SENT") return "#4a9eff";
+  if (type === "DETAILED_ALARM_STARTED_PRIVATE_GROUP") return "#ff5a5a";
+  if (type === "DETAILED_ALARM_STARTED_ZONE") return "#cc2222";
+  if (type.includes("CANCEL")) return "#999";
+  if (type === "app_opening_ZONE") return "#4caf50";
+  if (type.includes("ATTENTION")) return "#fa8072";
+  return "rgba(255,255,255,0.75)";
 }
 
 function countryFlag(cc: string): string {
@@ -461,7 +474,7 @@ export function EventTrail({ map, events }: EventTrailProps) {
 
             <div className="event-trail-card-section">
               <div className="event-trail-card-label">This Event</div>
-              <div className="event-trail-card-row current">
+              <div className="event-trail-card-row">
                 {formatDateTime(hoveredEvent[2])}
               </div>
             </div>
@@ -481,9 +494,12 @@ export function EventTrail({ map, events }: EventTrailProps) {
                         key={i}
                         className={`event-trail-card-row${i === lastMatchIdx ? " current" : ""}`}
                       >
-                        {entry.displayName} @ {formatDateTime(entry.timestamp)}
+                        <span style={{ color: eventColor(entry.type) }}>
+                          {entry.displayName}
+                        </span>
+                        {" "}@ {formatDateTime(entry.timestamp)}
                         {entry.city ? ` — ${entry.city} ${countryFlag(entry.countryCode)}` : ""}
-                        {i === lastMatchIdx ? " ←" : ""}
+                        {entry.pssName ? ` [${entry.pssName}]` : ""}
                       </div>
                     ))}
                   </div>
