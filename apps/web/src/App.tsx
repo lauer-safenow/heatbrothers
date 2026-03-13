@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useCurrentUser } from "./hooks/useCurrentUser";
 import "./App.css";
 
 export function App() {
   const navigate = useNavigate();
+  const currentUser = useCurrentUser();
   const [animDone, setAnimDone] = useState(false);
 
   useEffect(() => {
@@ -37,6 +39,12 @@ export function App() {
           <span className="splash-brand-world">World</span>
         </span>
       </div>
+
+      {currentUser.name || currentUser.email ? (
+        <p className="splash-greeting">
+          Hello, {currentUser.name ?? currentUser.email}
+        </p>
+      ) : null}
 
       <div className="splash-nav">
         <button className="splash-btn" onClick={() => navigate("/map")}>

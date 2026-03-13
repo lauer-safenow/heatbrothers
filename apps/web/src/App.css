@@ -99,6 +99,14 @@ body {
   font-weight: 500;
 }
 
+/* ── greeting ── */
+.splash-greeting {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #555;
+  margin-top: -0.5rem;
+}
+
 /* ── nav buttons ── */
 .splash-nav {
   display: flex;

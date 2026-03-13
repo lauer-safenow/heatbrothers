@@ -229,6 +229,42 @@
   gap: 4px;
 }
 
+/* ── user badge ── */
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 4px 12px 4px 4px;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.user-badge-initial {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-orange, #e8772e);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.user-badge-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
 /* ── screenshot button ── */
 .screenshot-btn {
   width: 40px;

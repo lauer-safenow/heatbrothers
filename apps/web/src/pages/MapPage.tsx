@@ -11,6 +11,7 @@ import { pointInPolygon } from "../utils/pointInPolygon";
 import { geohashEncode, geohashNeighbors, geohashToPolygon } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
 import { usePersistedSettings, DEFAULT_OVERRIDE_COLORS } from "../hooks/usePersistedSettings";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 import "./MapPage.css";
 
@@ -234,6 +235,7 @@ function parsePolyParam(s: string | null): LngLat[] | null {
 
 export function MapPage() {
   const navigate = useNavigate();
+  const currentUser = useCurrentUser();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const overlay = useRef<MapboxOverlay | null>(null);
@@ -924,6 +926,16 @@ export function MapPage() {
         </div>
 
         <div className="map-top-right" ref={settingsRef}>
+          {currentUser.name || currentUser.email ? (
+            <div className="user-badge" title={currentUser.email ?? undefined}>
+              <span className="user-badge-initial">
+                {(currentUser.name ?? currentUser.email ?? "?").charAt(0).toUpperCase()}
+              </span>
+              <span className="user-badge-name">
+                {currentUser.name ?? currentUser.email}
+              </span>
+            </div>
+          ) : null}
           <button
             className="screenshot-btn"
             title="Screenshot"

@@ -35,6 +35,13 @@ app.use("/api", featureRequestsRouter);
 app.use("/api", hotspotsRouter);
 app.use("/api", newsRouter);
 
+app.get("/api/me", (req, res) => {
+  const user = req.headers["remote-user"] as string | undefined;
+  const email = req.headers["remote-email"] as string | undefined;
+  const name = req.headers["remote-name"] as string | undefined;
+  res.json({ user: user ?? null, email: email ?? null, name: name ?? null });
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
