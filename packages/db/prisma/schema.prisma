@@ -46,3 +46,15 @@ model FeatureRequest {
 
   @@map("feature_requests")
 }
+
+model SavedView {
+  id          Int    @id @default(autoincrement())
+  email       String
+  description String
+  params      String
+  isHome      Int    @default(0) @map("is_home")
+  createdAt   Int    @default(dbgenerated("(unixepoch())")) @map("created_at")
+
+  @@index([email], name: "idx_saved_view_email")
+  @@map("saved_views")
+}

@@ -284,11 +284,11 @@ hotspotsRouter.get("/hotspots", async (req, res) => {
   const alarmType = typeParam && getEventsByType(typeParam).length > 0 ? typeParam : DEFAULT_TYPE;
   const isZoneMode = isZoneType(alarmType);
 
-  // Lookback window ending yesterday
-  const toDate = new Date();
-  toDate.setUTCDate(toDate.getUTCDate() - 1);
-  const fromDate = new Date(toDate);
-  fromDate.setUTCDate(fromDate.getUTCDate() - (lookbackDays - 1));
+  // Lookback window ending now
+  const now = new Date();
+  const toDate = now;
+  const fromDate = new Date(now);
+  fromDate.setUTCDate(fromDate.getUTCDate() - lookbackDays);
 
   const toKey = toDate.toISOString().slice(0, 10);
   const fromKey = fromDate.toISOString().slice(0, 10);
@@ -305,9 +305,9 @@ hotspotsRouter.get("/hotspots", async (req, res) => {
     return;
   }
 
-  // Timestamp range (UTC)
+  // Timestamp range (UTC): from start-of-day of fromDate to now
   const startTs = Math.floor(new Date(fromKey + "T00:00:00Z").getTime() / 1000);
-  const endTs = Math.floor(new Date(toKey + "T00:00:00Z").getTime() / 1000) + 86400;
+  const endTs = Math.floor(now.getTime() / 1000);
 
   // 1. Gather all alarms for the lookback window
   const allAlarms: CachedEvent[] = [];

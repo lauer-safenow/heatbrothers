@@ -99,21 +99,23 @@
 }
 
 .live-home-btn {
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.75rem;
-  padding: 0.35rem 0.7rem;
+  background: rgba(60, 55, 48, 0.85);
+  border: none;
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.85rem;
+  padding: 0.45rem 0.85rem;
   cursor: pointer;
   font-family: monospace;
   font-weight: bold;
   letter-spacing: 0.05em;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .live-home-btn:hover {
-  border-color: rgba(255, 136, 0, 0.5);
-  color: #fff;
+  background: rgba(60, 55, 48, 0.95);
+  color: #ff8800;
 }
 
 
