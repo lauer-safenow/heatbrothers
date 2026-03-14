@@ -1447,15 +1447,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  overflow: visible;
-}
-
-.saved-views-list {
-  max-height: 340px;
+  max-height: 400px;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .saved-views-header {
@@ -1559,54 +1552,4 @@
 
 .saved-view-item.is-home {
   background: var(--accent-orange-bg);
-}
-
-.delete-confirm-popover {
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 14px;
-  box-shadow: var(--ctrl-shadow);
-  padding: 6px 10px;
-  white-space: nowrap;
-  z-index: 30;
-  font-family: "Inter", sans-serif;
-  font-size: 0.78rem;
-  color: var(--text);
-}
-
-.delete-confirm-yes,
-.delete-confirm-no {
-  border: none;
-  border-radius: 8px;
-  font-family: "Inter", sans-serif;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  cursor: pointer;
-}
-
-.delete-confirm-yes {
-  background: #e54d2e;
-  color: #fff;
-}
-
-.delete-confirm-yes:hover {
-  opacity: 0.85;
-}
-
-.delete-confirm-no {
-  background: var(--subtle-bg);
-  color: var(--text);
-}
-
-.delete-confirm-no:hover {
-  background: var(--ctrl-border);
 }

@@ -306,7 +306,6 @@ export function MapPage() {
   const [savedViewCopiedId, setSavedViewCopiedId] = useState<number | null>(null);
   const [editingViewId, setEditingViewId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
 
   async function loadSavedViews() {
     const res = await fetch("/api/saved-views");
@@ -1311,7 +1310,6 @@ export function MapPage() {
                 {savedViews.length === 0 && (
                   <div className="saved-views-empty">No saved views yet</div>
                 )}
-                <div className="saved-views-list">
                 {savedViews.map((v) => (
                   <div key={v.id} className={`saved-view-item${v.is_home ? " is-home" : ""}`}>
                     {editingViewId === v.id ? (
@@ -1386,39 +1384,21 @@ export function MapPage() {
                           </svg>
                         )}
                       </button>
-                      <div style={{ position: "relative" }}>
-                        <button
-                          title="Delete"
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={() => setConfirmingDeleteId(confirmingDeleteId === v.id ? null : v.id)}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                        </button>
-                        {confirmingDeleteId === v.id && (
-                          <div className="delete-confirm-popover" onMouseDown={(e) => e.stopPropagation()}>
-                            <span>Delete?</span>
-                            <button
-                              className="delete-confirm-yes"
-                              onClick={async () => {
-                                await fetch(`/api/saved-views/${v.id}`, { method: "DELETE" });
-                                setConfirmingDeleteId(null);
-                                loadSavedViews();
-                              }}
-                            >Yes</button>
-                            <button
-                              className="delete-confirm-no"
-                              onClick={() => setConfirmingDeleteId(null)}
-                            >No</button>
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        title="Delete"
+                        onClick={async () => {
+                          await fetch(`/api/saved-views/${v.id}`, { method: "DELETE" });
+                          loadSavedViews();
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 ))}
-                </div>
               </div>
             )}
           </div>
