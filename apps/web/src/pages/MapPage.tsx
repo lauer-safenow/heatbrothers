@@ -293,6 +293,7 @@ export function MapPage() {
   // settings menu
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
 
   // share toast
   const [showCopiedToast, setShowCopiedToast] = useState(false);
@@ -306,6 +307,7 @@ export function MapPage() {
   const [savedViewCopiedId, setSavedViewCopiedId] = useState<number | null>(null);
   const [editingViewId, setEditingViewId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [viewMenuOpenId, setViewMenuOpenId] = useState<number | null>(null);
 
   async function loadSavedViews() {
     const res = await fetch("/api/saved-views");
@@ -326,6 +328,7 @@ export function MapPage() {
     setSaving(false);
     setSaveDialogOpen(false);
     setSaveDescription("");
+    loadSavedViews();
   }
 
   async function handleRename(id: number) {
@@ -376,7 +379,9 @@ export function MapPage() {
   useEffect(() => {
     if (!settingsOpen && !savedViewsOpen && !saveDialogOpen) return;
     const handler = (e: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+      const inSettings = settingsRef.current?.contains(e.target as Node);
+      const inLeftPanel = leftPanelRef.current?.contains(e.target as Node);
+      if (!inSettings && !inLeftPanel) {
         setSettingsOpen(false);
         setSavedViewsOpen(false);
         setSaveDialogOpen(false);
@@ -1001,6 +1006,149 @@ export function MapPage() {
           </span>
         </div>
 
+        <div className="map-left-panel" ref={leftPanelRef}>
+          <button
+            className="saved-views-toggle"
+            onClick={() => {
+              setSavedViewsOpen((v) => {
+                if (!v) { loadSavedViews(); setSettingsOpen(false); setSaveDialogOpen(false); }
+                return !v;
+              });
+            }}
+          >
+            <span>Areas to explore</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: savedViewsOpen ? "rotate(180deg)" : undefined, transition: "transform 0.2s" }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {savedViewsOpen && (
+            <div className="saved-views-left-list">
+              {savedViews.length === 0 && (
+                <div className="saved-views-empty">No saved views yet</div>
+              )}
+              {savedViews.map((v) => (
+                <div key={v.id} className={`saved-view-item${v.is_home ? " is-home" : ""}`}>
+                  {editingViewId === v.id ? (
+                    <input
+                      className="save-view-input"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      maxLength={100}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRename(v.id);
+                        if (e.key === "Escape") setEditingViewId(null);
+                      }}
+                      onBlur={() => handleRename(v.id)}
+                    />
+                  ) : (
+                    <span
+                      className="saved-view-desc"
+                      title={v.description}
+                      onClick={() => {
+                        window.location.href = `/map?${v.params}`;
+                      }}
+                      onDoubleClick={() => {
+                        setEditingViewId(v.id);
+                        setEditingName(v.description);
+                      }}
+                    >
+                      {v.description}
+                    </span>
+                  )}
+                  <div className="saved-view-actions" style={{ position: "relative" }}>
+                    <button
+                      className="view-dots-btn"
+                      onClick={(e) => { e.stopPropagation(); setViewMenuOpenId(viewMenuOpenId === v.id ? null : v.id); }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                        <circle cx="12" cy="5" r="2" />
+                        <circle cx="12" cy="12" r="2" />
+                        <circle cx="12" cy="19" r="2" />
+                      </svg>
+                    </button>
+                    {viewMenuOpenId === v.id && (
+                      <div className="view-dots-menu">
+                        <button onClick={() => { handleToggleHome(v.id, !!v.is_home); setViewMenuOpenId(null); }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill={v.is_home ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
+                          </svg>
+                          {v.is_home ? "Unset home" : "Set as home"}
+                        </button>
+                        <button onClick={() => { setEditingViewId(v.id); setEditingName(v.description); setViewMenuOpenId(null); }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          Rename
+                        </button>
+                        <button onClick={() => {
+                          const url = `${window.location.origin}/map?${v.params}`;
+                          navigator.clipboard.writeText(url).then(() => {
+                            setSavedViewCopiedId(v.id);
+                            setTimeout(() => setSavedViewCopiedId(null), 2000);
+                          });
+                          setViewMenuOpenId(null);
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                          Copy link
+                        </button>
+                        <button onClick={async () => {
+                          await fetch(`/api/saved-views/${v.id}`, { method: "DELETE" });
+                          loadSavedViews();
+                          setViewMenuOpenId(null);
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="saved-views-divider" />
+              {saveDialogOpen ? (
+                <div className="saved-views-save-form">
+                  <input
+                    className="save-view-input"
+                    placeholder="Description..."
+                    value={saveDescription}
+                    onChange={(e) => setSaveDescription(e.target.value)}
+                    maxLength={100}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && saveDescription.trim()) handleSaveView();
+                      if (e.key === "Escape") setSaveDialogOpen(false);
+                    }}
+                  />
+                  <button
+                    className="save-view-submit"
+                    disabled={saving || !saveDescription.trim()}
+                    onClick={handleSaveView}
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="saved-views-add-btn"
+                  disabled={searchParams.size === 0}
+                  onClick={() => setSaveDialogOpen(true)}
+                >
+                  + Save current view
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="map-top-right" ref={settingsRef}>
           <button
             className="screenshot-btn"
@@ -1031,8 +1179,14 @@ export function MapPage() {
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
+              {/* viewfinder brackets */}
+              <path d="M2 7V2h5" />
+              <path d="M17 2h5v5" />
+              <path d="M22 17v5h-5" />
+              <path d="M7 22H2v-5" />
+              {/* camera body + lens */}
+              <path d="M7 9h1l1-1.5h6L16 9h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" />
+              <circle cx="12" cy="13" r="2.5" />
             </svg>
           </button>
           <div style={{ position: "relative" }}>
@@ -1048,53 +1202,12 @@ export function MapPage() {
               }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
             </button>
             {showCopiedToast && (
               <div className="copied-toast">Copied to clipboard</div>
-            )}
-          </div>
-          <div style={{ position: "relative" }}>
-            <button
-              className="screenshot-btn"
-              title="Save this view"
-              disabled={searchParams.size === 0}
-              onClick={() => {
-                setSaveDialogOpen((v) => !v);
-                setSettingsOpen(false);
-                setSavedViewsOpen(false);
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
-              </svg>
-            </button>
-            {saveDialogOpen && (
-              <div className="save-view-dialog">
-                <input
-                  className="save-view-input"
-                  placeholder="Description..."
-                  value={saveDescription}
-                  onChange={(e) => setSaveDescription(e.target.value)}
-                  maxLength={100}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && saveDescription.trim()) handleSaveView();
-                    if (e.key === "Escape") setSaveDialogOpen(false);
-                  }}
-                />
-                <button
-                  className="save-view-submit"
-                  disabled={saving || !saveDescription.trim()}
-                  onClick={handleSaveView}
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
             )}
           </div>
           <button
@@ -1272,136 +1385,6 @@ export function MapPage() {
               )}
             </div>
           )}
-          <div style={{ position: "relative" }}>
-            <button
-              className="screenshot-btn user-initials-btn"
-              title={currentUser.name ?? currentUser.email ?? "dev-anon"}
-              onClick={() => {
-                setSavedViewsOpen((v) => {
-                  if (!v) { loadSavedViews(); setSettingsOpen(false); setSaveDialogOpen(false); }
-                  return !v;
-                });
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}>
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.5px" }}>
-                {(() => {
-                  const name = currentUser.name ?? currentUser.email ?? "dev-anon";
-                  const parts = name.trim().split(/\s+/);
-                  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                  return name.slice(0, 2).toUpperCase();
-                })()}
-              </span>
-            </button>
-            {savedViewsOpen && (
-              <div className="saved-views-panel">
-                <div className="saved-views-header">
-                  <span>Saved Views</span>
-                  <button className="saved-views-close" onClick={() => setSavedViewsOpen(false)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                {savedViews.length === 0 && (
-                  <div className="saved-views-empty">No saved views yet</div>
-                )}
-                {savedViews.map((v) => (
-                  <div key={v.id} className={`saved-view-item${v.is_home ? " is-home" : ""}`}>
-                    {editingViewId === v.id ? (
-                      <input
-                        className="save-view-input"
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        maxLength={100}
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleRename(v.id);
-                          if (e.key === "Escape") setEditingViewId(null);
-                        }}
-                        onBlur={() => handleRename(v.id)}
-                      />
-                    ) : (
-                      <span
-                        className="saved-view-desc"
-                        title={v.description}
-                        onClick={() => {
-                          window.location.href = `/map?${v.params}`;
-                        }}
-                        onDoubleClick={() => {
-                          setEditingViewId(v.id);
-                          setEditingName(v.description);
-                        }}
-                      >
-                        {v.is_home ? "🏠 " : ""}{v.description}
-                      </span>
-                    )}
-                    <div className="saved-view-actions">
-                      <button
-                        title={v.is_home ? "Unset as home" : "Set as home"}
-                        className={v.is_home ? "home-active" : ""}
-                        onClick={() => handleToggleHome(v.id, !!v.is_home)}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill={v.is_home ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                          <polyline points="9 22 9 12 15 12 15 22" />
-                        </svg>
-                      </button>
-                      <button
-                        title="Rename"
-                        onClick={() => {
-                          setEditingViewId(v.id);
-                          setEditingName(v.description);
-                        }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
-                      <button
-                        title="Copy link"
-                        onClick={() => {
-                          const url = `${window.location.origin}/map?${v.params}`;
-                          navigator.clipboard.writeText(url).then(() => {
-                            setSavedViewCopiedId(v.id);
-                            setTimeout(() => setSavedViewCopiedId(null), 2000);
-                          });
-                        }}
-                      >
-                        {savedViewCopiedId === v.id ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                          </svg>
-                        )}
-                      </button>
-                      <button
-                        title="Delete"
-                        onClick={async () => {
-                          await fetch(`/api/saved-views/${v.id}`, { method: "DELETE" });
-                          loadSavedViews();
-                        }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         <div ref={zoneLabelRef} className="zone-label-container">
@@ -1560,7 +1543,7 @@ export function MapPage() {
               left: polyAnchorPx.x + 12,
               top: polyAnchorPx.y,
               transform: "translateY(-50%)",
-              zIndex: 12,
+              zIndex: 5,
               display: "flex",
               gap: 4,
               pointerEvents: "auto",
@@ -1587,6 +1570,27 @@ export function MapPage() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="1 4 1 10 7 10" />
                 <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            </button>
+            <button
+              className="poly-overlay-btn"
+              title="Export CSV"
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (selected) params.set("type", selected);
+                if (timeFrom) params.set("from", String(Math.floor(timeFrom.getTime() / 1000)));
+                if (timeUntil) params.set("to", String(Math.floor(timeUntil.getTime() / 1000) + 86400));
+                params.set("poly", JSON.stringify(vertices));
+                const a = document.createElement("a");
+                a.href = `/api/events/export?${params.toString()}`;
+                a.download = "";
+                a.click();
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
           </div>

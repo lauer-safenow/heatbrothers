@@ -2,6 +2,7 @@
 @media print {
   /* hide all chrome, show only the map */
   .map-logo,
+  .map-left-panel,
   .map-controls,
   .bottom-toolbar,
   .bottom-search-bar,
@@ -218,6 +219,49 @@
 
 .map-logo-world {
   font-weight: 500;
+}
+
+.map-left-panel {
+  position: absolute;
+  top: 78px;
+  left: 14px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  overflow: hidden;
+}
+
+.saved-views-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: "Inter", sans-serif;
+  font-size: 0.85rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.saved-views-toggle:hover {
+  color: var(--accent-orange);
+}
+
+.saved-views-left-list {
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .map-top-right {
@@ -1550,6 +1594,98 @@
   color: var(--accent-orange);
 }
 
+.view-dots-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0;
+}
+
+.view-dots-btn:hover {
+  color: var(--text);
+  background: var(--subtle-bg);
+}
+
+.view-dots-menu {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 30;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border-radius: 10px;
+  box-shadow: var(--ctrl-shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+}
+
+.view-dots-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-family: "Inter", sans-serif;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.view-dots-menu button:hover {
+  background: var(--subtle-bg);
+  color: var(--text);
+}
+
 .saved-view-item.is-home {
   background: var(--accent-orange-bg);
+}
+
+.saved-views-divider {
+  height: 1px;
+  background: var(--subtle-bg);
+  margin: 0.4rem 0;
+}
+
+.saved-views-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-family: monospace;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.saved-views-add-btn:hover:not(:disabled) {
+  background: var(--subtle-bg);
+  color: var(--accent-orange);
+}
+
+.saved-views-add-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.saved-views-save-form {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.4rem 0.4rem 0.2rem;
 }

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getEventsByType, type CachedEvent } from "../cache.js";
 import { geocode } from "../geocode.js";
+import { pointInPolygon } from "../pointInPolygon.js";
 import { sqlite } from "@heatbrothers/db";
 import { REPLAY_MAX_EVENTS } from "@heatbrothers/shared";
 
@@ -59,6 +60,107 @@ eventsRouter.get("/events/user/:distinctId", (req, res) => {
     };
   });
   res.json({ count: events.length, events });
+});
+
+// ── CSV export (all columns from DB) ──
+
+interface ExportRow {
+  id: number;
+  posthog_id: string;
+  event_type: string;
+  latitude: number;
+  longitude: number;
+  geohash: string | null;
+  timestamp: number;
+  posthog_ts: string;
+  distinct_id: string;
+  env: string;
+  event_source: string | null;
+  pss_id: string | null;
+  pss_name: string | null;
+  pss_type: string | null;
+  company_name: string | null;
+  alarm_source: string | null;
+  created_at: number;
+}
+
+const CSV_HEADER = "id,eventType,latitude,longitude,pssId,pssName,companyName,alarmSource,createdAt";
+
+function csvEscape(val: string | number | null | undefined): string {
+  if (val == null) return "";
+  const s = String(val);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+eventsRouter.get("/events/export", (req, res) => {
+  const type = (req.query.type as string) || null;
+  const from = req.query.from ? parseInt(req.query.from as string, 10) : null;
+  const to = req.query.to ? parseInt(req.query.to as string, 10) : null;
+
+  let poly: [number, number][] | null = null;
+  if (req.query.poly) {
+    try {
+      poly = JSON.parse(req.query.poly as string);
+    } catch { /* ignore */ }
+  }
+
+  // Build SQL query with optional type + time filter
+  let sql = `SELECT * FROM events`;
+  const clauses: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (type) {
+    clauses.push(`event_type = ?`);
+    params.push(type);
+  }
+  if (from != null && !isNaN(from)) {
+    clauses.push(`timestamp >= ?`);
+    params.push(from);
+  }
+  if (to != null && !isNaN(to)) {
+    clauses.push(`timestamp < ?`);
+    params.push(to);
+  }
+
+  if (clauses.length > 0) sql += ` WHERE ${clauses.join(" AND ")}`;
+  sql += ` ORDER BY timestamp ASC`;
+
+  const rows = sqlite.prepare(sql).all(...params) as ExportRow[];
+
+  // Apply polygon filter if provided
+  let filtered = rows;
+  if (poly && poly.length >= 3) {
+    filtered = rows.filter((r) => pointInPolygon([r.longitude, r.latitude], poly!));
+  }
+
+  // Generate filename: SafeNow_World_EventType_timestamp.csv
+  const now = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `SafeNow_World_${now}.csv`;
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  res.write(CSV_HEADER + "\n");
+
+  for (const r of filtered) {
+    const line = [
+      r.id,
+      csvEscape(DISPLAY_NAMES[r.event_type] ?? r.event_type),
+      r.latitude,
+      r.longitude,
+      csvEscape(r.pss_id),
+      csvEscape(r.pss_name),
+      csvEscape(r.company_name),
+      csvEscape(r.alarm_source),
+      csvEscape(new Date(r.created_at * 1000).toISOString()),
+    ].join(",");
+    res.write(line + "\n");
+  }
+
+  res.end();
 });
 
 eventsRouter.get("/events/:type", (req, res) => {
