@@ -2,7 +2,7 @@
 @media print {
   /* hide all chrome, show only the map */
   .map-logo,
-  .map-left-panel,
+  .map-left-column,
   .map-controls,
   .bottom-toolbar,
   .bottom-search-bar,
@@ -221,19 +221,24 @@
   font-weight: 500;
 }
 
-.map-left-panel {
+.map-left-column {
   position: absolute;
   top: 78px;
   left: 14px;
   z-index: 10;
   display: flex;
   flex-direction: column;
+  gap: 6px;
   width: 220px;
+}
+
+.map-left-panel,
+.map-left-card {
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   border-radius: 14px;
   box-shadow: var(--ctrl-shadow);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .saved-views-toggle {
@@ -260,8 +265,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 400px;
-  overflow-y: auto;
 }
 
 .map-top-right {
@@ -1616,7 +1619,7 @@
 .view-dots-menu {
   position: absolute;
   top: 28px;
-  right: 0;
+  left: 0;
   z-index: 30;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
@@ -1631,6 +1634,7 @@
 .view-dots-menu button {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   width: 100%;
   background: none;
@@ -1642,6 +1646,7 @@
   cursor: pointer;
   border-radius: 6px;
   white-space: nowrap;
+  text-align: left;
 }
 
 .view-dots-menu button:hover {
@@ -1659,6 +1664,15 @@
   margin: 0.4rem 0;
 }
 
+.saved-views-section-label {
+  font-family: "Inter", sans-serif;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--text-faint);
+  padding: 2px 8px 4px;
+  letter-spacing: 0.03em;
+}
+
 .saved-views-add-btn {
   display: flex;
   align-items: center;
@@ -1666,9 +1680,9 @@
   width: 100%;
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: #3b82f6;
   font-size: 0.8rem;
-  font-family: monospace;
+  font-family: "Inter", sans-serif;
   padding: 0.5rem 0.6rem;
   cursor: pointer;
   border-radius: 6px;

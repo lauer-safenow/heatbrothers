@@ -395,7 +395,9 @@ export function MapPage() {
   useEffect(() => {
     if (!bottomPanel) return;
     const handler = (e: MouseEvent) => {
-      if (bottomBarRef.current && !bottomBarRef.current.contains(e.target as Node)) {
+      const inBottomBar = bottomBarRef.current?.contains(e.target as Node);
+      const inLeftPanel = leftPanelRef.current?.contains(e.target as Node);
+      if (!inBottomBar && !inLeftPanel) {
         setBottomPanel(null);
       }
     };
@@ -1006,7 +1008,8 @@ export function MapPage() {
           </span>
         </div>
 
-        <div className="map-left-panel" ref={leftPanelRef}>
+        <div className="map-left-column" ref={leftPanelRef}>
+        <div className="map-left-panel">
           <button
             className="saved-views-toggle"
             onClick={() => {
@@ -1023,6 +1026,32 @@ export function MapPage() {
           </button>
           {savedViewsOpen && (
             <div className="saved-views-left-list">
+              <div className="saved-view-item">
+                <span
+                  className="saved-view-desc"
+                  onClick={() => { window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=3.60&lat=48.1700&lng=4.7395"; }}
+                >
+                  Europe
+                </span>
+              </div>
+              <div className="saved-view-item">
+                <span
+                  className="saved-view-desc"
+                  onClick={() => { window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=5.41&lat=50.7871&lng=10.6946"; }}
+                >
+                  DACH
+                </span>
+              </div>
+              <div className="saved-view-item">
+                <span
+                  className="saved-view-desc"
+                  onClick={() => { window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=9.60&lat=48.1599&lng=11.6592"; }}
+                >
+                  Munich
+                </span>
+              </div>
+              <div className="saved-views-divider" />
+              <div className="saved-views-section-label">Your Views</div>
               {savedViews.length === 0 && (
                 <div className="saved-views-empty">No saved views yet</div>
               )}
@@ -1147,6 +1176,92 @@ export function MapPage() {
               )}
             </div>
           )}
+        </div>
+
+        <div className="map-left-card">
+          <button
+            className="saved-views-toggle"
+            onClick={() => setBottomPanel(bottomPanel === "zones" ? null : "zones")}
+          >
+            <span>Zones</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: bottomPanel === "zones" ? "rotate(180deg)" : undefined, transition: "transform 0.2s" }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {bottomPanel === "zones" && (
+            <div className="saved-views-left-list">
+              <input
+                className="zone-dropdown-search"
+                type="text"
+                placeholder="Search zones..."
+                value={zoneSearch}
+                onChange={(e) => setZoneSearch(e.target.value)}
+                autoFocus
+              />
+              <div className="zone-dropdown-filters">
+                <button
+                  className={`zone-filter-btn${zoneFilterActive === true ? " active" : ""}`}
+                  onClick={() => setZoneFilterActive((v) => v === true ? null : true)}
+                >Active</button>
+                <button
+                  className={`zone-filter-btn${zoneFilterActive === false ? " active" : ""}`}
+                  onClick={() => setZoneFilterActive((v) => v === false ? null : false)}
+                >Inactive</button>
+                <button
+                  className={`zone-filter-btn${zoneFilterPublic === true ? " active" : ""}`}
+                  onClick={() => setZoneFilterPublic((v) => v === true ? null : true)}
+                >Public</button>
+                <button
+                  className={`zone-filter-btn${zoneFilterPublic === false ? " active" : ""}`}
+                  onClick={() => setZoneFilterPublic((v) => v === false ? null : false)}
+                >Not Public</button>
+              </div>
+              <div className="zone-dropdown-actions">
+                <button onClick={() => setSelectedZoneIds(new Set(filteredZoneList.map((z) => z.data.id)))}>All</button>
+                <button onClick={() => setSelectedZoneIds(new Set())}>None</button>
+              </div>
+              <div className="zone-dropdown-list">
+                {filteredZoneList.map((z) => {
+                  const checked = selectedZoneIds.has(z.data.id);
+                  return (
+                    <label key={z.data.id} className="zone-dropdown-item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          if (!checked && map.current) {
+                            let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+                            for (const [lng, lat] of z.polygon) {
+                              if (lng < minLng) minLng = lng;
+                              if (lng > maxLng) maxLng = lng;
+                              if (lat < minLat) minLat = lat;
+                              if (lat > maxLat) maxLat = lat;
+                            }
+                            map.current.fitBounds(
+                              [[minLng, minLat], [maxLng, maxLat]],
+                              { padding: 80, duration: 1500, maxZoom: 14 },
+                            );
+                          }
+                          setSelectedZoneIds((prev) => {
+                            const next = new Set(prev);
+                            if (checked) next.delete(z.data.id);
+                            else next.add(z.data.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="zone-item-name">{z.data.name}</span>
+                      <span className="zone-item-badge">{z.data.is_active ? "active" : "inactive"}</span>
+                    </label>
+                  );
+                })}
+                {filteredZoneList.length === 0 && (
+                  <div className="zone-dropdown-empty">No zones match</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         </div>
 
         <div className="map-top-right" ref={settingsRef}>
@@ -1598,81 +1713,6 @@ export function MapPage() {
 
         {/* ── bottom search bar ── */}
         <div className="bottom-search-bar" ref={bottomBarRef} style={drawingState === "complete" ? { bottom: panelHeight + 12 } : undefined}>
-          {/* zones panel opens upward */}
-          {bottomPanel === "zones" && (
-            <div className="bottom-bar-panel bottom-bar-zones-panel">
-              <input
-                className="zone-dropdown-search"
-                type="text"
-                placeholder="Search zones..."
-                value={zoneSearch}
-                onChange={(e) => setZoneSearch(e.target.value)}
-                autoFocus
-              />
-              <div className="zone-dropdown-filters">
-                <button
-                  className={`zone-filter-btn${zoneFilterActive === true ? " active" : ""}`}
-                  onClick={() => setZoneFilterActive((v) => v === true ? null : true)}
-                >Active</button>
-                <button
-                  className={`zone-filter-btn${zoneFilterActive === false ? " active" : ""}`}
-                  onClick={() => setZoneFilterActive((v) => v === false ? null : false)}
-                >Inactive</button>
-                <button
-                  className={`zone-filter-btn${zoneFilterPublic === true ? " active" : ""}`}
-                  onClick={() => setZoneFilterPublic((v) => v === true ? null : true)}
-                >Public</button>
-                <button
-                  className={`zone-filter-btn${zoneFilterPublic === false ? " active" : ""}`}
-                  onClick={() => setZoneFilterPublic((v) => v === false ? null : false)}
-                >Not Public</button>
-              </div>
-              <div className="zone-dropdown-actions">
-                <button onClick={() => setSelectedZoneIds(new Set(filteredZoneList.map((z) => z.data.id)))}>All</button>
-                <button onClick={() => setSelectedZoneIds(new Set())}>None</button>
-              </div>
-              <div className="zone-dropdown-list">
-                {filteredZoneList.map((z) => {
-                  const checked = selectedZoneIds.has(z.data.id);
-                  return (
-                    <label key={z.data.id} className="zone-dropdown-item">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          if (!checked && map.current) {
-                            let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-                            for (const [lng, lat] of z.polygon) {
-                              if (lng < minLng) minLng = lng;
-                              if (lng > maxLng) maxLng = lng;
-                              if (lat < minLat) minLat = lat;
-                              if (lat > maxLat) maxLat = lat;
-                            }
-                            map.current.fitBounds(
-                              [[minLng, minLat], [maxLng, maxLat]],
-                              { padding: 80, duration: 1500, maxZoom: 14 },
-                            );
-                          }
-                          setSelectedZoneIds((prev) => {
-                            const next = new Set(prev);
-                            if (checked) next.delete(z.data.id);
-                            else next.add(z.data.id);
-                            return next;
-                          });
-                        }}
-                      />
-                      <span className="zone-item-name">{z.data.name}</span>
-                      <span className="zone-item-badge">{z.data.is_active ? "active" : "inactive"}</span>
-                    </label>
-                  );
-                })}
-                {filteredZoneList.length === 0 && (
-                  <div className="zone-dropdown-empty">No zones match</div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* date panel opens upward */}
           {bottomPanel === "date" && (
             <div className="bottom-bar-panel bottom-bar-date-panel">
@@ -1750,21 +1790,6 @@ export function MapPage() {
               >
                 <img src="/polygon.svg" alt="Polygon" width="16" height="16" className="bottom-bar-btn-icon" />
                 Polygon
-              </button>
-            </div>
-            <div
-              className="bottom-bar-btn-wrapper"
-              data-tooltip={selectedZoneIds.size > 0 ? zones.filter(z => selectedZoneIds.has(z.data.id)).map(z => z.data.name).join(", ") : undefined}
-            >
-              {selectedZoneIds.size > 0 && <span className="filter-dot" />}
-              <button
-                className={`bottom-bar-btn${bottomPanel === "zones" ? " active" : ""}`}
-                onClick={() => setBottomPanel(bottomPanel === "zones" ? null : "zones")}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-                Zones
               </button>
             </div>
             <div
