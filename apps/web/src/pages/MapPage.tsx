@@ -29,11 +29,11 @@ interface EventType {
 }
 
 const DISPLAY_NAMES: Record<string, string> = {
-  DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm started private",
-  DETAILED_ATTENTION_STARTED_PRIVATE_GROUP: "Attention private",
-  app_opening_ZONE: "App opening zone",
+  DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm private",
+  DETAILED_ATTENTION_STARTED_PRIVATE_GROUP: "Attention",
+  app_opening_ZONE: "Opening Zone",
   FIRST_TIME_PHONE_STATUS_SENT: "Installs",
-  DETAILED_ALARM_STARTED_ZONE: "Alarm started zone",
+  DETAILED_ALARM_STARTED_ZONE: "Alarm zone",
 };
 
 function displayName(eventType: string): string {
@@ -64,12 +64,20 @@ function EventDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const label = selected ? `${dn(selected)} (${eventTypes.find((t) => t.event_type === selected)?.count.toLocaleString() ?? ""})` : "None";
+  const selectedType = eventTypes.find((t) => t.event_type === selected);
 
   return (
     <div className="event-dropdown" ref={ref}>
       <button className="event-dropdown-trigger" onClick={() => setOpen((o) => !o)}>
-        <span className="event-dropdown-label">{label}</span>
+        <span className="event-dropdown-label">
+          {selected ? (
+            <>
+              <span className="event-dropdown-name">{dn(selected)}</span>
+              {" "}
+              <span className="event-dropdown-count">{selectedType?.count.toLocaleString("de-DE") ?? ""}</span>
+            </>
+          ) : "None"}
+        </span>
         <span className={`event-dropdown-chevron${open ? " open" : ""}`}>▾</span>
       </button>
       {open && (
@@ -86,7 +94,7 @@ function EventDropdown({
               className={`event-dropdown-item${t.event_type === selected ? " active" : ""}`}
               onClick={() => { onSelect(t.event_type); setOpen(false); }}
             >
-              {dn(t.event_type)} ({t.count.toLocaleString()})
+              <span className="event-dropdown-name">{dn(t.event_type)}</span>{" "}<span className="event-dropdown-count">{t.count.toLocaleString("de-DE")}</span>
             </div>
           ))}
         </div>
@@ -307,13 +315,31 @@ export function MapPage() {
   const [savedViewCopiedId, setSavedViewCopiedId] = useState<number | null>(null);
   const [editingViewId, setEditingViewId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [activeViewId, setActiveViewId] = useState<string | number | null>(null);
   const [viewMenuOpenId, setViewMenuOpenId] = useState<number | null>(null);
+
+  const presetViews = [
+    { id: "europe", params: "type=FIRST_TIME_PHONE_STATUS_SENT&z=3.60&lat=48.1700&lng=4.7395" },
+    { id: "dach", params: "type=FIRST_TIME_PHONE_STATUS_SENT&z=5.41&lat=50.7871&lng=10.6946" },
+    { id: "munich", params: "type=FIRST_TIME_PHONE_STATUS_SENT&z=9.60&lat=48.1599&lng=11.6592" },
+  ];
+
+  function detectActiveView(views: typeof savedViews) {
+    const current = searchParams.toString();
+    for (const p of presetViews) {
+      if (current === p.params) { setActiveViewId(p.id); return; }
+    }
+    for (const v of views) {
+      if (current === v.params) { setActiveViewId(v.id); return; }
+    }
+  }
 
   async function loadSavedViews() {
     const res = await fetch("/api/saved-views");
     if (res.ok) {
       const data = await res.json();
       setSavedViews(data.views);
+      detectActiveView(data.views);
     }
   }
 
@@ -1026,26 +1052,26 @@ export function MapPage() {
           </button>
           {savedViewsOpen && (
             <div className="saved-views-left-list">
-              <div className="saved-view-item">
+              <div className={`saved-view-item${activeViewId === "europe" ? " is-active" : ""}`}>
                 <span
                   className="saved-view-desc"
-                  onClick={() => { window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=3.60&lat=48.1700&lng=4.7395"; }}
+                  onClick={() => { setActiveViewId("europe"); window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=3.60&lat=48.1700&lng=4.7395"; }}
                 >
                   Europe
                 </span>
               </div>
-              <div className="saved-view-item">
+              <div className={`saved-view-item${activeViewId === "dach" ? " is-active" : ""}`}>
                 <span
                   className="saved-view-desc"
-                  onClick={() => { window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=5.41&lat=50.7871&lng=10.6946"; }}
+                  onClick={() => { setActiveViewId("dach"); window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=5.41&lat=50.7871&lng=10.6946"; }}
                 >
                   DACH
                 </span>
               </div>
-              <div className="saved-view-item">
+              <div className={`saved-view-item${activeViewId === "munich" ? " is-active" : ""}`}>
                 <span
                   className="saved-view-desc"
-                  onClick={() => { window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=9.60&lat=48.1599&lng=11.6592"; }}
+                  onClick={() => { setActiveViewId("munich"); window.location.href = "/map?type=FIRST_TIME_PHONE_STATUS_SENT&z=9.60&lat=48.1599&lng=11.6592"; }}
                 >
                   Munich
                 </span>
@@ -1056,7 +1082,7 @@ export function MapPage() {
                 <div className="saved-views-empty">No saved views yet</div>
               )}
               {savedViews.map((v) => (
-                <div key={v.id} className={`saved-view-item${v.is_home ? " is-home" : ""}`}>
+                <div key={v.id} className={`saved-view-item${activeViewId === v.id ? " is-active" : ""}`}>
                   {editingViewId === v.id ? (
                     <input
                       className="save-view-input"
@@ -1075,6 +1101,7 @@ export function MapPage() {
                       className="saved-view-desc"
                       title={v.description}
                       onClick={() => {
+                        setActiveViewId(v.id);
                         window.location.href = `/map?${v.params}`;
                       }}
                       onDoubleClick={() => {
@@ -1082,6 +1109,12 @@ export function MapPage() {
                         setEditingName(v.description);
                       }}
                     >
+                      {v.is_home ? (
+                        <svg className="saved-view-home-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                          <polyline points="9 22 9 12 15 12 15 22" />
+                        </svg>
+                      ) : null}
                       {v.description}
                     </span>
                   )}
@@ -1756,23 +1789,25 @@ export function MapPage() {
 
           {/* main bar */}
           <div className="bottom-bar-main">
-            <svg className="bottom-bar-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              className="bottom-bar-search-input"
-              type="text"
-              placeholder="City Search ..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  flyToCity(searchQuery);
-                  setSearchQuery("");
-                }
-              }}
-            />
+            <div className="bottom-bar-search-wrap">
+              <svg className="bottom-bar-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                className="bottom-bar-search-input"
+                type="text"
+                placeholder="City Search ..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    flyToCity(searchQuery);
+                    setSearchQuery("");
+                  }
+                }}
+              />
+            </div>
             <div className="bottom-bar-divider" />
             <div className="bottom-bar-btn-wrapper">
               {drawingState === "complete" && <span className="filter-dot" />}
@@ -1788,8 +1823,8 @@ export function MapPage() {
                   }
                 }}
               >
-                <img src="/polygon.svg" alt="Polygon" width="16" height="16" className="bottom-bar-btn-icon" />
-                Polygon
+                <img src="/area.svg" alt="Area" width="16" height="16" className="bottom-bar-btn-icon" />
+                Area
               </button>
             </div>
             <div

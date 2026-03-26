@@ -596,14 +596,14 @@
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   color: var(--text);
-  border: 1px solid var(--ctrl-border);
-  border-radius: 20px;
-  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 14px;
+  padding: 0.55rem 0.9rem;
   font-family: "Inter", sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   cursor: pointer;
   outline: none;
-  min-width: 240px;
+  min-width: 200px;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -616,15 +616,30 @@
 
 .event-dropdown-label {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.event-dropdown-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.event-dropdown-count {
+  color: var(--text-ghost);
+  font-weight: 400;
+  font-size: 0.82em;
+  margin-left: auto;
+}
+
 .event-dropdown-chevron {
   font-size: 0.75rem;
-  opacity: 0.6;
+  color: var(--text-dim);
   transition: transform 0.2s;
 }
 .event-dropdown-chevron.open {
@@ -635,12 +650,12 @@
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  right: 0;
+  min-width: 100%;
   background: var(--ctrl-bg-solid);
   backdrop-filter: blur(16px);
-  border: 1px solid var(--ctrl-border);
+  border: none;
   border-radius: 14px;
-  padding: 0.35rem 0;
+  padding: 0.2rem 0;
   box-shadow: var(--ctrl-shadow);
   z-index: 20;
   max-height: 320px;
@@ -648,9 +663,12 @@
 }
 
 .event-dropdown-item {
-  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.25rem 0.9rem;
   cursor: pointer;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -694,19 +712,30 @@
 .bottom-bar-main {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 6px;
   background: var(--ctrl-bg);
   backdrop-filter: blur(16px);
   border-radius: 28px;
   box-shadow: 0 4px 24px var(--shadow);
-  padding: 6px 8px 6px 16px;
+  padding: 8px 10px 8px 16px;
   min-width: 420px;
 }
 
+.bottom-bar-search-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  background: rgba(128, 128, 128, 0.08);
+  border: 1px solid rgba(128, 128, 128, 0.18);
+  border-radius: 100px;
+  padding: 5px 12px;
+  min-width: 160px;
+  gap: 6px;
+}
+
 .bottom-bar-search-icon {
-  color: var(--text-ghost);
+  color: var(--text-dim);
   flex-shrink: 0;
-  margin-right: 8px;
 }
 
 .bottom-bar-search-input {
@@ -714,15 +743,14 @@
   background: transparent;
   border: none;
   outline: none;
-  color: var(--text);
+  color: var(--text-dim);
   font-family: "Inter", sans-serif;
-  font-size: 0.9rem;
-  padding: 8px 4px;
-  min-width: 160px;
+  font-size: 0.72rem;
+  padding: 2px 0;
 }
 
 .bottom-bar-search-input::placeholder {
-  color: var(--text-ghost);
+  color: var(--text-dim);
 }
 
 .bottom-bar-divider {
@@ -737,13 +765,13 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: transparent;
-  border: none;
-  border-radius: 14px;
+  background: rgba(128, 128, 128, 0.08);
+  border: 1px solid rgba(128, 128, 128, 0.18);
+  border-radius: 100px;
   color: var(--text-dim);
   font-family: "Inter", sans-serif;
-  font-size: 0.8rem;
-  padding: 8px 12px;
+  font-size: 0.72rem;
+  padding: 5px 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
@@ -765,7 +793,8 @@
 }
 
 .bottom-bar-btn-icon {
-  filter: var(--icon-filter, invert(1) brightness(0.7));
+  filter: var(--icon-filter, invert(1) brightness(0.5));
+  opacity: 0.55;
 }
 
 .bottom-bar-btn:hover .bottom-bar-btn-icon {
@@ -1495,7 +1524,7 @@
   flex-direction: column;
   gap: 4px;
   max-height: 400px;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .saved-views-header {
@@ -1618,9 +1647,9 @@
 
 .view-dots-menu {
   position: absolute;
-  top: 28px;
-  left: 0;
-  z-index: 30;
+  top: 0;
+  left: calc(100% + 6px);
+  z-index: 9999;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   border-radius: 10px;
@@ -1654,8 +1683,21 @@
   color: var(--text);
 }
 
-.saved-view-item.is-home {
+.saved-view-item.is-active {
+  background: var(--accent-blue-bg, rgba(59, 130, 246, 0.1));
+  box-shadow: 0 0 0 1px var(--accent-blue, #3b82f6) inset;
+}
+
+.saved-view-home-icon {
+  flex-shrink: 0;
+  margin-right: 4px;
+  vertical-align: -1px;
+  display: inline;
+}
+
+[data-theme="dark"] .saved-view-item.is-active {
   background: var(--accent-orange-bg);
+  box-shadow: 0 0 0 1px var(--accent-orange) inset;
 }
 
 .saved-views-divider {
