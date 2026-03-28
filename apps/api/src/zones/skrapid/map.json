@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "exportDate": "2026-03-23T15:36:17.901994",
+  "zones": [
+    {
+      "id": "1774276433403",
+      "name": "SK Rapid",
+      "floors": [
+        {
+          "floorNumber": -1,
+          "maptilerUrl": "https://api.maptiler.com/tiles/019d0c98-1f6e-7a3d-b3a7-a11f3dc17600/{z}/{x}/{y}.png?key=${MAPTILER_KEY}"
+        },
+        {
+          "floorNumber": 0,
+          "maptilerUrl": "https://api.maptiler.com/tiles/019d0c9a-1542-73ae-a729-c8e82a69ad56/{z}/{x}/{y}.png?key=${MAPTILER_KEY}"
+        },
+        {
+          "floorNumber": 1,
+          "maptilerUrl": "https://api.maptiler.com/tiles/019d0c9c-3675-728c-be15-cca0981e124b/{z}/{x}/{y}.png?key=${MAPTILER_KEY}"
+        },
+        {
+          "floorNumber": 2,
+          "maptilerUrl": "https://api.maptiler.com/tiles/019d0c9c-e7db-7e42-abd6-67493815cb76/{z}/{x}/{y}.png?key=${MAPTILER_KEY}"
+        },
+        {
+          "floorNumber": 3,
+          "maptilerUrl": "https://api.maptiler.com/tiles/019d0c9d-ad8c-761d-b10e-65bd4a663d76/{z}/{x}/{y}.png?key=${MAPTILER_KEY}"
+        },
+        {
+          "floorNumber": 4,
+          "maptilerUrl": "https://api.maptiler.com/tiles/019d0c9e-6a4c-768b-99be-ff1de40d19df/{z}/{x}/{y}.png?key=${MAPTILER_KEY}"
+        }
+      ]
+    }
+  ]
+}

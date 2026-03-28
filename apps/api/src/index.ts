@@ -9,6 +9,7 @@ import { featureRequestsRouter } from "./routes/feature-requests.js";
 import { hotspotsRouter } from "./routes/hotspots.js";
 import { newsRouter } from "./routes/news.js";
 import { savedViewsRouter } from "./routes/saved-views.js";
+import { beaconBoyRouter } from "./routes/beacon-boy.js";
 import { startCronSync } from "./sync/cron.js";
 import { loadCache } from "./cache.js";
 import { initGeocoder } from "./geocode.js";
@@ -36,6 +37,7 @@ app.use("/api", featureRequestsRouter);
 app.use("/api", hotspotsRouter);
 app.use("/api", newsRouter);
 app.use("/api", savedViewsRouter);
+app.use("/api", beaconBoyRouter);
 
 app.get("/api/me", (req, res) => {
   const user = req.headers["remote-user"] as string | undefined;
