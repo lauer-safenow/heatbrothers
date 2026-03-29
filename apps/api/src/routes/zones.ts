@@ -61,11 +61,16 @@ const ZONES_TTL_MS = 5 * 60 * 1000;
 let zonesCache: { data: ZoneRow[]; expiresAt: number } | null = null;
 let zonesMapCache: { map: Map<string, ZoneRow>; expiresAt: number } | null = null;
 
-async function ensureZonesCache() {
+export async function ensureZonesCache() {
   if (zonesCache && Date.now() < zonesCache.expiresAt) return;
   const data = await hasuraQuery<ZonesQueryResult>(ZONES_QUERY);
   zonesCache = { data: data.alarmdata_person_safe_spot, expiresAt: Date.now() + ZONES_TTL_MS };
   zonesMapCache = null; // invalidate map cache
+}
+
+/** Returns the raw zones array from cache. Call ensureZonesCache() first. */
+export function getZonesData(): ZoneRow[] {
+  return zonesCache?.data ?? [];
 }
 
 /** Returns all zones keyed by zone id (pss_id) for O(1) lookup. */

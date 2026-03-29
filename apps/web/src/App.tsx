@@ -56,6 +56,9 @@ export function App() {
         <button className="splash-btn" onClick={() => navigate("/hot-right-now")}>
           Hot right now
         </button>
+        <button className="splash-btn" onClick={() => navigate("/dashboard")}>
+          Dashboard
+        </button>
       </div>
 
       <button className="splash-feature-btn" onClick={() => navigate("/feature-request")}>
