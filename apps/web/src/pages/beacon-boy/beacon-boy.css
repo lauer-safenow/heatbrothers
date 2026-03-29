@@ -633,6 +633,14 @@
   background: rgba(229, 115, 115, 0.06);
 }
 
+.bb-poi-image {
+  width: 100%;
+  max-height: 150px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
 .bb-poi-coords {
   margin-top: 6px;
   color: #666;
@@ -643,19 +651,20 @@
 .bb-poi-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid #333;
+  flex-wrap: wrap;
 }
 
 .bb-poi-save {
   background: #4caf50;
   color: #fff;
   border: none;
-  border-radius: 4px;
-  padding: 4px 14px;
-  font-size: 0.8rem;
+  border-radius: 3px;
+  padding: 3px 10px;
+  font-size: 0.72rem;
   cursor: pointer;
 }
 
@@ -667,9 +676,9 @@
   background: transparent;
   color: #e57373;
   border: 1px solid #e57373;
-  border-radius: 4px;
-  padding: 4px 14px;
-  font-size: 0.8rem;
+  border-radius: 3px;
+  padding: 3px 10px;
+  font-size: 0.72rem;
   cursor: pointer;
 }
 
@@ -677,10 +686,23 @@
   background: rgba(229, 115, 115, 0.15);
 }
 
-.bb-poi-drag-hint {
-  color: #666;
+.bb-poi-upload-label {
+  background: transparent;
+  color: #999;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 3px 10px;
   font-size: 0.72rem;
-  font-style: italic;
+  cursor: pointer;
+}
+
+.bb-poi-upload-label:hover {
+  color: #ccc;
+  border-color: #666;
+}
+
+.bb-poi-upload-label input[type="file"] {
+  display: none;
 }
 
 /* ── Area Select Tool ────────────────────────────────────────────────── */

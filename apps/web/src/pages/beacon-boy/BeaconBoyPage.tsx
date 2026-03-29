@@ -960,12 +960,15 @@ function TileMap({ rows, dbRows, onUpdateRow, onAddRow, onRemoveRow }: {
           <strong>${p.Major}:${p.Minor}</strong>
           <span style="color:${color};font-size:0.75rem">${label}</span>
         </div>
+        <img class="bb-poi-image" src="/api/beacon-boy/beacons/${p.id}/image" onerror="this.style.display='none'" />
         ${inputRows}
         <div class="bb-poi-coords">${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}</div>
         ${canEdit ? `<div class="bb-poi-actions">
           <button class="bb-poi-save" data-id="${p.id}">Save</button>
           ${source === "csv" ? `<button class="bb-poi-delete" data-id="${p.id}">Delete</button>` : ""}
-          <span class="bb-poi-drag-hint">Drag circle to move</span>
+          <label class="bb-poi-upload-label">
+            Image <input type="file" accept="image/*" class="bb-poi-file" data-id="${p.id}" />
+          </label>
         </div>` : ""}
       </div>`;
 
@@ -997,6 +1000,20 @@ function TileMap({ rows, dbRows, onUpdateRow, onAddRow, onRemoveRow }: {
           const id = Number((deleteBtn as HTMLElement).dataset.id);
           onRemoveRowRef.current?.(id);
           popup.remove();
+        });
+
+        const fileInput = el?.querySelector<HTMLInputElement>(".bb-poi-file");
+        fileInput?.addEventListener("change", async () => {
+          const file = fileInput.files?.[0];
+          if (!file) return;
+          const id = Number(fileInput.dataset.id);
+          const formData = new FormData();
+          formData.append("image", file);
+          const res = await fetch(`/api/beacon-boy/beacons/${id}/image`, { method: "POST", body: formData });
+          if (res.ok) {
+            const label = fileInput.closest(".bb-poi-upload-label");
+            if (label) label.textContent = "Uploaded!";
+          }
         });
       }
     };

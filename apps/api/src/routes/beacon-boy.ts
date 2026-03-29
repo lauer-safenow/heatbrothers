@@ -139,6 +139,46 @@ beaconBoyRouter.delete("/beacon-boy/beacons", (_req, res) => {
   res.json({ ok: true });
 });
 
+// ── Beacon images ──────────────────────────────────────────────────────────
+
+import multer from "multer";
+
+const imagesDir = path.resolve(ROOT_DIR, "data/beacon-images");
+fs.mkdirSync(imagesDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: imagesDir,
+    filename: (_req, file, cb) => {
+      const id = (_req as unknown as { params: { id: string } }).params.id;
+      const ext = path.extname(file.originalname) || ".jpg";
+      cb(null, `${id}${ext}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+});
+
+// POST — upload image for a beacon
+beaconBoyRouter.post("/beacon-boy/beacons/:id/image", upload.single("image"), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: "no file" });
+    return;
+  }
+  res.json({ ok: true, filename: req.file.filename });
+});
+
+// GET — serve beacon image
+beaconBoyRouter.get("/beacon-boy/beacons/:id/image", (req, res) => {
+  const id = req.params.id;
+  // Find any file matching the id
+  const files = fs.readdirSync(imagesDir).filter((f) => f.startsWith(`${id}.`));
+  if (files.length === 0) {
+    res.status(404).json({ error: "no image" });
+    return;
+  }
+  res.sendFile(path.join(imagesDir, files[0]));
+});
+
 // ── Maptiler zones ─────────────────────────────────────────────────────────
 
 const __beaconDirname = path.dirname(new URL(import.meta.url).pathname);
