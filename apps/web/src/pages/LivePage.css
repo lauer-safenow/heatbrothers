@@ -1,9 +1,67 @@
 .live-page {
+  /* ── Night theme (default) ── */
+  --ctrl-bg: rgba(20, 20, 20, 0.85);
+  --ctrl-bg-solid: #1a1a1a;
+  --ctrl-border: rgba(255, 255, 255, 0.15);
+  --ctrl-border-faint: rgba(255, 255, 255, 0.1);
+  --ctrl-border-subtle: rgba(255, 255, 255, 0.06);
+  --ctrl-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --text: #fff;
+  --text-dim: rgba(255, 255, 255, 0.8);
+  --text-muted: rgba(255, 255, 255, 0.6);
+  --text-faint: rgba(255, 255, 255, 0.5);
+  --text-ghost: rgba(255, 255, 255, 0.35);
+  --text-barely: rgba(255, 255, 255, 0.25);
+  --accent-orange: #ff8800;
+  --accent-orange-hover: rgba(255, 140, 0, 0.5);
+  --accent-orange-glow: rgba(255, 100, 0, 0.3);
+  --accent-orange-bg: rgba(255, 140, 0, 0.12);
+  --accent-orange-fill: rgba(255, 136, 0, 0.8);
+  --accent-cyan: #0096ff;
+  --accent-cyan-hover: rgba(0, 150, 255, 0.35);
+  --accent-cyan-bg: rgba(0, 150, 255, 0.08);
+  --page-bg: #050510;
+  --color-scheme: dark;
+  --icon-filter: invert(1) brightness(0.7);
+  --icon-filter-hover: invert(1) brightness(1);
+  --select-option-bg: #1a1a1a;
+
   width: 100vw;
   height: 100vh;
   position: relative;
-  background: #050510;
+  background: var(--page-bg);
 }
+
+/* ── Light theme ── */
+.live-page[data-theme="light"] {
+  --ctrl-bg: rgba(255, 255, 255, 0.9);
+  --ctrl-bg-solid: #f5f5f5;
+  --ctrl-border: rgba(0, 0, 0, 0.15);
+  --ctrl-border-faint: rgba(0, 0, 0, 0.1);
+  --ctrl-border-subtle: rgba(0, 0, 0, 0.06);
+  --ctrl-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --text: #1a1a1a;
+  --text-dim: rgba(30, 30, 30, 0.85);
+  --text-muted: rgba(30, 30, 30, 0.65);
+  --text-faint: rgba(30, 30, 30, 0.55);
+  --text-ghost: rgba(30, 30, 30, 0.4);
+  --text-barely: rgba(30, 30, 30, 0.25);
+  --accent-orange: #0869d8;
+  --accent-orange-hover: rgba(8, 105, 216, 0.5);
+  --accent-orange-glow: rgba(8, 105, 216, 0.25);
+  --accent-orange-bg: rgba(8, 105, 216, 0.12);
+  --accent-orange-fill: rgba(8, 105, 216, 0.85);
+  --accent-cyan: #0869d8;
+  --accent-cyan-hover: rgba(8, 105, 216, 0.35);
+  --accent-cyan-bg: rgba(8, 105, 216, 0.08);
+  --page-bg: #050510;
+  --color-scheme: light;
+  --icon-filter: brightness(0.4);
+  --icon-filter-hover: brightness(0.1);
+  --select-option-bg: #f5f5f5;
+}
+
+/* Space background stays dark in both themes — only UI controls change */
 
 /* subtle blue glow behind the globe */
 .live-page::before {
@@ -99,10 +157,10 @@
 }
 
 .live-home-btn {
-  background: rgba(60, 55, 48, 0.85);
+  background: var(--ctrl-bg);
   border: none;
   border-radius: 14px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-dim);
   font-size: 0.85rem;
   padding: 0.45rem 0.85rem;
   cursor: pointer;
@@ -114,8 +172,8 @@
 }
 
 .live-home-btn:hover {
-  background: rgba(60, 55, 48, 0.95);
-  color: #ff8800;
+  background: var(--ctrl-bg-solid);
+  color: var(--accent-orange);
 }
 
 
@@ -124,7 +182,7 @@
   top: 1rem;
   left: 1rem;
   z-index: 10;
-  background: rgba(10, 10, 10, 0.7);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 60, 60, 0.3);
   border-radius: 8px;
@@ -138,7 +196,7 @@
 }
 
 .live-countdown {
-  color: rgba(255, 255, 255, 0.25);
+  color: var(--text-barely);
   font-size: 0.65rem;
   font-weight: normal;
   letter-spacing: 0;
@@ -159,10 +217,10 @@
 
 .speed-btn {
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-ghost);
   font-family: monospace;
   font-size: 0.65rem;
   cursor: pointer;
@@ -170,13 +228,13 @@
 }
 
 .speed-btn:hover {
-  color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text-dim);
+  border-color: var(--ctrl-border);
 }
 
 .speed-btn.active {
-  color: #ff8800;
-  border-color: rgba(255, 136, 0, 0.4);
+  color: var(--accent-orange);
+  border-color: var(--accent-orange-hover);
 }
 
 /* ── bottom bar (stats + timeline side by side) ── */
@@ -196,29 +254,29 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  background: rgba(10, 10, 10, 0.7);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 8px;
   padding: 0.4rem 0.8rem;
   flex-shrink: 0;
 }
 
 .live-stats-count {
-  color: #ff8800;
+  color: var(--accent-orange);
   font-family: monospace;
   font-size: 1.2rem;
   font-weight: bold;
 }
 
 .live-stats-text {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
   font-family: monospace;
   font-size: 0.75rem;
 }
 
 .live-stats-added {
-  color: rgba(255, 255, 255, 0.25);
+  color: var(--text-barely);
   font-family: monospace;
   font-size: 0.6rem;
   margin-left: 0.3rem;
@@ -229,13 +287,13 @@
   right: 0;
   bottom: 100%;
   margin-bottom: 0.3rem;
-  color: #ff8800;
+  color: var(--accent-orange);
   font-family: monospace;
   font-size: 1.6rem;
   font-weight: bold;
   pointer-events: none;
   white-space: nowrap;
-  text-shadow: 0 0 12px rgba(255, 136, 0, 0.6);
+  text-shadow: 0 0 12px var(--accent-orange-glow);
   animation: ghost-fly-up 5s ease-out forwards;
 }
 
@@ -254,7 +312,7 @@
 }
 
 .live-stats-queue {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-barely);
   font-family: monospace;
   font-size: 0.65rem;
   margin-left: 0.3rem;
@@ -277,9 +335,9 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  background: rgba(10, 10, 10, 0.6);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--ctrl-border-subtle);
   border-radius: 6px;
   padding: 0.2rem 0.6rem;
   font-family: monospace;
@@ -289,8 +347,8 @@
 }
 
 .live-queue-item.active {
-  border-color: rgba(255, 140, 0, 0.5);
-  background: rgba(255, 140, 0, 0.12);
+  border-color: var(--accent-orange-hover);
+  background: var(--accent-orange-bg);
 }
 
 .live-queue-item.exiting {
@@ -303,11 +361,11 @@
 }
 
 .live-queue-label {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
 }
 
 .live-queue-item.active .live-queue-label {
-  color: #ff8800;
+  color: var(--accent-orange);
 }
 
 @keyframes queue-enter {
@@ -338,12 +396,12 @@
   bottom: 1.5rem;
   right: 1.5rem;
   z-index: 10;
-  background: rgba(10, 10, 10, 0.7);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 140, 0, 0.25);
+  border: 1px solid var(--accent-orange-hover);
   border-radius: 8px;
   padding: 0.3rem 0.7rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
   font-family: monospace;
   font-size: 0.75rem;
 }
@@ -469,40 +527,219 @@
   gap: 0.4rem;
 }
 
-.live-event-select {
-  background: rgba(10, 10, 10, 0.7);
+/* ── custom event dropdown ── */
+.live-event-dropdown {
+  position: relative;
+}
+
+.live-event-trigger {
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 8px;
   padding: 0.35rem 0.6rem;
   font-family: monospace;
   font-size: 0.75rem;
   cursor: pointer;
   outline: none;
-  max-width: 180px;
+  max-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.live-event-select:hover {
-  border-color: rgba(255, 140, 0, 0.5);
+.live-event-trigger:hover {
+  border-color: var(--accent-orange-hover);
 }
 
-.live-event-select:focus {
-  border-color: #ff8800;
-  box-shadow: 0 0 12px rgba(255, 100, 0, 0.3);
+.live-event-trigger-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
 }
 
-.live-event-select option {
-  background: #1a1a1a;
-  color: #fff;
+.live-event-chevron {
+  font-size: 0.7rem;
+  color: var(--text-ghost);
+  transition: transform 0.2s;
+}
+
+.live-event-chevron.open {
+  transform: rotate(180deg);
+}
+
+.live-event-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 100%;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--ctrl-border-faint);
+  border-radius: 8px;
+  padding: 0.2rem 0;
+  box-shadow: var(--ctrl-shadow);
+  z-index: 20;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.live-event-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+
+.live-event-item:hover {
+  background: var(--accent-orange-bg);
+  color: var(--text);
+}
+
+.live-event-item.active {
+  color: var(--accent-orange);
+}
+
+.live-event-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-event-item-count {
+  color: var(--text-ghost);
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+
+/* ── settings gear button & menu ── */
+.live-settings-wrap {
+  position: relative;
+}
+
+.live-page .settings-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.live-page .settings-btn img {
+  filter: var(--icon-filter);
+}
+
+.live-page .settings-btn:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+.live-page .settings-btn:hover img {
+  filter: var(--icon-filter-hover);
+}
+
+.live-page .settings-menu {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  min-width: 220px;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: none;
+  border-radius: 10px;
+  box-shadow: var(--ctrl-shadow);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 20;
+}
+
+.live-page .settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.live-page .settings-row:hover {
+  background: var(--ctrl-bg-solid);
+}
+
+.live-page .settings-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.live-page .settings-theme-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 60%;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+}
+
+.live-page .settings-theme-btn:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+.live-page .settings-divider {
+  height: 1px;
+  background: var(--ctrl-border);
+  margin: 2px 4px;
+}
+
+/* mode toggles inside settings menu — smaller padding */
+.live-page .settings-row .live-mode-toggle {
+  border: none;
+  background: none;
+  backdrop-filter: none;
+}
+
+.live-page .settings-row .mode-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.7rem;
 }
 
 .live-mode-toggle {
   display: flex;
   gap: 0;
-  background: rgba(10, 10, 10, 0.7);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -510,7 +747,7 @@
 .mode-btn {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-ghost);
   font-family: monospace;
   font-size: 0.75rem;
   font-weight: bold;
@@ -521,12 +758,12 @@
 }
 
 .mode-btn:hover {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
 }
 
 .mode-btn.active {
-  color: #ff8800;
-  background: rgba(255, 140, 0, 0.12);
+  color: var(--accent-orange);
+  background: var(--accent-orange-bg);
   cursor: default;
 }
 
@@ -540,9 +777,9 @@
 
 /* ── TODAY button glow when active ── */
 .today-toggle-wrap .mode-btn:last-child.active {
-  color: #ff8800;
-  background: rgba(255, 140, 0, 0.15);
-  text-shadow: 0 0 8px rgba(255, 140, 0, 0.6), 0 0 20px rgba(255, 100, 0, 0.3);
+  color: var(--accent-orange);
+  background: var(--accent-orange-bg);
+  text-shadow: 0 0 8px var(--accent-orange-hover), 0 0 20px var(--accent-orange-glow);
   animation: today-pulse 2s ease-in-out infinite;
 }
 
@@ -561,9 +798,9 @@
   margin-top: 0.35rem;
   padding: 0.25rem 0.5rem 0.25rem 0.4rem;
   border-radius: 6px;
-  background: rgba(10, 10, 10, 0.6);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 140, 0, 0.15);
+  border: 1px solid var(--accent-orange-bg);
   transform-origin: top center;
   transform: scaleY(0);
   opacity: 0;
@@ -579,15 +816,14 @@
 }
 
 .today-loop-toggle.checked {
-  border-color: rgba(255, 140, 0, 0.5);
+  border-color: var(--accent-orange-hover);
   box-shadow:
-    0 0 8px rgba(255, 140, 0, 0.15),
-    0 0 20px rgba(255, 100, 0, 0.08),
-    inset 0 0 12px rgba(255, 140, 0, 0.06);
+    0 0 8px var(--accent-orange-bg),
+    0 0 20px var(--accent-orange-glow);
 }
 
 .today-loop-toggle:hover {
-  border-color: rgba(255, 140, 0, 0.4);
+  border-color: var(--accent-orange-hover);
 }
 
 .today-loop-toggle input[type="checkbox"] {
@@ -604,16 +840,16 @@
   width: 28px;
   height: 14px;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--ctrl-border-subtle);
+  border: 1px solid var(--ctrl-border);
   transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
   flex-shrink: 0;
 }
 
 .checked .loop-switch {
-  background: rgba(255, 140, 0, 0.25);
-  border-color: rgba(255, 140, 0, 0.6);
-  box-shadow: 0 0 10px rgba(255, 140, 0, 0.3), inset 0 0 6px rgba(255, 140, 0, 0.15);
+  background: var(--accent-orange-bg);
+  border-color: var(--accent-orange-hover);
+  box-shadow: 0 0 10px var(--accent-orange-glow);
 }
 
 .loop-switch-thumb {
@@ -623,14 +859,14 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--text-barely);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s, box-shadow 0.3s;
 }
 
 .checked .loop-switch-thumb {
   transform: translateX(14px);
-  background: #ff8800;
-  box-shadow: 0 0 6px rgba(255, 140, 0, 0.8), 0 0 14px rgba(255, 100, 0, 0.4);
+  background: var(--accent-orange);
+  box-shadow: 0 0 6px var(--accent-orange-fill), 0 0 14px var(--accent-orange-glow);
 }
 
 /* ── loop label ── */
@@ -639,21 +875,21 @@
   font-size: 0.65rem;
   font-weight: bold;
   letter-spacing: 0.15em;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-barely);
   transition: color 0.3s, text-shadow 0.3s;
 }
 
 .checked .loop-label {
-  color: #ff8800;
-  text-shadow: 0 0 8px rgba(255, 140, 0, 0.5);
+  color: var(--accent-orange);
+  text-shadow: 0 0 8px var(--accent-orange-hover);
 }
 
 .today-loop-toggle:hover .loop-label {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-faint);
 }
 
 .today-loop-toggle.checked:hover .loop-label {
-  color: #ffaa44;
+  color: var(--accent-orange);
 }
 
 /* ── plop animations ── */
@@ -705,9 +941,9 @@
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.45);
+  background: var(--ctrl-border-subtle);
+  border: 1px solid var(--ctrl-border);
+  color: var(--text-faint);
   font-size: 0.85rem;
   font-weight: normal;
   cursor: pointer;
@@ -721,9 +957,9 @@
 }
 
 .replay-minimize-btn:hover {
-  background: rgba(255, 140, 0, 0.3);
-  border-color: rgba(255, 140, 0, 0.5);
-  color: #ff8800;
+  background: var(--accent-orange-bg);
+  border-color: var(--accent-orange-hover);
+  color: var(--accent-orange);
   transform: scale(1.1);
 }
 
@@ -732,9 +968,9 @@
   top: 1rem;
   left: 1rem;
   z-index: 10;
-  background: rgba(10, 10, 10, 0.85);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 8px;
   padding: 0.4rem 0.5rem;
   font-size: 1.1rem;
@@ -743,7 +979,7 @@
 }
 
 .replay-restore-btn:hover {
-  border-color: rgba(255, 140, 0, 0.5);
+  border-color: var(--accent-orange-hover);
 }
 
 /* ── replay controls ── */
@@ -752,9 +988,9 @@
   top: 1rem;
   left: 1rem;
   z-index: 10;
-  background: rgba(10, 10, 10, 0.85);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 10px;
   padding: 0.5rem;
   display: flex;
@@ -768,14 +1004,14 @@
   gap: 0;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
 }
 
 .replay-tab {
   flex: 1;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-ghost);
   font-family: monospace;
   font-size: 0.65rem;
   padding: 0.35rem 0.5rem;
@@ -785,12 +1021,12 @@
 }
 
 .replay-tab:hover {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
 }
 
 .replay-tab.active {
-  color: #ff8800;
-  background: rgba(255, 140, 0, 0.12);
+  color: var(--accent-orange);
+  background: var(--accent-orange-bg);
   font-weight: bold;
 }
 
@@ -798,7 +1034,7 @@
   width: 100%;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-barely);
   font-family: monospace;
   font-size: 0.6rem;
   padding: 0.25rem 0;
@@ -807,7 +1043,7 @@
 }
 
 .replay-hide-btn:hover {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-faint);
 }
 
 /* ── mini (collapsed) state ── */
@@ -867,11 +1103,11 @@
   height: 200px;
   overflow-y: auto;
   width: 2rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--ctrl-border-subtle);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 4px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 140, 0, 0.25) transparent;
+  scrollbar-color: var(--accent-orange-hover) transparent;
 }
 
 .time-scroller::-webkit-scrollbar {
@@ -883,7 +1119,7 @@
 }
 
 .time-scroller::-webkit-scrollbar-thumb {
-  background: rgba(255, 140, 0, 0.25);
+  background: var(--accent-orange-hover);
   border-radius: 2px;
 }
 
@@ -891,7 +1127,7 @@
   padding: 0.2rem 0;
   text-align: center;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-ghost);
   font-family: monospace;
   font-size: 0.7rem;
   border-radius: 3px;
@@ -899,18 +1135,18 @@
 }
 
 .time-scroller-item:hover {
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 140, 0, 0.12);
+  color: var(--text-dim);
+  background: var(--accent-orange-bg);
 }
 
 .time-scroller-item.selected {
-  background: #ff8800;
-  color: #000;
+  background: var(--accent-orange);
+  color: var(--page-bg);
   font-weight: bold;
 }
 
 .time-scroller-sep {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-barely);
   font-family: monospace;
   font-size: 0.75rem;
   align-self: center;
@@ -919,10 +1155,10 @@
 
 .replay-btn {
   width: 100%;
-  background: rgba(255, 140, 0, 0.18);
-  border: 1px solid rgba(255, 140, 0, 0.35);
+  background: var(--accent-orange-bg);
+  border: 1px solid var(--accent-orange-hover);
   border-radius: 6px;
-  color: #ff8800;
+  color: var(--accent-orange);
   font-family: monospace;
   font-size: 0.8rem;
   font-weight: bold;
@@ -933,7 +1169,7 @@
 }
 
 .replay-btn:hover:not(:disabled) {
-  background: rgba(255, 140, 0, 0.25);
+  background: var(--accent-orange-hover);
 }
 
 .replay-btn:disabled {
@@ -942,7 +1178,7 @@
 }
 
 .replay-info {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-ghost);
   font-family: monospace;
   font-size: 0.65rem;
 }
@@ -955,10 +1191,10 @@
 
 .replay-zone-btn {
   width: 100%;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--ctrl-border-subtle);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-faint);
   font-family: monospace;
   font-size: 0.68rem;
   padding: 0.3rem 0.6rem;
@@ -972,8 +1208,8 @@
 }
 
 .replay-zone-btn:hover {
-  border-color: rgba(0, 150, 255, 0.35);
-  color: rgba(255, 255, 255, 0.75);
+  border-color: var(--accent-cyan-hover);
+  color: var(--text-dim);
 }
 
 .replay-zone-btn-label {
@@ -984,7 +1220,7 @@
 }
 
 .replay-zone-clear {
-  color: rgba(255, 255, 255, 0.25);
+  color: var(--text-barely);
   font-size: 0.95rem;
   line-height: 1;
   flex-shrink: 0;
@@ -997,26 +1233,26 @@
 
 .replay-zone-dropdown {
   position: absolute;
-  bottom: calc(100% + 4px);
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
   min-width: 200px;
   z-index: 20;
-  background: rgba(10, 10, 10, 0.96);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.7);
+  box-shadow: var(--ctrl-shadow);
 }
 
 .replay-zone-search {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ctrl-border-subtle);
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.75);
+  border-bottom: 1px solid var(--ctrl-border-subtle);
+  color: var(--text-dim);
   font-family: monospace;
   font-size: 0.68rem;
   padding: 0.4rem 0.6rem;
@@ -1024,7 +1260,7 @@
 }
 
 .replay-zone-search::placeholder {
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--text-barely);
 }
 
 .replay-zone-list {
@@ -1038,7 +1274,7 @@
   padding: 0.32rem 0.6rem;
   font-family: monospace;
   font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-faint);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1048,12 +1284,12 @@
 }
 
 .replay-zone-item:hover {
-  background: rgba(0, 150, 255, 0.08);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--accent-cyan-bg);
+  color: var(--text-dim);
 }
 
 .replay-zone-item.selected {
-  color: #0096ff;
+  color: var(--accent-cyan);
 }
 
 .replay-zone-item-name {
@@ -1065,7 +1301,7 @@
 
 .replay-zone-item-badge {
   font-size: 0.58rem;
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--text-barely);
   flex-shrink: 0;
 }
 
@@ -1073,7 +1309,7 @@
   padding: 0.5rem 0.6rem;
   font-family: monospace;
   font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.18);
+  color: var(--text-barely);
   text-align: center;
 }
 
@@ -1082,8 +1318,8 @@
   position: absolute;
   pointer-events: none;
   z-index: 20;
-  background: rgba(10, 10, 10, 0.94);
-  border: 1px solid rgba(0, 150, 255, 0.3);
+  background: var(--ctrl-bg);
+  border: 1px solid var(--accent-cyan-hover);
   border-radius: 8px;
   padding: 0.6rem;
   max-width: 260px;
@@ -1091,7 +1327,7 @@
 }
 
 .zone-tooltip-name {
-  color: #fff;
+  color: var(--text);
   font-family: "Inter", sans-serif;
   font-size: 0.85rem;
   font-weight: bold;
@@ -1112,7 +1348,7 @@
   gap: 0.2rem;
   font-family: "Inter", sans-serif;
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-dim);
 }
 
 .zt-row {
@@ -1121,7 +1357,7 @@
 }
 
 .zt-label {
-  color: rgba(0, 150, 255, 0.8);
+  color: var(--accent-cyan);
   font-weight: bold;
   min-width: 70px;
   flex-shrink: 0;
@@ -1142,7 +1378,7 @@
 }
 
 .scrub-arrow-label {
-  color: #ff8800;
+  color: var(--accent-orange);
   font-family: monospace;
   font-size: 0.6rem;
   font-weight: bold;
@@ -1164,9 +1400,9 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(10, 10, 10, 0.8);
+  background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 8px;
   padding: 0.35rem 0.8rem;
 }
@@ -1201,7 +1437,7 @@
 
 .timeline-slider::-webkit-slider-runnable-track {
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ctrl-border-faint);
   border-radius: 2px;
 }
 
@@ -1210,9 +1446,9 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ff8800;
-  box-shadow: 0 0 6px rgba(255, 140, 0, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: var(--accent-orange);
+  box-shadow: 0 0 6px var(--accent-orange-hover);
+  border: 2px solid var(--text-barely);
   cursor: grab;
   margin-top: -4px;
 }
@@ -1220,13 +1456,13 @@
 .timeline-slider:active::-webkit-slider-thumb {
   cursor: grabbing;
   transform: scale(1.3);
-  box-shadow: 0 0 10px rgba(255, 140, 0, 0.8);
+  box-shadow: 0 0 10px var(--accent-orange-fill);
 }
 
 /* Firefox */
 .timeline-slider::-moz-range-track {
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ctrl-border-faint);
   border-radius: 2px;
   border: none;
 }
@@ -1235,15 +1471,15 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ff8800;
-  box-shadow: 0 0 6px rgba(255, 140, 0, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: var(--accent-orange);
+  box-shadow: 0 0 6px var(--accent-orange-hover);
+  border: 2px solid var(--text-barely);
   cursor: grab;
 }
 
 .timeline-pause-btn {
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ctrl-border-faint);
   border-radius: 4px;
   padding: 0.2rem 0.3rem;
   cursor: pointer;
@@ -1255,11 +1491,11 @@
 }
 
 .timeline-pause-btn:hover {
-  border-color: rgba(255, 136, 0, 0.4);
+  border-color: var(--accent-orange-hover);
 }
 
 .timeline-label {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-ghost);
   font-family: monospace;
   font-size: 0.65rem;
   white-space: nowrap;
@@ -1267,7 +1503,7 @@
 }
 
 .timeline-position {
-  color: rgba(255, 255, 255, 0.25);
+  color: var(--text-barely);
   font-family: monospace;
   font-size: 0.6rem;
   white-space: nowrap;
@@ -1294,14 +1530,14 @@
   position: relative;
   font-size: 0.7rem;
   font-family: monospace;
-  color: #ccc;
+  color: var(--text-muted);
   cursor: default;
   white-space: nowrap;
   padding: 1px 3px;
   border-radius: 3px;
 }
 .country-tally-badge:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ctrl-border-faint);
 }
 
 /* tooltip on hover — sits flush on badge so hover path is unbroken */
@@ -1311,8 +1547,8 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(10, 10, 10, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
   padding-bottom: 0.6rem;
@@ -1332,9 +1568,9 @@
 .ctt-header {
   font-size: 0.7rem;
   font-weight: 600;
-  color: #ff8800;
+  color: var(--accent-orange);
   margin-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--ctrl-border-faint);
   padding-bottom: 0.2rem;
 }
 .ctt-events {
@@ -1346,14 +1582,14 @@
   display: flex;
   gap: 0.4rem;
   font-size: 0.6rem;
-  color: #aaa;
+  color: var(--text-faint);
 }
 .ctt-time {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-ghost);
   flex-shrink: 0;
 }
 .ctt-city {
-  color: #ccc;
+  color: var(--text-muted);
 }
 .ctt-row-clickable {
   cursor: pointer;
@@ -1362,16 +1598,16 @@
   transition: background 0.1s;
 }
 .ctt-row-clickable:hover {
-  background: rgba(255, 140, 0, 0.15);
+  background: var(--accent-orange-bg);
 }
 .ctt-row-clickable:hover .ctt-city {
-  color: #ff8800;
+  color: var(--accent-orange);
 }
 
 /* ── polygon toolbar within replay controls ── */
 .replay-poly-toolbar {
   margin-top: 0.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--ctrl-border-subtle);
   padding-top: 0.35rem;
 }
 
@@ -1382,10 +1618,10 @@
 }
 
 .replay-poly-toolbar .poly-btn {
-  background: rgba(255, 140, 0, 0.08);
-  border: 1px solid rgba(255, 140, 0, 0.25);
+  background: var(--accent-orange-bg);
+  border: 1px solid var(--accent-orange-hover);
   border-radius: 6px;
-  color: rgba(255, 140, 0, 0.8);
+  color: var(--accent-orange-fill);
   font-family: monospace;
   font-size: 0.65rem;
   padding: 0.25rem 0.5rem;
@@ -1394,8 +1630,8 @@
 }
 
 .replay-poly-toolbar .poly-btn:hover:not(:disabled) {
-  background: rgba(255, 140, 0, 0.15);
-  border-color: rgba(255, 140, 0, 0.45);
+  background: var(--accent-orange-hover);
+  border-color: var(--accent-orange-fill);
 }
 
 .replay-poly-toolbar .poly-btn:disabled {
@@ -1413,7 +1649,7 @@
 }
 
 .replay-poly-toolbar .poly-info {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-ghost);
   font-family: monospace;
   font-size: 0.6rem;
 }

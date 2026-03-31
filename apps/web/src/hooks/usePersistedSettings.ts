@@ -11,6 +11,7 @@ export interface MapSettings {
   colorOverride: boolean;
   heatmapColors: string[];
   showActiveZones: boolean;
+  cuteness: boolean;
 }
 
 const DEFAULTS: MapSettings = {
@@ -22,6 +23,7 @@ const DEFAULTS: MapSettings = {
   colorOverride: false,
   heatmapColors: DEFAULT_OVERRIDE_COLORS,
   showActiveZones: false,
+  cuteness: true,
 };
 
 const STORAGE_KEY = "heatbrothers-map-settings";

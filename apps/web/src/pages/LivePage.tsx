@@ -11,6 +11,7 @@ import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import { EventTrail } from "../components/EventTrail";
+import { usePersistedSettings } from "../hooks/usePersistedSettings";
 import "./LivePage.css";
 
 type EventTuple = [number, number, number, number, string, string, string]; // [lng, lat, unixSeconds, id, city, countryCode, distinctId]
@@ -72,6 +73,36 @@ type Mode = "live" | "replay";
 
 const POLL_INTERVAL = 30_000;
 const DISPLAY_DURATION = 3_000;
+const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const LIGHT_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+
+function applySky(m: maplibregl.Map, _theme: "dark" | "light") {
+  // Sky/atmosphere always stays dark (space void) regardless of theme
+  void _theme;
+  m.setSky({
+    "sky-color": "#050510",
+    "sky-horizon-blend": 0.7,
+    "horizon-color": "#2a5aaa",
+    "horizon-fog-blend": 0.9,
+    "fog-color": "#050510",
+    "fog-ground-blend": 0.02,
+    "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 5, 1.2, 7, 0],
+  });
+}
+
+function applyStylePostLoad(m: maplibregl.Map, theme: "dark" | "light") {
+  m.setProjection({ type: "globe" });
+  applySky(m, theme);
+  // Hide sub-national boundary lines
+  const style = m.getStyle();
+  if (style?.layers) {
+    for (const layer of style.layers) {
+      if (layer.type === "line" && layer.id.includes("boundary") && !layer.id.includes("country")) {
+        m.setLayoutProperty(layer.id, "visibility", "none");
+      }
+    }
+  }
+}
 
 // Convert ISO country code to flag emoji
 function countryFlag(code: string): string {
@@ -185,6 +216,16 @@ export function LivePage() {
   const replayGen = useRef(0); // incremented on clearQueue; stale timeout callbacks check this and bail
   const lastSeenTs = useRef(0);
   const [activeEvent, setActiveEvent] = useState<EventTuple | null>(null);
+
+  // Settings gear
+  const [settings, updateSettings] = usePersistedSettings();
+  const { mapTheme } = settings;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Custom event dropdown (replaces native <select>)
+  const [eventDropOpen, setEventDropOpen] = useState(false);
+  const eventDropRef = useRef<HTMLDivElement>(null);
 
   // Event trail: all events persisted on map
   const trailRef = useRef<EventTuple[]>([]);
@@ -311,6 +352,30 @@ export function LivePage() {
   }, [pinnedCountry]);
   const replayPaused = useRef(false);
 
+  // Close settings menu on click outside
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const close = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [settingsOpen]);
+
+  // Close event dropdown on click outside
+  useEffect(() => {
+    if (!eventDropOpen) return;
+    const close = (e: MouseEvent) => {
+      if (eventDropRef.current && !eventDropRef.current.contains(e.target as Node)) {
+        setEventDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [eventDropOpen]);
+
   // Precomputed country index — built once when replay events load
   type CountryEntry = { flag: string; events: { city: string; time: number; idx: number }[] };
   const countryIndex = useRef<Map<string, CountryEntry>>(new Map());
@@ -419,7 +484,7 @@ export function LivePage() {
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+      style: mapTheme === "dark" ? DARK_STYLE : LIGHT_STYLE,
       center: [10, 50],
       zoom: 0.8,
       pitch: 0,
@@ -433,28 +498,7 @@ export function LivePage() {
     map.current.addControl(overlay.current);
 
     map.current.on("load", () => {
-      map.current?.setProjection({ type: "globe" });
-
-      // Atmosphere halo around the globe
-      map.current?.setSky({
-        "sky-color": "#050510",
-        "sky-horizon-blend": 0.7,
-        "horizon-color": "#2a5aaa",
-        "horizon-fog-blend": 0.9,
-        "fog-color": "#050510",
-        "fog-ground-blend": 0.02,
-        "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 5, 1.2, 7, 0],
-      });
-
-      // Hide sub-national boundary lines (keep only country borders)
-      const style = map.current?.getStyle();
-      if (style?.layers) {
-        for (const layer of style.layers) {
-          if (layer.type === "line" && layer.id.includes("boundary") && !layer.id.includes("country")) {
-            map.current!.setLayoutProperty(layer.id, "visibility", "none");
-          }
-        }
-      }
+      applyStylePostLoad(map.current!, mapTheme);
     });
 
     map.current.on("move", updateBlinkPosition);
@@ -1358,9 +1402,9 @@ export function LivePage() {
   }
 
   return (
-    <div className="live-page">
+    <div className="live-page" data-theme={mapTheme === "light" ? "light" : undefined}>
       <div ref={mapContainer} className="live-map" />
-      <EventTrail map={map.current} events={trailEvents} />
+      <EventTrail map={map.current} events={trailEvents} cuteness={settings.cuteness} />
       <div ref={blinkRef} className="live-blink-marker" style={{ display: "none" }} />
       <div ref={blinkLabelRef} className="live-blink-label" style={{ display: "none" }} />
 
@@ -1382,80 +1426,171 @@ export function LivePage() {
         </svg>
       </div>
 
-      {/* Mode toggles */}
+      {/* Top-right controls */}
       <div className="live-controls-row">
         <button className="live-home-btn" onClick={() => navigate("/")}>&#8592; Home</button>
-        <div className="today-toggle-wrap">
-          <div className="live-mode-toggle">
-            <button
-              className={`mode-btn${mode === "live" ? " active" : ""}`}
-              onClick={mode === "live" ? undefined : () => { switchToLive(); setHintDismissed(true); }}
-            >
-              LIVE
-            </button>
-            <button
-              className={`mode-btn${mode === "replay" && !todayMode ? " active" : ""}`}
-              onClick={() => { switchToReplay(); setHintDismissed(true); }}
-            >
-              REPLAY
-            </button>
-            <button
-              className={`mode-btn${mode === "replay" && todayMode ? " active" : ""}`}
-              onClick={() => { switchToToday(); setHintDismissed(true); }}
-            >
-              TODAY
-            </button>
-          </div>
-          <label className={`today-loop-toggle${todayMode ? " visible" : ""}${loop ? " checked" : ""}`}>
-            <input type="checkbox" checked={loop} onChange={toggleLoop} />
-            <span className="loop-switch">
-              <span className="loop-switch-thumb" />
-            </span>
-            <span className="loop-label">LOOP</span>
-          </label>
-        </div>
-        <div className="live-mode-toggle">
-          <button
-            className={`mode-btn${mapView === "2d" ? " active" : ""}`}
-            onClick={() => toggleMapView()}
-          >
-            2D
+        <div ref={eventDropRef} className="live-event-dropdown">
+          <button className="live-event-trigger" onClick={() => setEventDropOpen((v) => !v)}>
+            <span className="live-event-trigger-label">{displayName(liveEventType)}</span>
+            <span className={`live-event-chevron${eventDropOpen ? " open" : ""}`}>▾</span>
           </button>
-          <button
-            className={`mode-btn${mapView === "3d" ? " active" : ""}`}
-            onClick={() => toggleMapView()}
-          >
-            3D
-          </button>
-        </div>
-        <div className="live-mode-toggle">
-          <button
-            className={`mode-btn${flyMode === "auto" ? " active" : ""}`}
-            onClick={() => toggleFlyMode()}
-          >
-            AUTO
-          </button>
-          <button
-            className={`mode-btn${flyMode === "free" ? " active" : ""}`}
-            onClick={() => toggleFlyMode()}
-          >
-            FREE
-          </button>
-        </div>
-        <select
-          className="live-event-select"
-          value={liveEventType}
-          onChange={(e) => changeEventType(e.target.value)}
-        >
-          {eventTypes.length === 0 && (
-            <option value={LIVE_EVENT_TYPE}>{displayName(LIVE_EVENT_TYPE)}</option>
+          {eventDropOpen && (
+            <div className="live-event-menu">
+              {(eventTypes.length === 0 ? [{ event_type: LIVE_EVENT_TYPE, count: 0 }] : eventTypes).map((t) => (
+                <div
+                  key={t.event_type}
+                  className={`live-event-item${t.event_type === liveEventType ? " active" : ""}`}
+                  onClick={() => { changeEventType(t.event_type); setEventDropOpen(false); }}
+                >
+                  <span className="live-event-item-name">{displayName(t.event_type)}</span>
+                  {t.count > 0 && <span className="live-event-item-count">{t.count.toLocaleString()}</span>}
+                </div>
+              ))}
+            </div>
           )}
-          {eventTypes.map((t) => (
-            <option key={t.event_type} value={t.event_type}>
-              {displayName(t.event_type)} ({t.count.toLocaleString()})
-            </option>
-          ))}
-        </select>
+        </div>
+        <div ref={settingsRef} className="live-settings-wrap">
+          <button
+            className="settings-btn"
+            title="Settings"
+            onClick={() => setSettingsOpen((v) => !v)}
+          >
+            <img src="/gear.svg" alt="Settings" width="18" height="18" />
+          </button>
+          {settingsOpen && (
+            <div className="settings-menu">
+              {/* Theme */}
+              <div className="settings-row">
+                <span className="settings-label">
+                  {mapTheme === "dark" ? "Night" : "Light"} Mode
+                </span>
+                <button
+                  className="settings-theme-btn"
+                  onClick={() => {
+                    const next = mapTheme === "dark" ? "light" : "dark";
+                    updateSettings({ mapTheme: next });
+                    if (map.current) {
+                      map.current.setStyle(next === "dark" ? DARK_STYLE : LIGHT_STYLE);
+                      map.current.once("style.load", () => {
+                        applyStylePostLoad(map.current!, next);
+                      });
+                    }
+                  }}
+                >
+                  {mapTheme === "dark" ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="5" />
+                      <line x1="12" y1="1" x2="12" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="23" />
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                      <line x1="1" y1="12" x2="3" y2="12" />
+                      <line x1="21" y1="12" x2="23" y2="12" />
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <div className="settings-divider" />
+              {/* Mode: LIVE / REPLAY / TODAY */}
+              <div className="settings-row">
+                <span className="settings-label">Mode</span>
+                <div className="live-mode-toggle">
+                  <button
+                    className={`mode-btn${mode === "live" ? " active" : ""}`}
+                    onClick={mode === "live" ? undefined : () => { switchToLive(); setHintDismissed(true); }}
+                  >
+                    LIVE
+                  </button>
+                  <button
+                    className={`mode-btn${mode === "replay" && !todayMode ? " active" : ""}`}
+                    onClick={() => { switchToReplay(); setHintDismissed(true); }}
+                  >
+                    REPLAY
+                  </button>
+                  <button
+                    className={`mode-btn${mode === "replay" && todayMode ? " active" : ""}`}
+                    onClick={() => { switchToToday(); setHintDismissed(true); }}
+                  >
+                    TODAY
+                  </button>
+                </div>
+              </div>
+              {/* Loop (only when TODAY mode) */}
+              {todayMode && (
+                <div className="settings-row">
+                  <span className="settings-label">Loop</span>
+                  <label className={`today-loop-toggle visible${loop ? " checked" : ""}`} style={{ margin: 0, background: "none", border: "none", padding: 0 }}>
+                    <input type="checkbox" checked={loop} onChange={toggleLoop} />
+                    <span className="loop-switch">
+                      <span className="loop-switch-thumb" />
+                    </span>
+                  </label>
+                </div>
+              )}
+              {/* View: 2D / 3D */}
+              <div className="settings-row">
+                <span className="settings-label">View</span>
+                <div className="live-mode-toggle">
+                  <button
+                    className={`mode-btn${mapView === "2d" ? " active" : ""}`}
+                    onClick={() => toggleMapView()}
+                  >
+                    2D
+                  </button>
+                  <button
+                    className={`mode-btn${mapView === "3d" ? " active" : ""}`}
+                    onClick={() => toggleMapView()}
+                  >
+                    3D
+                  </button>
+                </div>
+              </div>
+              {/* Camera: AUTO / FREE */}
+              <div className="settings-row">
+                <span className="settings-label">Camera</span>
+                <div className="live-mode-toggle">
+                  <button
+                    className={`mode-btn${flyMode === "auto" ? " active" : ""}`}
+                    onClick={() => toggleFlyMode()}
+                  >
+                    AUTO
+                  </button>
+                  <button
+                    className={`mode-btn${flyMode === "free" ? " active" : ""}`}
+                    onClick={() => toggleFlyMode()}
+                  >
+                    FREE
+                  </button>
+                </div>
+              </div>
+              <div className="settings-divider" />
+              {/* Cuteness: avatars on/off */}
+              <div className="settings-row">
+                <span className="settings-label">Cuteness</span>
+                <div className="live-mode-toggle">
+                  <button
+                    className={`mode-btn${settings.cuteness ? " active" : ""}`}
+                    onClick={() => updateSettings({ cuteness: true })}
+                  >
+                    ON
+                  </button>
+                  <button
+                    className={`mode-btn${!settings.cuteness ? " active" : ""}`}
+                    onClick={() => updateSettings({ cuteness: false })}
+                  >
+                    OFF
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Live mode header */}
