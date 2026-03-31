@@ -1,9 +1,16 @@
 import { Router } from "express";
-import { getStats, getAllEvents } from "../cache.js";
+import { getStats } from "../cache.js";
+import { sqlite } from "@heatbrothers/db";
 import { ensureZonesCache, getZonesData } from "./zones.js";
 import { geocode } from "../geocode.js";
 
 export const dashboardRouter = Router();
+
+const todayCountsStmt = sqlite.prepare(
+  `SELECT event_type, COUNT(*) as count FROM events
+   WHERE timestamp >= @from AND timestamp <= @to
+   GROUP BY event_type ORDER BY count DESC`,
+);
 
 const DISPLAY_NAMES: Record<string, string> = {
   DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm started private",
@@ -49,29 +56,25 @@ dashboardRouter.get("/dashboard", async (_req, res) => {
       count: e.count,
     }));
 
-    // Events today (since midnight UTC)
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayCutoff = Math.floor(startOfDay.getTime() / 1000);
-    const allEvents = getAllEvents();
-    const todayByType: { event_type: string; displayName: string; count: number }[] = [];
-    let todayTotal = 0;
-    for (const [eventType, events] of allEvents) {
-      let count = 0;
-      for (let i = events.length - 1; i >= 0; i--) {
-        if (events[i].timestamp >= todayCutoff) count++;
-        else break; // events are sorted ascending by id/time
-      }
-      if (count > 0) {
-        todayByType.push({
-          event_type: eventType,
-          displayName: DISPLAY_NAMES[eventType] ?? eventType,
-          count,
-        });
-        todayTotal += count;
-      }
-    }
-    todayByType.sort((a, b) => b.count - a.count);
+    // Events today — midnight in Europe/Berlin, works on any server timezone.
+    // Get today's date string in Berlin, then find the UTC epoch for that midnight.
+    const berlinDate = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+    // Intl gives us the Berlin time at UTC midnight — the difference is the offset
+    const utcMidnight = new Date(berlinDate + "T00:00:00Z");
+    const berlinAtUtcMidnight = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Berlin", hour: "numeric", hour12: false,
+    }).format(utcMidnight);
+    const offsetHours = parseInt(berlinAtUtcMidnight); // 1 for CET, 2 for CEST
+    const fromEpoch = Math.floor(utcMidnight.getTime() / 1000) - offsetHours * 3600;
+    const toEpoch = fromEpoch + 86400 - 1;
+
+    const todayRows = todayCountsStmt.all({ from: fromEpoch, to: toEpoch }) as { event_type: string; count: number }[];
+    const todayByType = todayRows.map((r) => ({
+      event_type: r.event_type,
+      displayName: DISPLAY_NAMES[r.event_type] ?? r.event_type,
+      count: r.count,
+    }));
+    const todayTotal = todayRows.reduce((sum, r) => sum + r.count, 0);
 
     await ensureZonesCache();
     const allZones = getZonesData();
