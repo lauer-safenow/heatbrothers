@@ -8,7 +8,7 @@ import "../datepicker-dark.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
 import { pointInPolygon } from "../utils/pointInPolygon";
-import { geohashEncode, geohashNeighbors, geohashToPolygon } from "../utils/geohash";
+import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterWithinCell, geohashPrecisionForType } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
 import { usePersistedSettings, DEFAULT_OVERRIDE_COLORS } from "../hooks/usePersistedSettings";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -290,7 +290,7 @@ export function MapPage() {
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
   // persisted settings (localStorage)
   const [settings, updateSettings] = usePersistedSettings();
-  const { mapTheme, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones } = settings;
+  const { mapTheme, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled } = settings;
 
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
@@ -552,8 +552,20 @@ export function MapPage() {
       events = events.filter((e) => pointInPolygon([e[0], e[1]], vertices));
     }
 
+    // jitter: scatter geohash-center-snapped points within their cell
+    // zone events have real coords and should not be jittered (precision = null)
+    if (jitterEnabled && selected) {
+      const precision = geohashPrecisionForType(selected);
+      if (precision !== null) {
+        events = events.map((e, i): EventTuple => {
+          const [jLat, jLng] = jitterWithinCell(e[1], e[0], precision, i);
+          return [jLng, jLat, e[2]];
+        });
+      }
+    }
+
     return events;
-  }, [allEvents, timeFrom, timeUntil, drawingState, vertices]);
+  }, [allEvents, timeFrom, timeUntil, drawingState, vertices, jitterEnabled, selected]);
 
   const legendColors = useMemo(() => {
     if (colorOverride) return heatmapColors;
@@ -1458,6 +1470,15 @@ export function MapPage() {
                   src={showZoomControls ? "/on.svg" : "/off.svg"}
                   alt={showZoomControls ? "On" : "Off"}
                   onClick={() => updateSettings({ showZoomControls: !showZoomControls })}
+                />
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">Jitter</span>
+                <img
+                  className="settings-toggle"
+                  src={jitterEnabled ? "/on.svg" : "/off.svg"}
+                  alt={jitterEnabled ? "On" : "Off"}
+                  onClick={() => updateSettings({ jitterEnabled: !jitterEnabled })}
                 />
               </div>
               <div className="settings-divider" />

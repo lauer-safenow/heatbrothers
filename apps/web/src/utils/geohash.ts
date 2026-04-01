@@ -86,6 +86,42 @@ export function geohashToPolygon(hash: string): [number, number][] {
   ];
 }
 
+/** Deterministic pseudo-random [0,1) from an integer seed. */
+function seededRandom(seed: number): number {
+  let x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Geohash precision used by PostHog for each event type. null = no jitter (real coords). */
+const GEOHASH_PRECISIONS: Record<string, number | null> = {
+  FIRST_TIME_PHONE_STATUS_SENT: 5,
+  app_opening_ZONE: null,
+  DETAILED_ALARM_STARTED_ZONE: null,
+};
+const DEFAULT_PRECISION = 6;
+
+export function geohashPrecisionForType(eventType: string): number | null {
+  if (eventType in GEOHASH_PRECISIONS) return GEOHASH_PRECISIONS[eventType];
+  return DEFAULT_PRECISION;
+}
+
+/**
+ * Scatter a geohash-center-snapped point randomly within its cell.
+ * Uses a deterministic seed so positions are stable across re-renders.
+ */
+export function jitterWithinCell(
+  lat: number, lng: number, precision: number, seed: number,
+): [number, number] {
+  const hash = geohashEncode(lat, lng, precision);
+  const [latMin, lngMin, latMax, lngMax] = geohashBounds(hash);
+  const r1 = seededRandom(seed);
+  const r2 = seededRandom(seed + 99991); // second independent dimension
+  return [
+    latMin + r1 * (latMax - latMin),
+    lngMin + r2 * (lngMax - lngMin),
+  ];
+}
+
 /** Choose geohash precision based on map zoom level. */
 export function precisionForZoom(zoom: number): number {
   if (zoom < 4) return 2;

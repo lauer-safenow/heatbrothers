@@ -11,6 +11,7 @@ export interface MapSettings {
   colorOverride: boolean;
   heatmapColors: string[];
   showActiveZones: boolean;
+  jitterEnabled: boolean;
   cuteness: boolean;
 }
 
@@ -23,6 +24,7 @@ const DEFAULTS: MapSettings = {
   colorOverride: false,
   heatmapColors: DEFAULT_OVERRIDE_COLORS,
   showActiveZones: false,
+  jitterEnabled: true,
   cuteness: true,
 };
 
