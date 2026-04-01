@@ -223,6 +223,23 @@ export function LivePage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
+  // Secret code: type "getavatars" to unlock avatar setting
+  const SECRET = "getavatars";
+  const secretBuf = useRef("");
+  const [avatarsUnlocked, setAvatarsUnlocked] = useState(false);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      secretBuf.current = (secretBuf.current + e.key).slice(-SECRET.length);
+      if (secretBuf.current === SECRET) {
+        setAvatarsUnlocked(true);
+        updateSettings({ avatars: true });
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [updateSettings]);
+
   // Custom event dropdown (replaces native <select>)
   const [eventDropOpen, setEventDropOpen] = useState(false);
   const eventDropRef = useRef<HTMLDivElement>(null);
@@ -1404,7 +1421,7 @@ export function LivePage() {
   return (
     <div className="live-page" data-theme={mapTheme === "light" ? "light" : undefined}>
       <div ref={mapContainer} className="live-map" />
-      <EventTrail map={map.current} events={trailEvents} cuteness={settings.cuteness} />
+      <EventTrail map={map.current} events={trailEvents} avatars={settings.avatars} theme={settings.mapTheme} />
       <div ref={blinkRef} className="live-blink-marker" style={{ display: "none" }} />
       <div ref={blinkLabelRef} className="live-blink-label" style={{ display: "none" }} />
 
@@ -1570,24 +1587,26 @@ export function LivePage() {
                 </div>
               </div>
               <div className="settings-divider" />
-              {/* Cuteness: avatars on/off */}
-              <div className="settings-row">
-                <span className="settings-label">Cuteness</span>
-                <div className="live-mode-toggle">
-                  <button
-                    className={`mode-btn${settings.cuteness ? " active" : ""}`}
-                    onClick={() => updateSettings({ cuteness: true })}
-                  >
-                    ON
-                  </button>
-                  <button
-                    className={`mode-btn${!settings.cuteness ? " active" : ""}`}
-                    onClick={() => updateSettings({ cuteness: false })}
-                  >
-                    OFF
-                  </button>
+              {/* Avatars: on/off — hidden until "getavatars" secret typed */}
+              {avatarsUnlocked && (
+                <div className="settings-row">
+                  <span className="settings-label">Avatars</span>
+                  <div className="live-mode-toggle">
+                    <button
+                      className={`mode-btn${settings.avatars ? " active" : ""}`}
+                      onClick={() => updateSettings({ avatars: true })}
+                    >
+                      ON
+                    </button>
+                    <button
+                      className={`mode-btn${!settings.avatars ? " active" : ""}`}
+                      onClick={() => updateSettings({ avatars: false })}
+                    >
+                      OFF
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

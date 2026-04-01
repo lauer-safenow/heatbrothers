@@ -9,7 +9,8 @@ type EventTuple = [number, number, number, number, string, string, string]; // [
 interface EventTrailProps {
   map: maplibregl.Map | null;
   events: EventTuple[];
-  cuteness?: boolean;
+  avatars?: boolean;
+  theme?: "light" | "dark";
 }
 
 interface AuditEntry {
@@ -54,7 +55,9 @@ const AVATAR_W_SAME_USER = 32;
 const AVATAR_H_SAME_USER = 42;
 const LEAVE_DELAY = 300; // ms grace period to move from dot to card
 
-export function EventTrail({ map, events, cuteness = true }: EventTrailProps) {
+export function EventTrail({ map, events, avatars = false, theme = "light" }: EventTrailProps) {
+  // Blue for light/day, orange for dark/night
+  const accent = theme === "dark" ? "255, 140, 0" : "74, 158, 255";
   const positionsRef = useRef<{ x: number; y: number }[]>([]);
   const [, forceRender] = useState(0);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -353,7 +356,7 @@ export function EventTrail({ map, events, cuteness = true }: EventTrailProps) {
       const isSameUser = hDid !== null && evts[i]?.[6] === hDid;
       const did = evts[i][6];
       const cc = evts[i][5];
-      const img = cuteness ? getAvatarImage(did, cc) : null;
+      const img = avatars ? getAvatarImage(did, cc) : null;
 
       const aw = isSameUser ? AVATAR_W_SAME_USER : AVATAR_W;
       const ah = isSameUser ? AVATAR_H_SAME_USER : AVATAR_H;
@@ -361,7 +364,7 @@ export function EventTrail({ map, events, cuteness = true }: EventTrailProps) {
       if (img) {
         ctx.save();
         if (isSameUser) {
-          ctx.shadowColor = "rgba(255, 140, 0, 0.7)";
+          ctx.shadowColor = `rgba(${accent}, 0.7)`;
           ctx.shadowBlur = 8;
           ctx.globalAlpha = 1;
         } else {
@@ -372,12 +375,12 @@ export function EventTrail({ map, events, cuteness = true }: EventTrailProps) {
         ctx.drawImage(img, x - aw / 2, y - ah / 2, aw, ah);
         ctx.restore();
       } else {
-        if (cuteness) hasUnloaded = true;
+        if (avatars) hasUnloaded = true;
         const dotRadius = isSameUser ? 5 : 3.5;
         ctx.globalAlpha = isSameUser ? 1 : 0.5;
-        ctx.fillStyle = "rgba(255, 140, 0, 1)";
+        ctx.fillStyle = `rgba(${accent}, 1)`;
         if (isSameUser) {
-          ctx.shadowColor = "rgba(255, 140, 0, 0.7)";
+          ctx.shadowColor = `rgba(${accent}, 0.7)`;
           ctx.shadowBlur = 8;
         }
         ctx.beginPath();
@@ -397,10 +400,10 @@ export function EventTrail({ map, events, cuteness = true }: EventTrailProps) {
         const { x, y } = pos[activeIdx];
         const did = evts[activeIdx][6];
         const cc = evts[activeIdx][5];
-        const img = cuteness ? getAvatarImage(did, cc) : null;
+        const img = avatars ? getAvatarImage(did, cc) : null;
         if (img) {
           ctx.save();
-          ctx.shadowColor = "rgba(255, 140, 0, 0.9)";
+          ctx.shadowColor = `rgba(${accent}, 0.9)`;
           ctx.shadowBlur = 12;
           ctx.globalAlpha = 1;
           roundedRect(ctx, x - AVATAR_W_HOVERED / 2, y - AVATAR_H_HOVERED / 2, AVATAR_W_HOVERED, AVATAR_H_HOVERED, AVATAR_W_HOVERED * 0.2);
@@ -409,10 +412,10 @@ export function EventTrail({ map, events, cuteness = true }: EventTrailProps) {
           ctx.restore();
         } else {
           ctx.save();
-          ctx.shadowColor = "rgba(255, 140, 0, 0.9)";
+          ctx.shadowColor = `rgba(${accent}, 0.9)`;
           ctx.shadowBlur = 12;
           ctx.globalAlpha = 1;
-          ctx.fillStyle = "rgba(255, 140, 0, 1)";
+          ctx.fillStyle = `rgba(${accent}, 1)`;
           ctx.beginPath();
           ctx.arc(x, y, 7, 0, Math.PI * 2);
           ctx.fill();
