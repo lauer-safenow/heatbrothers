@@ -4,6 +4,7 @@ export const DEFAULT_OVERRIDE_COLORS = ["#f58ca0", "#f0506e", "#f0093f", "#dc075
 
 export interface MapSettings {
   mapTheme: "dark" | "light";
+  osmStyle: boolean;
   geohashEnabled: boolean;
   geohashPrecision: 5 | 6;
   zoneAutoDiscover: boolean;
@@ -16,6 +17,7 @@ export interface MapSettings {
 
 const DEFAULTS: MapSettings = {
   mapTheme: "light",
+  osmStyle: false,
   geohashEnabled: false,
   geohashPrecision: 5,
   zoneAutoDiscover: true,

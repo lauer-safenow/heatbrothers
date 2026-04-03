@@ -16,6 +16,19 @@ import "./MapPage.css";
 
 const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 const LIGHT_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+const OSM_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  name: "OpenStreetMap",
+  sources: {
+    "osm-raster": {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "&copy; OpenStreetMap contributors",
+    },
+  },
+  layers: [{ id: "osm-raster-layer", type: "raster", source: "osm-raster" }],
+};
 
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type LngLat = [number, number];
@@ -290,7 +303,7 @@ export function MapPage() {
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
   // persisted settings (localStorage)
   const [settings, updateSettings] = usePersistedSettings();
-  const { mapTheme, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled } = settings;
+  const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled } = settings;
 
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
@@ -689,7 +702,7 @@ export function MapPage() {
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: mapTheme === "dark" ? DARK_STYLE : LIGHT_STYLE,
+      style: osmStyle ? OSM_STYLE : mapTheme === "dark" ? DARK_STYLE : LIGHT_STYLE,
       center: [initLng.current ?? 10.4515, initLat.current ?? 51.1657],
       zoom: initZoom.current ?? 5.5,
       attributionControl: false,
@@ -1387,7 +1400,7 @@ export function MapPage() {
                   className="settings-theme-btn"
                   onClick={() => {
                     const next = mapTheme === "dark" ? "light" : "dark";
-                    updateSettings({ mapTheme: next });
+                    updateSettings({ mapTheme: next, osmStyle: false });
                     map.current?.setStyle(next === "dark" ? DARK_STYLE : LIGHT_STYLE);
                   }}
                 >
@@ -1409,6 +1422,24 @@ export function MapPage() {
                     </svg>
                   )}
                 </button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">OSM Style</span>
+                <img
+                  className="settings-toggle"
+                  src={osmStyle ? "/on.svg" : "/off.svg"}
+                  alt={osmStyle ? "On" : "Off"}
+                  onClick={() => {
+                    const next = !osmStyle;
+                    if (next) {
+                      updateSettings({ osmStyle: true, mapTheme: "light" });
+                      map.current?.setStyle(OSM_STYLE);
+                    } else {
+                      updateSettings({ osmStyle: false });
+                      map.current?.setStyle(mapTheme === "dark" ? DARK_STYLE : LIGHT_STYLE);
+                    }
+                  }}
+                />
               </div>
               <div className="settings-row">
                 <span className="settings-label">Geohashes</span>
