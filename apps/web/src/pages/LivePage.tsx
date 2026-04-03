@@ -223,22 +223,23 @@ export function LivePage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  // Secret code: type "getavatars" to unlock avatar setting
+  // Avatars: ephemeral state, never persisted — must type "getavatars" each visit
+  const [avatarsEnabled, setAvatarsEnabled] = useState(false);
+  const [avatarsUnlocked, setAvatarsUnlocked] = useState(false);
   const SECRET = "getavatars";
   const secretBuf = useRef("");
-  const [avatarsUnlocked, setAvatarsUnlocked] = useState(false);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       secretBuf.current = (secretBuf.current + e.key).slice(-SECRET.length);
       if (secretBuf.current === SECRET) {
         setAvatarsUnlocked(true);
-        updateSettings({ avatars: true });
+        setAvatarsEnabled(true);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [updateSettings]);
+  }, []);
 
   // Custom event dropdown (replaces native <select>)
   const [eventDropOpen, setEventDropOpen] = useState(false);
@@ -1421,7 +1422,7 @@ export function LivePage() {
   return (
     <div className="live-page" data-theme={mapTheme === "light" ? "light" : undefined}>
       <div ref={mapContainer} className="live-map" />
-      <EventTrail map={map.current} events={trailEvents} avatars={settings.avatars} theme={settings.mapTheme} />
+      <EventTrail map={map.current} events={trailEvents} avatars={avatarsEnabled} theme={settings.mapTheme} />
       <div ref={blinkRef} className="live-blink-marker" style={{ display: "none" }} />
       <div ref={blinkLabelRef} className="live-blink-label" style={{ display: "none" }} />
 
@@ -1593,14 +1594,14 @@ export function LivePage() {
                   <span className="settings-label">Avatars</span>
                   <div className="live-mode-toggle">
                     <button
-                      className={`mode-btn${settings.avatars ? " active" : ""}`}
-                      onClick={() => updateSettings({ avatars: true })}
+                      className={`mode-btn${avatarsEnabled ? " active" : ""}`}
+                      onClick={() => setAvatarsEnabled(true)}
                     >
                       ON
                     </button>
                     <button
-                      className={`mode-btn${!settings.avatars ? " active" : ""}`}
-                      onClick={() => updateSettings({ avatars: false })}
+                      className={`mode-btn${!avatarsEnabled ? " active" : ""}`}
+                      onClick={() => setAvatarsEnabled(false)}
                     >
                       OFF
                     </button>

@@ -12,7 +12,6 @@ export interface MapSettings {
   heatmapColors: string[];
   showActiveZones: boolean;
   jitterEnabled: boolean;
-  avatars: boolean;
 }
 
 const DEFAULTS: MapSettings = {
@@ -25,7 +24,6 @@ const DEFAULTS: MapSettings = {
   heatmapColors: DEFAULT_OVERRIDE_COLORS,
   showActiveZones: false,
   jitterEnabled: true,
-  avatars: false,
 };
 
 const STORAGE_KEY = "heatbrothers-map-settings";
