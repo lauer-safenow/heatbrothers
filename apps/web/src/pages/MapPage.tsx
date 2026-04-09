@@ -304,16 +304,13 @@ export function MapPage() {
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
   // persisted settings (localStorage)
   const [settings, updateSettings] = usePersistedSettings();
-  const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled, hideUI } = settings;
+  const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled, hideUI, settingsOpen, savedViewsOpen, bottomPanel } = settings;
 
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
-  // bottom bar panels: which panel is open (null = none)
-  const [bottomPanel, setBottomPanel] = useState<"zones" | "date" | null>(null);
   const bottomBarRef = useRef<HTMLDivElement>(null);
 
-  // settings menu
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // setters that persist menu state
   const settingsRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
 
@@ -324,7 +321,7 @@ export function MapPage() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveDescription, setSaveDescription] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savedViewsOpen, setSavedViewsOpen] = useState(false);
+
   const [savedViews, setSavedViews] = useState<{ id: number; description: string; params: string; is_home: number; created_at: number }[]>([]);
   const [savedViewCopiedId, setSavedViewCopiedId] = useState<number | null>(null);
   const [editingViewId, setEditingViewId] = useState<number | null>(null);
@@ -422,8 +419,7 @@ export function MapPage() {
       const inSettings = settingsRef.current?.contains(e.target as Node);
       const inLeftPanel = leftPanelRef.current?.contains(e.target as Node);
       if (!inSettings && !inLeftPanel) {
-        setSettingsOpen(false);
-        setSavedViewsOpen(false);
+        updateSettings({ settingsOpen: false, savedViewsOpen: false });
         setSaveDialogOpen(false);
       }
     };
@@ -438,7 +434,7 @@ export function MapPage() {
       const inBottomBar = bottomBarRef.current?.contains(e.target as Node);
       const inLeftPanel = leftPanelRef.current?.contains(e.target as Node);
       if (!inBottomBar && !inLeftPanel) {
-        setBottomPanel(null);
+        updateSettings({ bottomPanel: null });
       }
     };
     document.addEventListener("mousedown", handler);
@@ -500,7 +496,7 @@ export function MapPage() {
     setTimeFrom(null);
     setTimeUntil(null);
     setSearchQuery("");
-    setBottomPanel(null);
+    updateSettings({ bottomPanel: null });
   };
 
   const flyToCity = (query: string) => {
@@ -1066,10 +1062,9 @@ export function MapPage() {
           <button
             className="saved-views-toggle"
             onClick={() => {
-              setSavedViewsOpen((v) => {
-                if (!v) { loadSavedViews(); setSettingsOpen(false); setSaveDialogOpen(false); }
-                return !v;
-              });
+              const next = !savedViewsOpen;
+              if (next) { loadSavedViews(); updateSettings({ savedViewsOpen: true, settingsOpen: false }); setSaveDialogOpen(false); }
+              else { updateSettings({ savedViewsOpen: false }); }
             }}
           >
             <span>Areas to explore</span>
@@ -1241,7 +1236,7 @@ export function MapPage() {
         <div className="map-left-card">
           <button
             className="saved-views-toggle"
-            onClick={() => setBottomPanel(bottomPanel === "zones" ? null : "zones")}
+            onClick={() => updateSettings({ bottomPanel: bottomPanel === "zones" ? null : "zones" })}
           >
             <span>Zones</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: bottomPanel === "zones" ? "rotate(180deg)" : undefined, transition: "transform 0.2s" }}>
@@ -1389,7 +1384,7 @@ export function MapPage() {
           <button
             className="settings-btn"
             title="Settings"
-            onClick={() => { setSettingsOpen((v) => !v); setSavedViewsOpen(false); setSaveDialogOpen(false); }}
+            onClick={() => { updateSettings({ settingsOpen: !settingsOpen, savedViewsOpen: false }); setSaveDialogOpen(false); }}
           >
             <img src="/gear.svg" alt="Settings" width="18" height="18" />
           </button>
@@ -1889,7 +1884,7 @@ export function MapPage() {
               {(timeFrom !== null || timeUntil !== null) && <span className="filter-dot" />}
               <button
                 className={`bottom-bar-btn${bottomPanel === "date" ? " active" : ""}`}
-                onClick={() => setBottomPanel(bottomPanel === "date" ? null : "date")}
+                onClick={() => updateSettings({ bottomPanel: bottomPanel === "date" ? null : "date" })}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />

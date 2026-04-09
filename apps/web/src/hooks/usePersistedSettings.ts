@@ -14,6 +14,9 @@ export interface MapSettings {
   showActiveZones: boolean;
   jitterEnabled: boolean;
   hideUI: boolean;
+  settingsOpen: boolean;
+  savedViewsOpen: boolean;
+  bottomPanel: "zones" | "date" | null;
 }
 
 const DEFAULTS: MapSettings = {
@@ -28,6 +31,9 @@ const DEFAULTS: MapSettings = {
   showActiveZones: false,
   jitterEnabled: true,
   hideUI: false,
+  settingsOpen: false,
+  savedViewsOpen: false,
+  bottomPanel: null,
 };
 
 const STORAGE_KEY = "heatbrothers-map-settings";
