@@ -10,6 +10,7 @@ import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } f
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterWithinCell, geohashPrecisionForType } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
+import { HideUIButton } from "../components/HideUIButton";
 import { usePersistedSettings, DEFAULT_OVERRIDE_COLORS } from "../hooks/usePersistedSettings";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "./MapPage.css";
@@ -303,7 +304,7 @@ export function MapPage() {
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
   // persisted settings (localStorage)
   const [settings, updateSettings] = usePersistedSettings();
-  const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled } = settings;
+  const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled, hideUI } = settings;
 
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
@@ -1048,7 +1049,8 @@ export function MapPage() {
   }, []);
 
   return (
-    <div className={`map-page${showZoomControls ? "" : " hide-zoom"}`} data-theme={mapTheme === "light" ? "light" : undefined}>
+    <div className={`map-page${showZoomControls ? "" : " hide-zoom"}${hideUI ? " hide-ui" : ""}`} data-theme={mapTheme === "light" ? "light" : undefined}>
+      {hideUI && <HideUIButton hidden onToggle={(h) => updateSettings({ hideUI: h })} />}
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
         <div className="map-logo" onClick={() => navigate("/")}>
@@ -1383,6 +1385,7 @@ export function MapPage() {
               <div className="copied-toast">Copied to clipboard</div>
             )}
           </div>
+          <HideUIButton hidden={false} onToggle={(h) => updateSettings({ hideUI: h })} />
           <button
             className="settings-btn"
             title="Settings"

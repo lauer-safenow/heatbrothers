@@ -13,6 +13,8 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 export const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
+sqlite.pragma("busy_timeout = 5000");
+sqlite.pragma("synchronous = NORMAL");
 
 const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
 export const prisma = new PrismaClient({ adapter });

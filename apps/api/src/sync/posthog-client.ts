@@ -5,7 +5,7 @@ const POSTHOG_HOST = process.env.POSTHOG_HOST || "https://app.posthog.com";
 const POSTHOG_PROJECT_ID = process.env.POSTHOG_PROJECT_ID!;
 
 const QUERY_URL = `${POSTHOG_HOST}/api/projects/${POSTHOG_PROJECT_ID}/query/`;
-const PAGE_SIZE = 2_000;
+const PAGE_SIZE = 5_000;
 
 export const SYNCED_EVENT_TYPES = [
   "FIRST_TIME_PHONE_STATUS_SENT",

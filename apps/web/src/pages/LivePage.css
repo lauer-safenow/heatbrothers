@@ -621,6 +621,65 @@
   flex-shrink: 0;
 }
 
+/* ── hide-ui eye button ── */
+.live-page .hide-ui-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.live-page .hide-ui-btn:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+.live-page .hide-ui-btn svg {
+  stroke: var(--text-dim);
+}
+
+.live-page .hide-ui-btn:hover svg {
+  stroke: var(--text);
+}
+
+.live-page .hide-ui-btn.reveal {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.live-page .hide-ui-btn.reveal.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+/* hide all UI chrome when .hide-ui is on the root */
+.live-page.hide-ui .live-controls-row,
+.live-page.hide-ui .live-label,
+.live-page.hide-ui .live-mode-hint,
+.live-page.hide-ui .replay-controls,
+.live-page.hide-ui .replay-restore-btn,
+.live-page.hide-ui .live-queue-display,
+.live-page.hide-ui .live-pins,
+.live-page.hide-ui .maplibregl-ctrl-bottom-right,
+.live-page.hide-ui .maplibregl-ctrl-top-right {
+  display: none !important;
+}
+
 /* ── settings gear button & menu ── */
 .live-settings-wrap {
   position: relative;

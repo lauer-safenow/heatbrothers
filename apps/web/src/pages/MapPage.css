@@ -374,6 +374,69 @@
   color: #fff !important;
 }
 
+/* ── hide-ui eye button ── */
+.hide-ui-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ctrl-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.hide-ui-btn:hover {
+  border-color: var(--accent-orange-hover);
+  color: var(--text);
+}
+
+.hide-ui-btn svg {
+  stroke: var(--text-dim);
+}
+
+.hide-ui-btn:hover svg {
+  stroke: var(--text);
+}
+
+/* reveal button: fixed position when UI is hidden */
+.hide-ui-btn.reveal {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.hide-ui-btn.reveal.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+/* hide all UI chrome when .hide-ui is on the root */
+.map-page.hide-ui .map-logo,
+.map-page.hide-ui .map-left-column,
+.map-page.hide-ui .map-top-right,
+.map-page.hide-ui .map-controls,
+.map-page.hide-ui .bottom-search-bar,
+.map-page.hide-ui .bottom-panel,
+.map-page.hide-ui .event-count-badge,
+.map-page.hide-ui .heatmap-legend,
+.map-page.hide-ui .poly-overlay-actions,
+.map-page.hide-ui .zone-label-container,
+.map-page.hide-ui .maplibregl-ctrl-bottom-right,
+.map-page.hide-ui .maplibregl-ctrl-top-right {
+  display: none !important;
+}
+
 /* ── settings button & menu ── */
 .settings-btn {
   width: 40px;

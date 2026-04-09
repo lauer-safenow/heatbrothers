@@ -11,6 +11,7 @@ import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import { EventTrail } from "../components/EventTrail";
+import { HideUIButton } from "../components/HideUIButton";
 import { usePersistedSettings } from "../hooks/usePersistedSettings";
 import "./LivePage.css";
 
@@ -219,7 +220,7 @@ export function LivePage() {
 
   // Settings gear
   const [settings, updateSettings] = usePersistedSettings();
-  const { mapTheme } = settings;
+  const { mapTheme, hideUI } = settings;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -1420,7 +1421,8 @@ export function LivePage() {
   }
 
   return (
-    <div className="live-page" data-theme={mapTheme === "light" ? "light" : undefined}>
+    <div className={`live-page${hideUI ? " hide-ui" : ""}`} data-theme={mapTheme === "light" ? "light" : undefined}>
+      {hideUI && <HideUIButton hidden onToggle={(h) => updateSettings({ hideUI: h })} />}
       <div ref={mapContainer} className="live-map" />
       <EventTrail map={map.current} events={trailEvents} avatars={avatarsEnabled} theme={settings.mapTheme} />
       <div ref={blinkRef} className="live-blink-marker" style={{ display: "none" }} />
@@ -1467,6 +1469,7 @@ export function LivePage() {
             </div>
           )}
         </div>
+        <HideUIButton hidden={false} onToggle={(h) => updateSettings({ hideUI: h })} />
         <div ref={settingsRef} className="live-settings-wrap">
           <button
             className="settings-btn"
