@@ -12,6 +12,7 @@ import { pointInPolygon } from "../utils/pointInPolygon";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import { EventTrail } from "../components/EventTrail";
 import { HideUIButton } from "../components/HideUIButton";
+import { HomeLogo } from "../components/HomeLogo";
 import { usePersistedSettings } from "../hooks/usePersistedSettings";
 import "./LivePage.css";
 
@@ -1446,9 +1447,10 @@ export function LivePage() {
         </svg>
       </div>
 
+      <HomeLogo />
+
       {/* Top-right controls */}
       <div className="live-controls-row">
-        <button className="live-home-btn" onClick={() => navigate("/")}>&#8592; Home</button>
         <div ref={eventDropRef} className="live-event-dropdown">
           <button className="live-event-trigger" onClick={() => setEventDropOpen((v) => !v)}>
             <span className="live-event-trigger-label">{displayName(liveEventType)}</span>

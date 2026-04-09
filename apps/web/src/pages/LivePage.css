@@ -179,8 +179,8 @@
 
 .live-label {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: 78px;
+  left: 14px;
   z-index: 10;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
@@ -668,6 +668,7 @@
 }
 
 /* hide all UI chrome when .hide-ui is on the root */
+.live-page.hide-ui .home-logo,
 .live-page.hide-ui .live-controls-row,
 .live-page.hide-ui .live-label,
 .live-page.hide-ui .live-mode-hint,

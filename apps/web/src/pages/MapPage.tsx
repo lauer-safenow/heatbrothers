@@ -11,6 +11,7 @@ import { pointInPolygon } from "../utils/pointInPolygon";
 import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterWithinCell, geohashPrecisionForType } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
 import { HideUIButton } from "../components/HideUIButton";
+import { HomeLogo } from "../components/HomeLogo";
 import { usePersistedSettings, DEFAULT_OVERRIDE_COLORS } from "../hooks/usePersistedSettings";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "./MapPage.css";
@@ -1049,13 +1050,7 @@ export function MapPage() {
       {hideUI && <HideUIButton hidden onToggle={(h) => updateSettings({ hideUI: h })} />}
       <div className="map-section">
         <div ref={mapContainer} className="map-container" />
-        <div className="map-logo" onClick={() => navigate("/")}>
-          <img src="/safenow-icon.svg" alt="SafeNow" className="map-logo-icon" />
-          <span className="map-logo-text">
-            <span className="map-logo-safe">SafeNow</span>{" "}
-            <span className="map-logo-world">World</span>
-          </span>
-        </div>
+        <HomeLogo />
 
         <div className="map-left-column" ref={leftPanelRef}>
         <div className="map-left-panel">

@@ -1,7 +1,7 @@
 /* ── print / PDF export ── */
 @media print {
   /* hide all chrome, show only the map */
-  .map-logo,
+  .home-logo,
   .map-left-column,
   .map-controls,
   .bottom-toolbar,
@@ -182,44 +182,6 @@
 }
 
 /* ── top-left logo ── */
-.map-logo {
-  position: absolute;
-  top: 12px;
-  left: 14px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-  text-decoration: none;
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  padding: 10px 18px 10px 12px;
-  border-radius: 10px;
-}
-
-.map-logo-icon {
-  height: 32px;
-  width: 32px;
-  border-radius: 50%;
-}
-
-.map-logo-text {
-  font-family: "Inter", sans-serif;
-  font-size: 1.15rem;
-  letter-spacing: -0.036em;
-  color: var(--text);
-  white-space: nowrap;
-}
-
-.map-logo-safe {
-  font-weight: 600;
-}
-
-.map-logo-world {
-  font-weight: 500;
-}
 
 .map-left-column {
   position: absolute;
@@ -422,7 +384,7 @@
 }
 
 /* hide all UI chrome when .hide-ui is on the root */
-.map-page.hide-ui .map-logo,
+.map-page.hide-ui .home-logo,
 .map-page.hide-ui .map-left-column,
 .map-page.hide-ui .map-top-right,
 .map-page.hide-ui .map-controls,
