@@ -61,7 +61,7 @@ function getVersion() {
   } catch {
     try {
       const hash = execSync("git log -1 --format=%h", { encoding: "utf8" }).trim();
-      const date = execSync("git log -1 --format=%as", { encoding: "utf8" }).trim();
+      const date = execSync("git log -1 --format=%aI", { encoding: "utf8" }).trim();
       return { type: "commit", hash, date };
     } catch {
       return { type: "unknown" };

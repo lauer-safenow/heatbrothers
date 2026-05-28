@@ -81,9 +81,9 @@ export function App() {
       {version && (
         <span className="splash-version">
           {version.type === "tag"
-            ? `v${version.value}`
+            ? version.value
             : version.type === "commit"
-            ? `${version.hash} · ${new Date(version.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+            ? `${version.hash} · ${new Date(version.date).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
             : null}
         </span>
       )}
