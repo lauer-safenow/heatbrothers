@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getStats } from "../cache.js";
+import { getStats, getCountryStats } from "../cache.js";
 import { sqlite } from "@heatbrothers/db";
 import { ensureZonesCache, getZonesData } from "./zones.js";
 import { geocode } from "../geocode.js";
@@ -10,11 +10,6 @@ const todayCountsStmt = sqlite.prepare(
   `SELECT event_type, COUNT(*) as count FROM events
    WHERE timestamp >= @from AND timestamp <= @to
    GROUP BY event_type ORDER BY count DESC`,
-);
-
-const locationByTypeStmt = sqlite.prepare(
-  `SELECT event_type, ROUND(latitude, 2) as lat, ROUND(longitude, 2) as lng, COUNT(*) as count
-   FROM events GROUP BY event_type, lat, lng`,
 );
 
 const locationByTypeRangeStmt = sqlite.prepare(
@@ -180,27 +175,28 @@ dashboardRouter.get("/dashboard", async (req, res) => {
 
     const zonesTotal = byCountry.reduce((sum, c) => sum + c.count, 0);
 
-    // Events by country — group by rounded lat/lng, geocode, aggregate
-    type LocRow = { event_type: string; lat: number; lng: number; count: number };
-    const locRows = (fromParam !== null && toParam !== null
-      ? locationByTypeRangeStmt.all({ from: fromParam, to: toParam })
-      : locationByTypeStmt.all()) as LocRow[];
+    // Events by country — use pre-computed cache for no date filter, SQL for date range
+    let eventsByCountry: { country: string; count: number }[];
 
-    const filteredLocRows = eventTypesFilter
-      ? locRows.filter((r) => eventTypesFilter.includes(r.event_type))
-      : locRows;
-
-    const countryEventCounts = new Map<string, number>();
-    for (const row of filteredLocRows) {
-      if (row.lat == null || row.lng == null) continue;
-      const [, cc] = geocode(row.lat, row.lng);
-      const country = cc || "Unknown";
-      countryEventCounts.set(country, (countryEventCounts.get(country) ?? 0) + row.count);
+    if (fromParam !== null && toParam !== null) {
+      type LocRow = { event_type: string; lat: number; lng: number; count: number };
+      const locRows = locationByTypeRangeStmt.all({ from: fromParam, to: toParam }) as LocRow[];
+      const filteredLocRows = eventTypesFilter
+        ? locRows.filter((r) => eventTypesFilter.includes(r.event_type))
+        : locRows;
+      const countryEventCounts = new Map<string, number>();
+      for (const row of filteredLocRows) {
+        if (row.lat == null || row.lng == null) continue;
+        const [, cc] = geocode(row.lat, row.lng);
+        const country = cc || "Unknown";
+        countryEventCounts.set(country, (countryEventCounts.get(country) ?? 0) + row.count);
+      }
+      eventsByCountry = [...countryEventCounts.entries()]
+        .map(([country, count]) => ({ country, count }))
+        .sort((a, b) => b.count - a.count);
+    } else {
+      eventsByCountry = getCountryStats(eventTypesFilter ?? undefined);
     }
-
-    let eventsByCountry = [...countryEventCounts.entries()]
-      .map(([country, count]) => ({ country, count }))
-      .sort((a, b) => b.count - a.count);
 
     if (countriesFilter) {
       eventsByCountry = eventsByCountry.filter((c) => countriesFilter.includes(c.country));

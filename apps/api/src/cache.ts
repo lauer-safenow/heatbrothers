@@ -1,4 +1,5 @@
 import { sqlite } from "@heatbrothers/db";
+import { geocode } from "./geocode.js";
 
 export interface CachedEvent {
   id: number;
@@ -11,6 +12,8 @@ export interface CachedEvent {
 }
 
 const eventCache = new Map<string, CachedEvent[]>();
+// event_type → country → count, built incrementally as events are cached
+const countryCache = new Map<string, Map<string, number>>();
 let maxId = 0;
 
 const SELECT_COLS = `id, event_type, latitude, longitude, timestamp, pss_id, pss_name, distinct_id`;
@@ -46,6 +49,12 @@ function appendRow(row: EventRow) {
     eventCache.set(row.event_type, [rowToCached(row)]);
   }
   if (row.id > maxId) maxId = row.id;
+
+  const [, cc] = geocode(row.latitude, row.longitude);
+  const country = cc || "Unknown";
+  let typeMap = countryCache.get(row.event_type);
+  if (!typeMap) { typeMap = new Map(); countryCache.set(row.event_type, typeMap); }
+  typeMap.set(country, (typeMap.get(country) ?? 0) + 1);
 }
 
 const BATCH_SIZE = 50_000;
@@ -60,6 +69,7 @@ export function loadCache(): Promise<void> {
     const start = Date.now();
 
     eventCache.clear();
+    countryCache.clear();
     maxId = 0;
     let total = 0;
 
@@ -104,6 +114,21 @@ export function getEventsByType(eventType: string): CachedEvent[] {
 
 export function getAllEvents(): Map<string, CachedEvent[]> {
   return eventCache;
+}
+
+export function getCountryStats(eventTypes?: string[]): { country: string; count: number }[] {
+  const totals = new Map<string, number>();
+  const types = eventTypes ?? [...countryCache.keys()];
+  for (const et of types) {
+    const typeMap = countryCache.get(et);
+    if (!typeMap) continue;
+    for (const [country, count] of typeMap) {
+      totals.set(country, (totals.get(country) ?? 0) + count);
+    }
+  }
+  return [...totals.entries()]
+    .map(([country, count]) => ({ country, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 export function getStats(): { total: number; byType: { event_type: string; count: number }[] } {
