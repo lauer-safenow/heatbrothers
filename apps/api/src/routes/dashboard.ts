@@ -12,6 +12,16 @@ const todayCountsStmt = sqlite.prepare(
    GROUP BY event_type ORDER BY count DESC`,
 );
 
+const locationByTypeStmt = sqlite.prepare(
+  `SELECT event_type, ROUND(latitude, 2) as lat, ROUND(longitude, 2) as lng, COUNT(*) as count
+   FROM events GROUP BY event_type, lat, lng`,
+);
+
+const locationByTypeRangeStmt = sqlite.prepare(
+  `SELECT event_type, ROUND(latitude, 2) as lat, ROUND(longitude, 2) as lng, COUNT(*) as count
+   FROM events WHERE timestamp >= @from AND timestamp <= @to GROUP BY event_type, lat, lng`,
+);
+
 const DISPLAY_NAMES: Record<string, string> = {
   DETAILED_ALARM_STARTED_PRIVATE_GROUP: "Alarm started private",
   DETAILED_ATTENTION_STARTED_PRIVATE_GROUP: "Attention private",
@@ -47,14 +57,43 @@ function centroid(coords: number[][]): [number, number] {
   return [latSum / coords.length, lngSum / coords.length];
 }
 
-dashboardRouter.get("/dashboard", async (_req, res) => {
+dashboardRouter.get("/dashboard", async (req, res) => {
   try {
-    const stats = getStats();
-    const eventsByType = stats.byType.map((e) => ({
+    // Parse optional filter params
+    const fromParam = req.query.from ? Number(req.query.from) : null;
+    const toParam = req.query.to ? Number(req.query.to) : null;
+    const eventTypesFilter =
+      typeof req.query.eventTypes === "string" && req.query.eventTypes
+        ? req.query.eventTypes.split(",")
+        : null;
+    const countriesFilter =
+      typeof req.query.countries === "string" && req.query.countries
+        ? req.query.countries.split(",")
+        : null;
+
+    // Events — use date-range query if from+to provided, otherwise use cache
+    let rawByType: { event_type: string; count: number }[];
+    let eventsTotal: number;
+
+    if (fromParam !== null && toParam !== null) {
+      rawByType = todayCountsStmt.all({ from: fromParam, to: toParam }) as { event_type: string; count: number }[];
+      eventsTotal = rawByType.reduce((sum, r) => sum + r.count, 0);
+    } else {
+      const stats = getStats();
+      rawByType = stats.byType;
+      eventsTotal = stats.total;
+    }
+
+    let eventsByType = rawByType.map((e) => ({
       event_type: e.event_type,
       displayName: DISPLAY_NAMES[e.event_type] ?? e.event_type,
       count: e.count,
     }));
+
+    if (eventTypesFilter) {
+      eventsByType = eventsByType.filter((e) => eventTypesFilter.includes(e.event_type));
+      eventsTotal = eventsByType.reduce((sum, e) => sum + e.count, 0);
+    }
 
     // Events today — midnight in Europe/Berlin, works on any server timezone.
     // Get today's date string in Berlin, then find the UTC epoch for that midnight.
@@ -69,12 +108,17 @@ dashboardRouter.get("/dashboard", async (_req, res) => {
     const toEpoch = fromEpoch + 86400 - 1;
 
     const todayRows = todayCountsStmt.all({ from: fromEpoch, to: toEpoch }) as { event_type: string; count: number }[];
-    const todayByType = todayRows.map((r) => ({
+    let todayByType = todayRows.map((r) => ({
       event_type: r.event_type,
       displayName: DISPLAY_NAMES[r.event_type] ?? r.event_type,
       count: r.count,
     }));
-    const todayTotal = todayRows.reduce((sum, r) => sum + r.count, 0);
+    let todayTotal = todayRows.reduce((sum, r) => sum + r.count, 0);
+
+    if (eventTypesFilter) {
+      todayByType = todayByType.filter((e) => eventTypesFilter.includes(e.event_type));
+      todayTotal = todayByType.reduce((sum, e) => sum + e.count, 0);
+    }
 
     await ensureZonesCache();
     const allZones = getZonesData();
@@ -122,7 +166,7 @@ dashboardRouter.get("/dashboard", async (_req, res) => {
       else countryMap.set(country, [info]);
     }
 
-    const byCountry = [...countryMap.entries()]
+    let byCountry = [...countryMap.entries()]
       .map(([country, zones]) => ({
         country,
         count: zones.length,
@@ -130,10 +174,43 @@ dashboardRouter.get("/dashboard", async (_req, res) => {
       }))
       .sort((a, b) => b.count - a.count);
 
+    if (countriesFilter) {
+      byCountry = byCountry.filter((c) => countriesFilter.includes(c.country));
+    }
+
+    const zonesTotal = byCountry.reduce((sum, c) => sum + c.count, 0);
+
+    // Events by country — group by rounded lat/lng, geocode, aggregate
+    type LocRow = { event_type: string; lat: number; lng: number; count: number };
+    const locRows = (fromParam !== null && toParam !== null
+      ? locationByTypeRangeStmt.all({ from: fromParam, to: toParam })
+      : locationByTypeStmt.all()) as LocRow[];
+
+    const filteredLocRows = eventTypesFilter
+      ? locRows.filter((r) => eventTypesFilter.includes(r.event_type))
+      : locRows;
+
+    const countryEventCounts = new Map<string, number>();
+    for (const row of filteredLocRows) {
+      if (row.lat == null || row.lng == null) continue;
+      const [, cc] = geocode(row.lat, row.lng);
+      const country = cc || "Unknown";
+      countryEventCounts.set(country, (countryEventCounts.get(country) ?? 0) + row.count);
+    }
+
+    let eventsByCountry = [...countryEventCounts.entries()]
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count);
+
+    if (countriesFilter) {
+      eventsByCountry = eventsByCountry.filter((c) => countriesFilter.includes(c.country));
+    }
+
     res.json({
-      events: { total: stats.total, byType: eventsByType },
+      events: { total: eventsTotal, byType: eventsByType },
       eventsToday: { total: todayTotal, byType: todayByType },
-      zones: { total: activePublic.length, byCountry },
+      zones: { total: zonesTotal, byCountry },
+      eventsByCountry,
     });
   } catch (err) {
     console.error("Dashboard fetch failed:", err);

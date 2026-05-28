@@ -25,7 +25,7 @@ heatbrothers/
 - **Database:** SQLite (better-sqlite3, WAL mode)
 - **ORM:** Prisma 7 with `@prisma/adapter-better-sqlite3`
 - **Data source:** PostHog HogQL Query API
-
+ssh -p 2222 ubuntu@91.99.152.244 'sleep 15 && journalctl --user -u heatbrothers -n 30 --no-pager'
 ## Synced Event Types
 
 | Event | Description |
