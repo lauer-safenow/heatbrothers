@@ -154,3 +154,10 @@ body {
 .splash-feature-btn:hover {
   color: #1a1a1a;
 }
+
+.splash-version {
+  font-size: 0.75rem;
+  color: #bbb;
+  margin-top: -1rem;
+  letter-spacing: 0.02em;
+}

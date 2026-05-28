@@ -1,5 +1,6 @@
 import { ROOT_DIR } from "./env.js";
 import path from "path";
+import { execSync } from "child_process";
 import express from "express";
 import cors from "cors";
 import { syncRouter } from "./routes/sync.js";
@@ -14,6 +15,7 @@ import { dashboardRouter } from "./routes/dashboard.js";
 import { startCronSync } from "./sync/cron.js";
 import { loadCache } from "./cache.js";
 import { initGeocoder } from "./geocode.js";
+import { sqlite } from "@heatbrothers/db";
 
 const WEB_ROOT = path.resolve(ROOT_DIR, "apps/web");
 
@@ -52,6 +54,27 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+function getVersion() {
+  try {
+    const tag = execSync("git describe --tags --exact-match", { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+    return { type: "tag", value: tag };
+  } catch {
+    try {
+      const hash = execSync("git log -1 --format=%h", { encoding: "utf8" }).trim();
+      const date = execSync("git log -1 --format=%as", { encoding: "utf8" }).trim();
+      return { type: "commit", hash, date };
+    } catch {
+      return { type: "unknown" };
+    }
+  }
+}
+
+const version = getVersion();
+
+app.get("/api/version", (_req, res) => {
+  res.json(version);
+});
+
 if (isDev) {
   const { createServer } = await import("vite");
   const vite = await createServer({
@@ -70,8 +93,18 @@ if (isDev) {
 
 await initGeocoder();
 
-app.listen(port, async () => {
+const server = app.listen(port, async () => {
   console.log(`Heatbrothers running on http://localhost:${port}`);
   await loadCache();
   startCronSync();
 });
+
+function shutdown() {
+  server.close(() => {
+    sqlite.close();
+    process.exit(0);
+  });
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

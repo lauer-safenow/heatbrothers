@@ -14,17 +14,9 @@
     "prodbs": "pnpm install && pnpm db:generate && pnpm db:deploy && pnpm --filter @heatbrothers/web build && pnpm serve"
   },
   "devDependencies": {
-    "typescript": "^5.7.0"
+    "typescript": "^5.9.3"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "prisma",
-      "better-sqlite3"
-    ]
-  },
-  "dependencies": {
+"dependencies": {
     "html2canvas": "^1.4.1"
   }
 }

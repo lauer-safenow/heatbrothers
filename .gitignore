@@ -16,6 +16,9 @@ data/
 # prisma generated
 packages/db/prisma/generated/
 
+# omc
+.omc/
+
 # misc
 .DS_Store
 *.pem
