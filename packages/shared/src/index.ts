@@ -1,5 +1,5 @@
 /** Sync interval in seconds — used by cron, API polling, and live UI countdown */
-export const SYNC_INTERVAL_S = 30;
+export const SYNC_INTERVAL_S = 60;
 
 /** Slow sync interval in minutes — used by cron for background event types */
 export const SLOW_SYNC_INTERVAL_M = 5;
