@@ -305,7 +305,7 @@ export function MapPage() {
   const [zoneFilterPublic, setZoneFilterPublic] = useState<boolean | null>(null);
   // persisted settings (localStorage)
   const [settings, updateSettings] = usePersistedSettings();
-  const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled, hideUI, settingsOpen, savedViewsOpen, bottomPanel } = settings;
+  const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled, hideUI, settingsOpen, savedViewsOpen, bottomPanel, cinematicMode } = settings;
 
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
@@ -330,6 +330,23 @@ export function MapPage() {
   const [activeViewId, setActiveViewId] = useState<string | number | null>(null);
   const [viewMenuOpenId, setViewMenuOpenId] = useState<number | null>(null);
 
+  // cinematic mode
+  const [cinematicScript, setCinematicScript] = useState(
+    "5.5, 51.16, 10.45, 3\n12, 48.85, 2.35, 5\n8, 52.52, 13.40, 4",
+  );
+  const [cinematicPlaying, setCinematicPlaying] = useState(false);
+  const [cinematicStep, setCinematicStep] = useState(0);
+  const cinematicTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cinematicActiveRef = useRef(false);
+  const cinematicWaypointsRef = useRef<{ zoom: number; lat: number; lng: number; stay: number }[]>([]);
+
+  useEffect(() => {
+    return () => {
+      cinematicActiveRef.current = false;
+      if (cinematicTimerRef.current) clearTimeout(cinematicTimerRef.current);
+    };
+  }, []);
+
   const presetViews = [
     { id: "europe", params: "type=FIRST_TIME_PHONE_STATUS_SENT&z=3.60&lat=48.1700&lng=4.7395" },
     { id: "dach", params: "type=FIRST_TIME_PHONE_STATUS_SENT&z=5.41&lat=50.7871&lng=10.6946" },
@@ -345,6 +362,64 @@ export function MapPage() {
       if (current === v.params) { setActiveViewId(v.id); return; }
     }
   }
+
+  // ── Cinematic mode ──────────────────────────────────────────────────────────
+
+  function parseCinematicScript(script: string) {
+    return script
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"))
+      .flatMap((line) => {
+        const parts = line.split(",").map((p) => parseFloat(p.trim()));
+        if (parts.length < 3 || parts.some(Number.isNaN)) return [];
+        return [{ zoom: parts[0], lat: parts[1], lng: parts[2], stay: parts[3] ?? 3 }];
+      });
+  }
+
+  // Re-assigned each render so the setTimeout callback always sees current refs
+  const advanceCinematicRef = useRef<(index: number) => void>(null!);
+  advanceCinematicRef.current = (index: number) => {
+    if (!cinematicActiveRef.current) return;
+    const waypoints = cinematicWaypointsRef.current;
+    if (index >= waypoints.length) {
+      cinematicActiveRef.current = false;
+      setCinematicPlaying(false);
+      return;
+    }
+    const wp = waypoints[index];
+    setCinematicStep(index);
+    map.current?.easeTo({
+      center: [wp.lng, wp.lat],
+      zoom: wp.zoom,
+      duration: 2200,
+      easing: (t: number) => t, // linear — no deceleration at waypoint boundaries
+    });
+    cinematicTimerRef.current = setTimeout(
+      () => advanceCinematicRef.current(index + 1),
+      2200 + wp.stay * 1000,
+    );
+  };
+
+  function startCinematic() {
+    const waypoints = parseCinematicScript(cinematicScript);
+    if (waypoints.length === 0) return;
+    if (cinematicTimerRef.current) clearTimeout(cinematicTimerRef.current);
+    cinematicWaypointsRef.current = waypoints;
+    cinematicActiveRef.current = true;
+    setCinematicPlaying(true);
+    setCinematicStep(0);
+    advanceCinematicRef.current(0);
+  }
+
+  function stopCinematic() {
+    cinematicActiveRef.current = false;
+    if (cinematicTimerRef.current) { clearTimeout(cinematicTimerRef.current); cinematicTimerRef.current = null; }
+    map.current?.stop();
+    setCinematicPlaying(false);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
 
   async function loadSavedViews() {
     const res = await fetch("/api/saved-views");
@@ -1505,6 +1580,18 @@ export function MapPage() {
                   onClick={() => updateSettings({ jitterEnabled: !jitterEnabled })}
                 />
               </div>
+              <div className="settings-row">
+                <span className="settings-label">Cinematic</span>
+                <img
+                  className="settings-toggle"
+                  src={cinematicMode ? "/on.svg" : "/off.svg"}
+                  alt={cinematicMode ? "On" : "Off"}
+                  onClick={() => {
+                    if (cinematicMode) stopCinematic();
+                    updateSettings({ cinematicMode: !cinematicMode });
+                  }}
+                />
+              </div>
               <div className="settings-divider" />
               <div className="settings-row">
                 <span className="settings-label">Heatmap Colors</span>
@@ -1579,6 +1666,35 @@ export function MapPage() {
             </div>
           )}
         </div>
+
+        {cinematicMode && !hideUI && (
+          <div className="cinematic-panel">
+            <div className="cinematic-header">
+              <span className="cinematic-title">Cinematic</span>
+              {cinematicPlaying && (
+                <span className="cinematic-progress">
+                  {cinematicStep + 1} / {cinematicWaypointsRef.current.length}
+                </span>
+              )}
+              <button
+                className={`cinematic-play${cinematicPlaying ? " cinematic-play--stop" : ""}`}
+                onClick={cinematicPlaying ? stopCinematic : startCinematic}
+                title={cinematicPlaying ? "Stop" : "Play"}
+              >
+                {cinematicPlaying ? "■ Stop" : "▶ Play"}
+              </button>
+            </div>
+            <textarea
+              className="cinematic-script"
+              value={cinematicScript}
+              onChange={(e) => setCinematicScript(e.target.value)}
+              placeholder={"zoom, lat, lng, seconds\n5.5, 51.16, 10.45, 3\n12, 48.85, 2.35, 5"}
+              rows={6}
+              spellCheck={false}
+            />
+            <div className="cinematic-hint">zoom, lat, lng, stay-seconds — one waypoint per line</div>
+          </div>
+        )}
 
         <div ref={zoneLabelRef} className="zone-label-container">
           {visibleZones.map((z) => (

@@ -1770,3 +1770,88 @@
   gap: 0.4rem;
   padding: 0.4rem 0.4rem 0.2rem;
 }
+
+/* ── Cinematic Mode Panel ─────────────────────────────────────────────────── */
+
+.cinematic-panel {
+  position: fixed;
+  bottom: 36px;
+  right: 16px;
+  width: 272px;
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 14px;
+  box-shadow: var(--ctrl-shadow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+
+.cinematic-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cinematic-title {
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+  opacity: 0.85;
+}
+
+.cinematic-progress {
+  font-size: 11px;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.cinematic-play {
+  padding: 3px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ctrl-border);
+  background: var(--ctrl-bg-solid);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.cinematic-play:hover { opacity: 0.75; }
+
+.cinematic-play--stop {
+  border-color: #e05050;
+  color: #e05050;
+}
+
+.cinematic-script {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--ctrl-bg-solid);
+  border: 1px solid var(--ctrl-border-faint);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 12px;
+  font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+  padding: 8px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.55;
+  min-height: 100px;
+}
+
+.cinematic-script:focus {
+  border-color: var(--ctrl-border);
+}
+
+.cinematic-hint {
+  font-size: 10px;
+  opacity: 0.4;
+  line-height: 1.4;
+}
