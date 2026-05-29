@@ -106,10 +106,8 @@ export async function backfillEventType(eventType: string, sinceEpoch: number): 
       }
     }
 
-    if (windowInserted > 0) {
-      totalInserted += windowInserted;
-      console.log(`[backfill]   ${eventType}: +${windowInserted} (total ${totalInserted}) ${fmt(windowStart)} → ${fmt(windowEnd)}`);
-    }
+    totalInserted += windowInserted;
+    console.log(`[backfill]   ${eventType}: +${windowInserted} ${fmt(windowStart)} → ${fmt(windowEnd)}`);
 
     windowStart = windowEnd;
     // Gentle throttle — stay within PostHog rate limit
