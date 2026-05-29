@@ -47,7 +47,14 @@ export function startCronSync() {
   });
 
   // ── Slow cron: all other types every SLOW_SYNC_INTERVAL_M minutes ──
-  cron.schedule(`*/${SLOW_SYNC_INTERVAL_M} * * * *`, async () => {
+  // node-cron 3.0.3 has a broken */N step conversion for minutes — it collapses
+  // */5 to just "0", so the cron only fires at the top of each hour.
+  // Fix: generate the explicit minutes list (0,5,10,...,55) to bypass step parsing.
+  const slowMinutes = Array.from(
+    { length: Math.floor(60 / SLOW_SYNC_INTERVAL_M) },
+    (_, i) => i * SLOW_SYNC_INTERVAL_M,
+  ).join(",");
+  cron.schedule(`0 ${slowMinutes} * * * *`, async () => {
     await withSyncLock("cron:slow", async () => {
       console.log(`[cron:slow] Syncing ${SLOW_EVENT_TYPES.length} types...`);
       for (const eventType of SLOW_EVENT_TYPES) {
