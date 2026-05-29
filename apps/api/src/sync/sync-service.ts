@@ -84,16 +84,24 @@ export async function runSync(): Promise<void> {
   }
 }
 
+const fmtTime = (d: Date) => d.toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
+
 /** Delete all events and re-sync everything from PostHog from scratch. */
 export async function hardReset(): Promise<void> {
+  const startedAt = new Date();
+  console.log(`[hard-reset] Started at ${fmtTime(startedAt)}`);
   console.log("[hard-reset] Deleting all events...");
   sqlite.prepare("DELETE FROM events").run();
-  console.log("[hard-reset] Done. Starting full re-sync...");
+  console.log("[hard-reset] All events deleted. Starting full re-sync...");
   for (const eventType of SYNCED_EVENT_TYPES) {
-    console.log(`[hard-reset] ${eventType}`);
+    const t = Date.now();
+    console.log(`[hard-reset] Syncing ${eventType}...`);
     await syncEventType(eventType);
+    console.log(`[hard-reset] Done ${eventType} in ${((Date.now() - t) / 1000).toFixed(1)}s`);
   }
-  console.log("[hard-reset] Complete.");
+  const finishedAt = new Date();
+  const elapsedMin = ((finishedAt.getTime() - startedAt.getTime()) / 60_000).toFixed(1);
+  console.log(`[hard-reset] Complete. Finished at ${fmtTime(finishedAt)} (took ${elapsedMin} min)`);
 }
 
 export { LIVE_EVENT_TYPE, RateLimitedError };
