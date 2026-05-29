@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./QuizPage.css";
 
@@ -65,10 +65,26 @@ export function QuizPage() {
   const [questionKey, setQuestionKey] = useState(0);
   const [namesVisible, setNamesVisible] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [guessedIndex, setGuessedIndex] = useState<number | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
   const initialLoadDone = useRef(false);
+
+  const confettiData = useMemo(() =>
+    Array.from({ length: 72 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.7,
+      duration: 0.9 + Math.random() * 1.1,
+      color: ["#FF6B6B","#4ECDC4","#FFE66D","#A8E6CF","#FFB347","#C3A6FF","#70D6FF"][i % 7],
+      width: 6 + Math.random() * 8,
+      height: 7 + Math.random() * 7,
+    })),
+  []);
 
   const fetchQuiz = useCallback(() => {
     setNamesVisible(false);
+    setGuessedIndex(null);
+    setShowConfetti(false);
     setError(null);
     setPhase("loading");
 
@@ -100,6 +116,18 @@ export function QuizPage() {
       })
       .catch((e: Error) => setError(e.message));
   }, []);
+
+  function handleCardClick(i: number) {
+    if (phase !== "question" || guessedIndex !== null || !quiz) return;
+    setGuessedIndex(i);
+    setNamesVisible(true);
+    const correct = i === quiz.correctIndex;
+    if (correct) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
+    setTimeout(() => setPhase("reveal"), correct ? 1200 : 900);
+  }
 
   function handleShare() {
     if (!quiz) return;
@@ -141,8 +169,8 @@ export function QuizPage() {
   }, [phase, fetchQuiz]);
 
   const revealed = phase === "reveal" || phase === "exiting";
-  // Zone names are always visible; country names blend in at 5s
-  const showNames = quiz?.mode === "zone" || namesVisible || revealed;
+  // Zone names always visible; country names blend in at 5s or immediately on guess
+  const showNames = quiz?.mode === "zone" || namesVisible || revealed || guessedIndex !== null;
 
   const items = quiz?.mode === "zone" ? (quiz.zones ?? []) : (quiz?.countries ?? []);
 
@@ -194,10 +222,25 @@ export function QuizPage() {
                 const zoneItem = isZone ? (item as ZoneEntry) : null;
                 const countryItem = !isZone ? (item as CountryEntry) : null;
 
+                const hasGuessed = guessedIndex !== null && !revealed;
+                const isClickable = phase === "question" && guessedIndex === null;
+                const showCorrect = (hasGuessed && correct) || (revealed && correct);
+                const showWrong = revealed && !correct;
+                const showGuessedWrong = hasGuessed && i === guessedIndex && !correct;
+                const cardClass = [
+                  "quiz-card",
+                  isClickable ? "quiz-card--clickable" : "",
+                  showCorrect ? "quiz-card--correct" : "",
+                  showWrong ? "quiz-card--wrong" : "",
+                  showGuessedWrong ? "quiz-card--guessed-wrong" : "",
+                  showGuessedWrong ? "quiz-card--shake" : "",
+                ].filter(Boolean).join(" ");
+
                 return (
                   <div
                     key={isZone ? zoneItem!.id : countryItem!.code}
-                    className={`quiz-card${revealed ? (correct ? " quiz-card--correct" : " quiz-card--wrong") : ""}`}
+                    className={cardClass}
+                    onClick={() => handleCardClick(i)}
                   >
                     {isZone ? (
                       zoneItem!.image
@@ -230,6 +273,25 @@ export function QuizPage() {
           </>
         )}
       </div>
+
+      {showConfetti && (
+        <div className="confetti-container" aria-hidden>
+          {confettiData.map((p) => (
+            <div
+              key={p.id}
+              className="confetti-piece"
+              style={{
+                left: `${p.left}%`,
+                width: `${p.width}px`,
+                height: `${p.height}px`,
+                backgroundColor: p.color,
+                animationDelay: `${p.delay}s`,
+                animationDuration: `${p.duration}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
