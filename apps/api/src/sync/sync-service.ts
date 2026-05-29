@@ -48,7 +48,7 @@ const getLastEpoch = sqlite.prepare<{ event_type: string }, { ts: number | null 
 const LOOKBACK_S = 10 * 60; // 10 min lookback for ingestion delay (dedup via INSERT OR IGNORE)
 
 /** Sync a single event type. Throws RateLimitedError on 429. */
-export async function syncEventType(eventType: string): Promise<void> {
+export async function syncEventType(eventType: string, pageSize = 5_000): Promise<void> {
   const row = getLastEpoch.get({ event_type: eventType });
   const rawEpoch = row?.ts ?? undefined;
   const cursorEpoch = rawEpoch ? rawEpoch - LOOKBACK_S : undefined;
@@ -58,7 +58,7 @@ export async function syncEventType(eventType: string): Promise<void> {
   let totalInserted = 0;
   let totalSkipped = 0;
 
-  for await (const batch of fetchEvents(eventType, cursorEpoch)) {
+  for await (const batch of fetchEvents(eventType, cursorEpoch, pageSize)) {
     const validEvents = batch.filter(
       (e) => e.latitude != null && e.longitude != null,
     );
@@ -86,17 +86,21 @@ export async function runSync(): Promise<void> {
 
 const fmtTime = (d: Date) => d.toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
 
-/** Delete all events and re-sync everything from PostHog from scratch. */
+/** Delete all events and re-sync everything from PostHog from scratch (50k pages). */
 export async function hardReset(): Promise<void> {
+  const { loadCache, refreshCache } = await import("../cache.js");
   const startedAt = new Date();
   console.log(`[hard-reset] Started at ${fmtTime(startedAt)}`);
   console.log("[hard-reset] Deleting all events...");
   sqlite.prepare("DELETE FROM events").run();
-  console.log("[hard-reset] All events deleted. Starting full re-sync...");
+  console.log("[hard-reset] Clearing cache (app offline during reset)...");
+  await loadCache(); // reloads from empty DB → zeroes out the cache
+  console.log("[hard-reset] Starting full re-sync (50k pages)...");
   for (const eventType of SYNCED_EVENT_TYPES) {
     const t = Date.now();
     console.log(`[hard-reset] Syncing ${eventType}...`);
-    await syncEventType(eventType);
+    await syncEventType(eventType, 50_000);
+    refreshCache(); // bring this type's data back into cache immediately
     console.log(`[hard-reset] Done ${eventType} in ${((Date.now() - t) / 1000).toFixed(1)}s`);
   }
   const finishedAt = new Date();

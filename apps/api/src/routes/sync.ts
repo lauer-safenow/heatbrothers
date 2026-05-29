@@ -1,6 +1,6 @@
 import { Router, type Router as ExpressRouter } from "express";
 import { runSync, hardReset } from "../sync/sync-service.js";
-import { refreshCache, getStats, loadCache } from "../cache.js";
+import { refreshCache, getStats } from "../cache.js";
 
 export const syncRouter: ExpressRouter = Router();
 
@@ -21,9 +21,6 @@ syncRouter.get("/stats", (_req, res) => {
 
 syncRouter.post("/sync/hard-reset", (_req, res) => {
   // Fire and forget — watch with: journalctl --user -u heatbrothers -f | grep hard-reset
-  hardReset()
-    .then(() => loadCache())
-    .then(() => refreshCache())
-    .catch((err: unknown) => console.error("[hard-reset] failed:", err));
+  hardReset().catch((err: unknown) => console.error("[hard-reset] failed:", err));
   res.json({ ok: true, message: "Hard reset started — all events deleted, full re-sync in progress" });
 });
