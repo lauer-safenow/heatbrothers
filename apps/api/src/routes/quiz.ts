@@ -104,6 +104,8 @@ quizRouter.get("/quiz", async (_req, res) => {
         .map((row) => {
           const zone = zonesMap.get(row.pss_id);
           if (!zone) return null;
+          const nameLower = zone.name.toLowerCase();
+          if (nameLower.includes("test") || nameLower.includes("home")) return null;
           const s3 = zone.pss_image?.s3_location ?? null;
           const image = s3 ? (s3.startsWith("http") ? s3 : `https://${s3}`) : null;
           return { id: row.pss_id, name: zone.name, image, count: row.count };
