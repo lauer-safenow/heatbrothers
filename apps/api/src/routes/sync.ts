@@ -1,6 +1,6 @@
 import { Router, type Router as ExpressRouter } from "express";
 import { runSync, hardReset } from "../sync/sync-service.js";
-import { refreshCache, getStats } from "../cache.js";
+import { refreshCache, getStats, loadCache } from "../cache.js";
 
 export const syncRouter: ExpressRouter = Router();
 
@@ -19,12 +19,11 @@ syncRouter.get("/stats", (_req, res) => {
   res.json(getStats());
 });
 
-syncRouter.post("/sync/reset", (req, res) => {
-  const days = Math.min(Math.max(Number(req.query.days ?? 7), 1), 365);
-  const sinceEpoch = Math.floor(Date.now() / 1000) - days * 86_400;
-  // Fire and forget — watch with: journalctl --user -u heatbrothers -f | grep reset
-  hardReset(sinceEpoch)
+syncRouter.post("/sync/hard-reset", (_req, res) => {
+  // Fire and forget — watch with: journalctl --user -u heatbrothers -f | grep hard-reset
+  hardReset()
+    .then(() => loadCache())
     .then(() => refreshCache())
-    .catch((err: unknown) => console.error("[reset] failed:", err));
-  res.json({ ok: true, days, since: new Date(sinceEpoch * 1000).toISOString() });
+    .catch((err: unknown) => console.error("[hard-reset] failed:", err));
+  res.json({ ok: true, message: "Hard reset started — all events deleted, full re-sync in progress" });
 });

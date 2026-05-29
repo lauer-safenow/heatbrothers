@@ -84,20 +84,16 @@ export async function runSync(): Promise<void> {
   }
 }
 
-/** Re-sync all event types from sinceEpoch, ignoring the stored cursor. */
-export async function hardReset(sinceEpoch: number): Promise<void> {
-  const since = new Date(sinceEpoch * 1000).toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
-  console.log(`[reset] Starting hard reset from ${since}`);
+/** Delete all events and re-sync everything from PostHog from scratch. */
+export async function hardReset(): Promise<void> {
+  console.log("[hard-reset] Deleting all events...");
+  sqlite.prepare("DELETE FROM events").run();
+  console.log("[hard-reset] Done. Starting full re-sync...");
   for (const eventType of SYNCED_EVENT_TYPES) {
-    console.log(`[reset] ${eventType}`);
-    let inserted = 0;
-    for await (const batch of fetchEvents(eventType, sinceEpoch)) {
-      const valid = batch.filter((e) => e.latitude != null && e.longitude != null);
-      if (valid.length > 0) inserted += insertMany(valid);
-    }
-    console.log(`[reset] Done ${eventType}: +${inserted}`);
+    console.log(`[hard-reset] ${eventType}`);
+    await syncEventType(eventType);
   }
-  console.log("[reset] Complete");
+  console.log("[hard-reset] Complete.");
 }
 
 export { LIVE_EVENT_TYPE, RateLimitedError };
