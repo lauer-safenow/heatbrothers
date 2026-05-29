@@ -55,7 +55,7 @@ async function hogqlQuery(query: string): Promise<{
         query,
       },
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(120_000),
   });
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
