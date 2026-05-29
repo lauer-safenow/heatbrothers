@@ -46,11 +46,21 @@ pnpm dev              # starts API + Vite dev server on port 3001
 
 - Uses the HogQL Query API (`POST /api/projects/:id/query/`)
 - Requires a personal API key with "Query Read" permission
-- Incremental sync using `MAX(posthog_ts)` per event type as cursor
-- Cron runs every 60 seconds when API server is running
+- Incremental sync: cursor = `MAX(timestamp) - 600s` per event type (10-min lookback for ingestion delay)
+- Rate limit: 120 queries/hour — fast cron at 60s uses 60/hour, slow cron uses ~48/hour
 - Manual trigger: `POST /api/sync` or `pnpm sync`
-- Rate limit: 120 queries/hour, max 50k rows per query
-- Exponential backoff (2s base) on 429 and 5xx errors
+- Backfill (re-sync from N days ago): `POST /api/sync/backfill?days=30` (fires in background, watch with `journalctl -f | grep backfill`)
+
+### Two-tier cron (job queue, no skips)
+- **Fast** (`*/60 * * * * *`): syncs `DETAILED_ALARM_STARTED_PRIVATE_GROUP` every 60s
+- **Slow** (`0 0,5,10,...,55 * * * *`): syncs the other 4 types every 5 minutes
+- Jobs are queued, not dropped — slow job runs immediately after fast completes if they overlap
+- **node-cron 3.0.3 bug**: `*/N` step syntax in the minutes field is broken — it collapses to `0` only (fires at top of hour only). Fix: generate explicit minutes list `0,5,10,...,55`; never use `*/5 * * * *` style for minute-level schedules with this version
+
+### Data consistency across environments
+- Each server (local/dev/prod) has its own SQLite — counts will differ by recent events
+- Gaps caused by missed syncs cannot be recovered if the cursor advanced past the ingestion window
+- Use `POST /api/sync/backfill?days=N` on a server that's behind to catch up
 
 ## In-Memory Cache
 
@@ -64,12 +74,19 @@ pnpm dev              # starts API + Vite dev server on port 3001
 - `GET /api/health` - health check
 - `GET /api/stats` - event counts by type (from cache)
 - `GET /api/events/:type` - all events for a type as `[lng, lat, weight]` tuples (from cache)
-- `POST /api/sync` - trigger manual sync
+- `POST /api/sync` - trigger manual sync (all event types, incremental)
+- `POST /api/sync/backfill?days=N` - re-sync all types from N days ago (default 30, max 365); fires in background
+- `GET /api/quiz` - random quiz question (country or zone, random time period)
+- `GET /api/dashboard` - aggregated stats by type/country/language/zone
 
 ## Frontend Routes
 
-- `/` - landing page with HEAT BROTHERS logo + event stats
-- `/map` - full-screen MapLibre GL map with deck.gl HeatmapLayer + event type dropdown
+- `/` - landing page with navigation
+- `/map` - full-screen MapLibre GL map with deck.gl HeatmapLayer, cinematic mode, event type dropdown
+- `/dashboard` - aggregated stats by type, country, language, zones
+- `/quiz` - country/zone trivia quiz with click-to-guess, confetti, history, shareable links
+- `/live` - live event stream
+- `/hot-right-now` - ST-DBSCAN hotspot clustering
 
 ## Event Types & Display Names
 
