@@ -22,7 +22,9 @@ type Phase = "loading" | "question" | "reveal" | "exiting";
 interface QuizRecord {
   timestamp: number;
   correct: boolean;
+  unanswered?: boolean;
   label: string;
+  options: string;
   quiz: QuizData;
 }
 
@@ -99,6 +101,8 @@ export function QuizPage() {
   const [history, setHistory] = useState<QuizRecord[]>(() => loadHistory());
   const [showHistory, setShowHistory] = useState(false);
   const initialLoadDone = useRef(false);
+  const guessedIndexRef = useRef<number | null>(null);
+  const prevPhaseRef = useRef<Phase>("loading");
 
   const confettiData = useMemo(() =>
     Array.from({ length: 72 }, (_, i) => ({
@@ -115,6 +119,7 @@ export function QuizPage() {
   const fetchQuiz = useCallback(() => {
     setNamesVisible(false);
     setGuessedIndex(null);
+    guessedIndexRef.current = null;
     setShowConfetti(false);
     setError(null);
     setPhase("loading");
@@ -150,13 +155,17 @@ export function QuizPage() {
 
   function handleCardClick(i: number) {
     if (phase !== "question" || guessedIndex !== null || !quiz) return;
+    guessedIndexRef.current = i;
     setGuessedIndex(i);
     setNamesVisible(true);
     const correct = i === quiz.correctIndex;
     const label = quiz.mode === "zone"
       ? `Activity — ${quiz.timePeriod}`
       : `${quiz.displayName ?? quiz.eventType} — ${quiz.timePeriod}`;
-    setHistory((prev) => appendRecord({ timestamp: Date.now(), correct, label, quiz }, prev));
+    const options = quiz.mode === "zone"
+      ? (quiz.zones ?? []).map((z) => z.name.slice(0, 3)).join(" · ")
+      : (quiz.countries ?? []).map((c) => c.code).join(" · ");
+    setHistory((prev) => appendRecord({ timestamp: Date.now(), correct, label, options, quiz }, prev));
     if (correct) {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
@@ -170,6 +179,7 @@ export function QuizPage() {
     setQuestionKey((k) => k + 1);
     setNamesVisible(false);
     setGuessedIndex(null);
+    guessedIndexRef.current = null;
     setShowConfetti(false);
     setPhase("question");
   }
@@ -213,6 +223,20 @@ export function QuizPage() {
     return () => clearTimeout(t);
   }, [phase, fetchQuiz]);
 
+  // Save unanswered record when timer auto-reveals without a guess
+  useEffect(() => {
+    if (phase === "reveal" && prevPhaseRef.current === "question" && guessedIndexRef.current === null && quiz) {
+      const label = quiz.mode === "zone"
+        ? `Activity — ${quiz.timePeriod}`
+        : `${quiz.displayName ?? quiz.eventType} — ${quiz.timePeriod}`;
+      const options = quiz.mode === "zone"
+        ? (quiz.zones ?? []).map((z) => z.name.slice(0, 3)).join(" · ")
+        : (quiz.countries ?? []).map((c) => c.code).join(" · ");
+      setHistory((prev) => appendRecord({ timestamp: Date.now(), correct: false, unanswered: true, label, options, quiz }, prev));
+    }
+    prevPhaseRef.current = phase;
+  }, [phase, quiz]);
+
   const revealed = phase === "reveal" || phase === "exiting";
   // Zone names always visible; country names blend in at 5s or immediately on guess
   const showNames = quiz?.mode === "zone" || namesVisible || revealed || guessedIndex !== null;
@@ -239,13 +263,18 @@ export function QuizPage() {
         📋
       </button>
 
-      {history.length > 0 && (
-        <div className="quiz-score">
-          <span className="quiz-score-correct">✓ {history.filter((r) => r.correct).length}</span>
-          <span className="quiz-score-sep"> / </span>
-          <span className="quiz-score-wrong">✗ {history.filter((r) => !r.correct).length}</span>
-        </div>
-      )}
+      {history.length > 0 && (() => {
+        const correct = history.filter((r) => r.correct).length;
+        const wrong = history.filter((r) => !r.correct && !r.unanswered).length;
+        const unanswered = history.filter((r) => r.unanswered).length;
+        return (
+          <div className="quiz-score">
+            <span className="quiz-score-correct">✓ {correct}</span>
+            {wrong > 0 && <><span className="quiz-score-sep"> · </span><span className="quiz-score-wrong">✗ {wrong}</span></>}
+            {unanswered > 0 && <><span className="quiz-score-sep"> · </span><span className="quiz-score-unanswered">— {unanswered}</span></>}
+          </div>
+        );
+      })()}
 
       {showHistory && (
         <div className="quiz-history-panel">
@@ -258,10 +287,11 @@ export function QuizPage() {
               <div className="quiz-history-empty">No questions yet</div>
             ) : (
               history.map((r, i) => (
-                <div key={i} className={`quiz-history-item${r.correct ? " quiz-history-item--correct" : " quiz-history-item--wrong"}`}>
-                  <span className="quiz-history-icon">{r.correct ? "✓" : "✗"}</span>
+                <div key={i} className={`quiz-history-item${r.correct ? " quiz-history-item--correct" : r.unanswered ? " quiz-history-item--unanswered" : " quiz-history-item--wrong"}`}>
+                  <span className="quiz-history-icon">{r.correct ? "✓" : r.unanswered ? "—" : "✗"}</span>
                   <div className="quiz-history-info">
                     <span className="quiz-history-label">{r.label}</span>
+                    {r.options && <span className="quiz-history-options">{r.options}</span>}
                     <span className="quiz-history-time">{relativeTime(r.timestamp)}</span>
                   </div>
                   <button className="quiz-history-replay" onClick={() => replayQuiz(r)} title="Replay">↩</button>
