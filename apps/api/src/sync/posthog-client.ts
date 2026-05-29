@@ -85,6 +85,7 @@ export async function* fetchEvents(
   eventType: string,
   sinceEpoch?: number,
   pageSize = PAGE_SIZE,
+  toEpoch?: number,
 ): AsyncGenerator<PostHogEvent[]> {
   let cursorEpoch = sinceEpoch;
 
@@ -98,6 +99,9 @@ export async function* fetchEvents(
 
     if (cursorEpoch != null) {
       conditions.push(`toUnixTimestamp(timestamp) > ${cursorEpoch}`);
+    }
+    if (toEpoch != null) {
+      conditions.push(`toUnixTimestamp(timestamp) <= ${toEpoch}`);
     }
 
     const whereClause = `WHERE ${conditions.join(" AND ")}`;

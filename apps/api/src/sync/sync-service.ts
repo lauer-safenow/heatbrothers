@@ -84,20 +84,38 @@ export async function runSync(): Promise<void> {
   }
 }
 
-/** Backfill a single event type from an explicit epoch, ignoring the stored cursor. */
+const BACKFILL_WINDOW_S = 3600; // 1 hour per query
+
+const fmt = (epoch: number) =>
+  new Date(epoch * 1000).toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
+
+/** Backfill a single event type in 1-hour windows from sinceEpoch to now. */
 export async function backfillEventType(eventType: string, sinceEpoch: number): Promise<number> {
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  let windowStart = sinceEpoch;
   let totalInserted = 0;
-  for await (const batch of fetchEvents(eventType, sinceEpoch, 50_000)) {
-    const validEvents = batch.filter((e) => e.latitude != null && e.longitude != null);
-    if (validEvents.length === 0) continue;
-    const inserted = insertMany(validEvents);
-    totalInserted += inserted;
-    const fmt = (epoch: number) =>
-      new Date(epoch * 1000).toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
-    const from = Number(batch[0].timestamp);
-    const to = Number(batch[batch.length - 1].timestamp);
-    console.log(`[backfill]   ${eventType}: +${inserted} (total ${totalInserted}) from=${fmt(from)} to=${fmt(to)}`);
+
+  while (windowStart < nowEpoch) {
+    const windowEnd = Math.min(windowStart + BACKFILL_WINDOW_S, nowEpoch);
+    let windowInserted = 0;
+
+    for await (const batch of fetchEvents(eventType, windowStart, 50_000, windowEnd)) {
+      const validEvents = batch.filter((e) => e.latitude != null && e.longitude != null);
+      if (validEvents.length > 0) {
+        windowInserted += insertMany(validEvents);
+      }
+    }
+
+    if (windowInserted > 0) {
+      totalInserted += windowInserted;
+      console.log(`[backfill]   ${eventType}: +${windowInserted} (total ${totalInserted}) ${fmt(windowStart)} → ${fmt(windowEnd)}`);
+    }
+
+    windowStart = windowEnd;
+    // Gentle throttle — stay within PostHog rate limit
+    await new Promise((r) => setTimeout(r, 1000));
   }
+
   console.log(`[backfill] Done ${eventType}: ${totalInserted} new events`);
   return totalInserted;
 }
