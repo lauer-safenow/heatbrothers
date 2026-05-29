@@ -84,52 +84,20 @@ export async function runSync(): Promise<void> {
   }
 }
 
-const BACKFILL_WINDOW_S = 3600; // 1 hour per query
-
-const fmt = (epoch: number) =>
-  new Date(epoch * 1000).toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
-
-/** Backfill a single event type in 1-hour windows from sinceEpoch to now. */
-export async function backfillEventType(eventType: string, sinceEpoch: number): Promise<number> {
-  const nowEpoch = Math.floor(Date.now() / 1000);
-  let windowStart = sinceEpoch;
-  let totalInserted = 0;
-
-  while (windowStart < nowEpoch) {
-    const windowEnd = Math.min(windowStart + BACKFILL_WINDOW_S, nowEpoch);
-    let windowInserted = 0;
-
-    for await (const batch of fetchEvents(eventType, windowStart, 50_000, windowEnd)) {
-      const validEvents = batch.filter((e) => e.latitude != null && e.longitude != null);
-      if (validEvents.length > 0) {
-        windowInserted += insertMany(validEvents);
-      }
+/** Re-sync all event types from sinceEpoch, ignoring the stored cursor. */
+export async function hardReset(sinceEpoch: number): Promise<void> {
+  const since = new Date(sinceEpoch * 1000).toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
+  console.log(`[reset] Starting hard reset from ${since}`);
+  for (const eventType of SYNCED_EVENT_TYPES) {
+    console.log(`[reset] ${eventType}`);
+    let inserted = 0;
+    for await (const batch of fetchEvents(eventType, sinceEpoch)) {
+      const valid = batch.filter((e) => e.latitude != null && e.longitude != null);
+      if (valid.length > 0) inserted += insertMany(valid);
     }
-
-    totalInserted += windowInserted;
-    console.log(`[backfill]   ${eventType}: +${windowInserted} ${fmt(windowStart)} → ${fmt(windowEnd)}`);
-
-    windowStart = windowEnd;
-    // Gentle throttle — stay within PostHog rate limit
-    await new Promise((r) => setTimeout(r, 1000));
+    console.log(`[reset] Done ${eventType}: +${inserted}`);
   }
-
-  console.log(`[backfill] Done ${eventType}: ${totalInserted} new events`);
-  return totalInserted;
-}
-
-/** Backfill all event types from sinceEpoch. */
-export async function runBackfill(sinceEpoch: number): Promise<void> {
-  const total = SYNCED_EVENT_TYPES.length;
-  console.log(`[backfill] Starting ${total} types from ${new Date(sinceEpoch * 1000).toISOString()}`);
-  let grandTotal = 0;
-  for (let i = 0; i < total; i++) {
-    const eventType = SYNCED_EVENT_TYPES[i];
-    console.log(`[backfill] [${i + 1}/${total}] ${eventType}`);
-    const inserted = await backfillEventType(eventType, sinceEpoch);
-    grandTotal += inserted;
-  }
-  console.log(`[backfill] Complete — ${grandTotal} total new events across ${total} types`);
+  console.log("[reset] Complete");
 }
 
 export { LIVE_EVENT_TYPE, RateLimitedError };
