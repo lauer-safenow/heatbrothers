@@ -92,9 +92,11 @@ export async function backfillEventType(eventType: string, sinceEpoch: number): 
     if (validEvents.length === 0) continue;
     const inserted = insertMany(validEvents);
     totalInserted += inserted;
+    const fmt = (epoch: number) =>
+      new Date(epoch * 1000).toLocaleString("sv-SE", { timeZone: "Europe/Berlin" });
     const from = Number(batch[0].timestamp);
     const to = Number(batch[batch.length - 1].timestamp);
-    console.log(`[backfill]   ${eventType}: +${inserted} (total ${totalInserted}) from=${from} to=${to}`);
+    console.log(`[backfill]   ${eventType}: +${inserted} (total ${totalInserted}) from=${fmt(from)} to=${fmt(to)}`);
   }
   console.log(`[backfill] Done ${eventType}: ${totalInserted} new events`);
   return totalInserted;
