@@ -86,14 +86,15 @@ export async function runSync(): Promise<void> {
 
 /** Backfill a single event type from an explicit epoch, ignoring the stored cursor. */
 export async function backfillEventType(eventType: string, sinceEpoch: number): Promise<number> {
-  console.log(`[backfill] ${eventType} from epoch ${sinceEpoch}`);
   let totalInserted = 0;
   for await (const batch of fetchEvents(eventType, sinceEpoch)) {
     const validEvents = batch.filter((e) => e.latitude != null && e.longitude != null);
     if (validEvents.length === 0) continue;
     const inserted = insertMany(validEvents);
     totalInserted += inserted;
-    console.log(`[backfill]   ${eventType}: +${inserted} (total ${totalInserted})`);
+    const from = Number(batch[0].timestamp);
+    const to = Number(batch[batch.length - 1].timestamp);
+    console.log(`[backfill]   ${eventType}: +${inserted} (total ${totalInserted}) from=${from} to=${to}`);
   }
   console.log(`[backfill] Done ${eventType}: ${totalInserted} new events`);
   return totalInserted;
@@ -101,11 +102,16 @@ export async function backfillEventType(eventType: string, sinceEpoch: number): 
 
 /** Backfill all event types from sinceEpoch. */
 export async function runBackfill(sinceEpoch: number): Promise<void> {
-  console.log(`[backfill] Starting full backfill from epoch ${sinceEpoch} (${new Date(sinceEpoch * 1000).toISOString()})`);
-  for (const eventType of SYNCED_EVENT_TYPES) {
-    await backfillEventType(eventType, sinceEpoch);
+  const total = SYNCED_EVENT_TYPES.length;
+  console.log(`[backfill] Starting ${total} types from ${new Date(sinceEpoch * 1000).toISOString()}`);
+  let grandTotal = 0;
+  for (let i = 0; i < total; i++) {
+    const eventType = SYNCED_EVENT_TYPES[i];
+    console.log(`[backfill] [${i + 1}/${total}] ${eventType}`);
+    const inserted = await backfillEventType(eventType, sinceEpoch);
+    grandTotal += inserted;
   }
-  console.log("[backfill] All done.");
+  console.log(`[backfill] Complete — ${grandTotal} total new events across ${total} types`);
 }
 
 export { LIVE_EVENT_TYPE, RateLimitedError };
