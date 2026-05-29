@@ -307,20 +307,7 @@ export function QuizPage() {
       )}
 
       <div className={`quiz-content${phase === "exiting" ? " quiz-content--out" : ""}`}>
-        <div className="quiz-mode-selector">
-          {(["both", "country", "zone"] as const).map((m) => (
-            <button
-              key={m}
-              className={`quiz-mode-btn${quizMode === m ? " quiz-mode-btn--active" : ""}`}
-              onClick={() => {
-                setQuizMode(m);
-                try { localStorage.setItem("heatbrothers-quiz-mode", m); } catch {}
-              }}
-            >
-              {m === "both" ? "Both" : m === "country" ? "Countries" : "Zones"}
-            </button>
-          ))}
-        </div>
+        <div className="quiz-title">Know Your Users Quiz</div>
         {phase === "loading" && !error && (
           <div className="quiz-status">Loading…</div>
         )}
@@ -401,6 +388,21 @@ export function QuizPage() {
             </div>
           </>
         )}
+
+        <div className="quiz-mode-selector">
+          {(["both", "country", "zone"] as const).map((m) => (
+            <button
+              key={m}
+              className={`quiz-mode-btn${quizMode === m ? " quiz-mode-btn--active" : ""}`}
+              onClick={() => {
+                setQuizMode(m);
+                try { localStorage.setItem("heatbrothers-quiz-mode", m); } catch {}
+              }}
+            >
+              {m === "both" ? "Both" : m === "country" ? "Countries" : "Zones"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {showConfetti && (
