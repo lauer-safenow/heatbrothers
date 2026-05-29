@@ -84,6 +84,7 @@ async function hogqlQuery(query: string): Promise<{
 export async function* fetchEvents(
   eventType: string,
   sinceEpoch?: number,
+  pageSize = PAGE_SIZE,
 ): AsyncGenerator<PostHogEvent[]> {
   let cursorEpoch = sinceEpoch;
 
@@ -120,7 +121,7 @@ export async function* fetchEvents(
       FROM events
       ${whereClause}
       ORDER BY timestamp ASC
-      LIMIT ${PAGE_SIZE}
+      LIMIT ${pageSize}
     `;
 
     const result = await hogqlQuery(query);
@@ -146,7 +147,7 @@ export async function* fetchEvents(
 
     yield events;
 
-    if (result.results.length < PAGE_SIZE) break;
+    if (result.results.length < pageSize) break;
 
     // Use last event's timestamp as epoch cursor for next page
     cursorEpoch = Number(events[events.length - 1].timestamp);

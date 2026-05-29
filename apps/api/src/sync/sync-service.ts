@@ -87,7 +87,7 @@ export async function runSync(): Promise<void> {
 /** Backfill a single event type from an explicit epoch, ignoring the stored cursor. */
 export async function backfillEventType(eventType: string, sinceEpoch: number): Promise<number> {
   let totalInserted = 0;
-  for await (const batch of fetchEvents(eventType, sinceEpoch)) {
+  for await (const batch of fetchEvents(eventType, sinceEpoch, 50_000)) {
     const validEvents = batch.filter((e) => e.latitude != null && e.longitude != null);
     if (validEvents.length === 0) continue;
     const inserted = insertMany(validEvents);
