@@ -243,6 +243,35 @@
   pointer-events: none;
 }
 
+/* Mode selector */
+.quiz-mode-selector {
+  display: flex;
+  gap: 6px;
+}
+
+.quiz-mode-btn {
+  padding: 6px 16px;
+  border-radius: 99px;
+  border: 1.5px solid #d8d8e0;
+  background: #fff;
+  color: #555;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.quiz-mode-btn:hover {
+  border-color: #0995FF;
+  color: #0995FF;
+}
+
+.quiz-mode-btn--active {
+  background: linear-gradient(135deg, #0995FF 0%, #0034E3 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
 /* Question text */
 .quiz-question {
   display: flex;

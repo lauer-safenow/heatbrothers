@@ -72,14 +72,16 @@ function getEpochRange(period: TimePeriod): { from: number; to: number } {
   return { from: getBerlinMidnightEpoch(firstOfMonthStr), to: nowEpoch };
 }
 
-quizRouter.get("/quiz", async (_req, res) => {
+quizRouter.get("/quiz", async (req, res) => {
   try {
+    const mode = (req.query.mode as string | undefined) ?? "both";
     const PERIODS: TimePeriod[] = ["today", "this week", "this month"];
     const timePeriod = PERIODS[Math.floor(Math.random() * PERIODS.length)];
     const { from, to } = getEpochRange(timePeriod);
 
-    // 40% chance: try a zone quiz first
-    if (Math.random() < 0.4) {
+    // Try zone quiz when mode is "zone" (always) or "both" (40% chance)
+    const tryZone = mode === "zone" || (mode !== "country" && Math.random() < 0.4);
+    if (tryZone) {
       const zonesMap = await getZonesMap();
       type ZoneRow = { pss_id: string; count: number };
 
@@ -136,6 +138,7 @@ quizRouter.get("/quiz", async (_req, res) => {
         });
         return;
       }
+      if (mode === "zone") { res.json({ error: "Not enough zone data for this period" }); return; }
       // fall through to country quiz
     }
 

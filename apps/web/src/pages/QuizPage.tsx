@@ -97,6 +97,10 @@ export function QuizPage() {
   const [namesVisible, setNamesVisible] = useState(false);
   const [copied, setCopied] = useState(false);
   const [guessedIndex, setGuessedIndex] = useState<number | null>(null);
+  const [quizMode, setQuizMode] = useState<"both" | "country" | "zone">(() => {
+    try { return (localStorage.getItem("heatbrothers-quiz-mode") as "both" | "country" | "zone") ?? "both"; }
+    catch { return "both"; }
+  });
   const [showConfetti, setShowConfetti] = useState(false);
   const [history, setHistory] = useState<QuizRecord[]>(() => loadHistory());
   const [showHistory, setShowHistory] = useState(false);
@@ -142,7 +146,7 @@ export function QuizPage() {
       }
     }
 
-    fetch("/api/quiz")
+    fetch(`/api/quiz?mode=${quizMode}`)
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d: QuizData & { error?: string }) => {
         if (d.error) throw new Error(d.error);
@@ -151,7 +155,7 @@ export function QuizPage() {
         setPhase("question");
       })
       .catch((e: Error) => setError(e.message));
-  }, []);
+  }, [quizMode]);
 
   function handleCardClick(i: number) {
     if (phase !== "question" || guessedIndex !== null || !quiz) return;
@@ -303,6 +307,20 @@ export function QuizPage() {
       )}
 
       <div className={`quiz-content${phase === "exiting" ? " quiz-content--out" : ""}`}>
+        <div className="quiz-mode-selector">
+          {(["both", "country", "zone"] as const).map((m) => (
+            <button
+              key={m}
+              className={`quiz-mode-btn${quizMode === m ? " quiz-mode-btn--active" : ""}`}
+              onClick={() => {
+                setQuizMode(m);
+                try { localStorage.setItem("heatbrothers-quiz-mode", m); } catch {}
+              }}
+            >
+              {m === "both" ? "Both" : m === "country" ? "Countries" : "Zones"}
+            </button>
+          ))}
+        </div>
         {phase === "loading" && !error && (
           <div className="quiz-status">Loading…</div>
         )}
