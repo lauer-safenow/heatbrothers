@@ -8,6 +8,7 @@ import { HotRightNowPage } from "./pages/HotRightNowPage";
 import { OldSplashPage } from "./pages/OldSplashPage";
 import BeaconBoyPage from "./pages/beacon-boy/BeaconBoyPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { QuizPage } from "./pages/QuizPage";
 
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
@@ -20,6 +21,7 @@ createRoot(document.getElementById("root")!).render(
       <Route path="/heatbrothers" element={<OldSplashPage />} />
       <Route path="/beacon-boy" element={<BeaconBoyPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/quiz" element={<QuizPage />} />
     </Routes>
   </BrowserRouter>,
 );

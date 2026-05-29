@@ -12,6 +12,7 @@ import { newsRouter } from "./routes/news.js";
 import { savedViewsRouter } from "./routes/saved-views.js";
 import { beaconBoyRouter } from "./routes/beacon-boy.js";
 import { dashboardRouter } from "./routes/dashboard.js";
+import { quizRouter } from "./routes/quiz.js";
 import { startCronSync } from "./sync/cron.js";
 import { loadCache } from "./cache.js";
 import { initGeocoder } from "./geocode.js";
@@ -42,6 +43,7 @@ app.use("/api", newsRouter);
 app.use("/api", savedViewsRouter);
 app.use("/api", beaconBoyRouter);
 app.use("/api", dashboardRouter);
+app.use("/api", quizRouter);
 
 app.get("/api/me", (req, res) => {
   const user = req.headers["remote-user"] as string | undefined;

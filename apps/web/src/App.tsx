@@ -72,6 +72,9 @@ export function App() {
         <button className="splash-btn" onClick={() => navigate("/dashboard")}>
           Dashboard
         </button>
+        <button className="splash-btn" onClick={() => navigate("/quiz")}>
+          Quiz
+        </button>
       </div>
 
       <button className="splash-feature-btn" onClick={() => navigate("/feature-request")}>
