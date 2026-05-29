@@ -289,9 +289,8 @@ export function DashboardPage() {
   const eventsByLanguage = (() => {
     const counts = new Map<string, number>();
     for (const { country, count } of data.eventsByCountry ?? []) {
-      for (const lang of COUNTRY_LANGUAGES[country] ?? ["Unknown"]) {
-        counts.set(lang, (counts.get(lang) ?? 0) + count);
-      }
+      const lang = (COUNTRY_LANGUAGES[country] ?? ["Unknown"])[0];
+      counts.set(lang, (counts.get(lang) ?? 0) + count);
     }
     return [...counts.entries()].map(([language, count]) => ({ language, count })).sort((a, b) => b.count - a.count);
   })();
@@ -405,7 +404,7 @@ export function DashboardPage() {
           <div className="dashboard-card">
             <div className="dashboard-card-header">
               <span className="dashboard-card-title">Events by Language</span>
-              <span className="dashboard-card-total">{data.events.total.toLocaleString()}</span>
+              <span className="dashboard-card-total">{eventsByLanguage.reduce((s, l) => s + l.count, 0).toLocaleString()}</span>
             </div>
             <div className="dashboard-rows">
               {eventsByLanguage.map((l) => (
@@ -427,7 +426,7 @@ export function DashboardPage() {
             <div className="dashboard-card-header">
               <span className="dashboard-card-title">Events by Country</span>
               <span className="dashboard-card-total">
-                {data.events.total.toLocaleString()}
+                {(data.eventsByCountry ?? []).reduce((s, c) => s + c.count, 0).toLocaleString()}
               </span>
             </div>
             <div className="dashboard-rows">
