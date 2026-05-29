@@ -19,6 +19,35 @@ interface QuizData {
 
 type Phase = "loading" | "question" | "reveal" | "exiting";
 
+interface QuizRecord {
+  timestamp: number;
+  correct: boolean;
+  label: string;
+  quiz: QuizData;
+}
+
+const HISTORY_KEY = "heatbrothers-quiz-history";
+const MAX_HISTORY = 50;
+
+function loadHistory(): QuizRecord[] {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]"); } catch { return []; }
+}
+
+function appendRecord(record: QuizRecord, prev: QuizRecord[]): QuizRecord[] {
+  const next = [record, ...prev].slice(0, MAX_HISTORY);
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
+  return next;
+}
+
+function relativeTime(ts: number): string {
+  const m = Math.floor((Date.now() - ts) / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
 
 function countryFlag(cc: string): string {
@@ -67,6 +96,8 @@ export function QuizPage() {
   const [copied, setCopied] = useState(false);
   const [guessedIndex, setGuessedIndex] = useState<number | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [history, setHistory] = useState<QuizRecord[]>(() => loadHistory());
+  const [showHistory, setShowHistory] = useState(false);
   const initialLoadDone = useRef(false);
 
   const confettiData = useMemo(() =>
@@ -122,11 +153,25 @@ export function QuizPage() {
     setGuessedIndex(i);
     setNamesVisible(true);
     const correct = i === quiz.correctIndex;
+    const label = quiz.mode === "zone"
+      ? `Activity — ${quiz.timePeriod}`
+      : `${quiz.displayName ?? quiz.eventType} — ${quiz.timePeriod}`;
+    setHistory((prev) => appendRecord({ timestamp: Date.now(), correct, label, quiz }, prev));
     if (correct) {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
     }
     setTimeout(() => setPhase("reveal"), correct ? 1200 : 900);
+  }
+
+  function replayQuiz(record: QuizRecord) {
+    setShowHistory(false);
+    setQuiz(record.quiz);
+    setQuestionKey((k) => k + 1);
+    setNamesVisible(false);
+    setGuessedIndex(null);
+    setShowConfetti(false);
+    setPhase("question");
   }
 
   function handleShare() {
@@ -190,6 +235,42 @@ export function QuizPage() {
       <button className="quiz-share" onClick={handleShare} title="Copy link to this question">
         {copied ? "✓" : "🔗"}
       </button>
+      <button className="quiz-history-btn" onClick={() => setShowHistory((v) => !v)} title="Question history">
+        📋
+      </button>
+
+      {history.length > 0 && (
+        <div className="quiz-score">
+          <span className="quiz-score-correct">✓ {history.filter((r) => r.correct).length}</span>
+          <span className="quiz-score-sep"> / </span>
+          <span className="quiz-score-wrong">✗ {history.filter((r) => !r.correct).length}</span>
+        </div>
+      )}
+
+      {showHistory && (
+        <div className="quiz-history-panel">
+          <div className="quiz-history-header">
+            <span className="quiz-history-title">History</span>
+            <button className="quiz-history-close" onClick={() => setShowHistory(false)}>×</button>
+          </div>
+          <div className="quiz-history-list">
+            {history.length === 0 ? (
+              <div className="quiz-history-empty">No questions yet</div>
+            ) : (
+              history.map((r, i) => (
+                <div key={i} className={`quiz-history-item${r.correct ? " quiz-history-item--correct" : " quiz-history-item--wrong"}`}>
+                  <span className="quiz-history-icon">{r.correct ? "✓" : "✗"}</span>
+                  <div className="quiz-history-info">
+                    <span className="quiz-history-label">{r.label}</span>
+                    <span className="quiz-history-time">{relativeTime(r.timestamp)}</span>
+                  </div>
+                  <button className="quiz-history-replay" onClick={() => replayQuiz(r)} title="Replay">↩</button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       <div className={`quiz-content${phase === "exiting" ? " quiz-content--out" : ""}`}>
         {phase === "loading" && !error && (
