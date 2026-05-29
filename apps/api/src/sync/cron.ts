@@ -46,20 +46,13 @@ export function startCronSync() {
     });
   });
 
-  // ── Slow cron: all other types every 10 min with random stagger between each ──
+  // ── Slow cron: all other types every SLOW_SYNC_INTERVAL_M minutes ──
   cron.schedule(`*/${SLOW_SYNC_INTERVAL_M} * * * *`, async () => {
     await withSyncLock("cron:slow", async () => {
       console.log(`[cron:slow] Syncing ${SLOW_EVENT_TYPES.length} types...`);
-      for (let i = 0; i < SLOW_EVENT_TYPES.length; i++) {
-        // random delay: random(5-10) * (i+1) seconds
-        const baseDelay = Math.floor(Math.random() * 6) + 5; // 5-10
-        const delay = baseDelay * (i + 1);
-        if (i > 0) {
-          console.log(`[cron:slow] Waiting ${delay}s before next type...`);
-          await new Promise((r) => setTimeout(r, delay * 1000));
-        }
+      for (const eventType of SLOW_EVENT_TYPES) {
         try {
-          await syncEventType(SLOW_EVENT_TYPES[i]);
+          await syncEventType(eventType);
         } catch (err) {
           if (err instanceof RateLimitedError) {
             console.warn(`[cron:slow] 429 — skipping remaining types`);
