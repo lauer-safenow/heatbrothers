@@ -84,4 +84,28 @@ export async function runSync(): Promise<void> {
   }
 }
 
+/** Backfill a single event type from an explicit epoch, ignoring the stored cursor. */
+export async function backfillEventType(eventType: string, sinceEpoch: number): Promise<number> {
+  console.log(`[backfill] ${eventType} from epoch ${sinceEpoch}`);
+  let totalInserted = 0;
+  for await (const batch of fetchEvents(eventType, sinceEpoch)) {
+    const validEvents = batch.filter((e) => e.latitude != null && e.longitude != null);
+    if (validEvents.length === 0) continue;
+    const inserted = insertMany(validEvents);
+    totalInserted += inserted;
+    console.log(`[backfill]   ${eventType}: +${inserted} (total ${totalInserted})`);
+  }
+  console.log(`[backfill] Done ${eventType}: ${totalInserted} new events`);
+  return totalInserted;
+}
+
+/** Backfill all event types from sinceEpoch. */
+export async function runBackfill(sinceEpoch: number): Promise<void> {
+  console.log(`[backfill] Starting full backfill from epoch ${sinceEpoch} (${new Date(sinceEpoch * 1000).toISOString()})`);
+  for (const eventType of SYNCED_EVENT_TYPES) {
+    await backfillEventType(eventType, sinceEpoch);
+  }
+  console.log("[backfill] All done.");
+}
+
 export { LIVE_EVENT_TYPE, RateLimitedError };
