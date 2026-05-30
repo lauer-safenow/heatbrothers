@@ -1,6 +1,7 @@
 import { Router, type Router as ExpressRouter } from "express";
 import { runSync, hardReset } from "../sync/sync-service.js";
 import { setCronPaused } from "../sync/cron.js";
+import { runDriftAudit } from "../sync/backfill.js";
 import { refreshCache, getStats } from "../cache.js";
 
 export const syncRouter: ExpressRouter = Router();
@@ -30,4 +31,10 @@ syncRouter.post("/sync/hard-reset", (_req, res) => {
     ok: true,
     message: "Hard reset started — cron paused, events deleted, full re-sync in progress",
   });
+});
+
+syncRouter.post("/sync/audit", (_req, res) => {
+  // Fire and forget — watch with: journalctl --user -u heatbrothers -f | grep audit
+  runDriftAudit().catch((err: unknown) => console.error("[audit] failed:", err));
+  res.json({ ok: true, message: "Drift audit started" });
 });

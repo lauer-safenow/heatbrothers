@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { syncEventType, LIVE_EVENT_TYPE, SLOW_EVENT_TYPES, RateLimitedError } from "./sync-service.js";
+import { runDriftAudit } from "./backfill.js";
 import { refreshCache } from "../cache.js";
 import { SYNC_INTERVAL_S, SLOW_SYNC_INTERVAL_M } from "@heatbrothers/shared";
 
@@ -97,5 +98,17 @@ export function startCronSync() {
     enqueue("slow");
   });
 
-  console.log(`PostHog sync: fast=${SYNC_INTERVAL_S}s (${LIVE_EVENT_TYPE}), slow=${SLOW_SYNC_INTERVAL_M}min (${SLOW_EVENT_TYPES.length} types)`);
+  // Daily drift audit at 04:00 Europe/Berlin. Catches per-month gaps that the
+  // forward-only incremental cron can't repair. Cheap when clean (~5 queries).
+  cron.schedule(
+    "0 4 * * *",
+    () => {
+      runDriftAudit().catch((err) => console.error("[audit] failed:", err));
+    },
+    { timezone: "Europe/Berlin" },
+  );
+
+  console.log(
+    `PostHog sync: fast=${SYNC_INTERVAL_S}s (${LIVE_EVENT_TYPE}), slow=${SLOW_SYNC_INTERVAL_M}min (${SLOW_EVENT_TYPES.length} types), daily audit at 04:00 Europe/Berlin`,
+  );
 }

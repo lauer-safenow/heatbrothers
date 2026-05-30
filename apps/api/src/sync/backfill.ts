@@ -98,6 +98,24 @@ export function clearAllSyncState() {
   sqlite.prepare("DELETE FROM sync_state").run();
 }
 
+/** Clear only the completion timestamps — keeps backfill_cursor for resume. */
+export function clearCompletionTimestamps() {
+  sqlite.prepare("UPDATE sync_state SET initial_full_sync_completed_at = NULL").run();
+}
+
+/**
+ * Drift audit: nulls the completion timestamps and re-runs ensureAllBackfilled.
+ * Designed for a daily cron — catches per-month drift that the cron's
+ * forward-only incremental sync can't repair on its own. Cheap when there's
+ * no drift (~5 PostHog queries), only fetches when an actual gap is found.
+ */
+export async function runDriftAudit(): Promise<void> {
+  console.log("[audit] starting drift audit");
+  clearCompletionTimestamps();
+  await ensureAllBackfilled();
+  console.log("[audit] drift audit complete");
+}
+
 function getLocalCount(eventType: string): number {
   const r = sqlite
     .prepare("SELECT COUNT(*) as c FROM events WHERE event_type = ?")
