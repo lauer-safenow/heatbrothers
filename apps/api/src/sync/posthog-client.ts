@@ -108,6 +108,36 @@ export async function earliestEventTimestamp(eventType: string): Promise<number 
 }
 
 /**
+ * Per-month event counts from PostHog. Map<unix_seconds_of_month_start, count>.
+ * One HogQL query per type. Used to detect structural drift between local and
+ * PostHog at month granularity (catches gaps that a single total-count check
+ * would mask under noise from real-time arrivals).
+ */
+export async function monthlyEventCounts(eventType: string): Promise<Map<number, number>> {
+  // toTimeZone(...,'UTC') forces UTC bucketing — must match local SQLite (which
+  // also buckets in UTC). PostHog's default uses project timezone (Europe/Berlin)
+  // which would shift month-boundary events into a different bucket vs local.
+  const query = `
+    SELECT
+      toUnixTimestamp(toStartOfMonth(toTimeZone(timestamp, 'UTC'))) as month,
+      count() as cnt
+    FROM events
+    WHERE properties.latitude IS NOT NULL
+      AND properties.longitude IS NOT NULL
+      AND properties.env = 'prod'
+      AND event = '${eventType}'
+    GROUP BY month
+    ORDER BY month
+  `;
+  const result = await hogqlQuery(query);
+  const map = new Map<number, number>();
+  for (const row of result.results) {
+    map.set(Number(row[0]), Number(row[1]));
+  }
+  return map;
+}
+
+/**
  * Fetch geo-located events of a single type from PostHog.
  * Uses timestamp-based cursor pagination (OFFSET gets slow at high values).
  */

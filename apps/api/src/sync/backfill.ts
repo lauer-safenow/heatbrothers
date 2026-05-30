@@ -2,16 +2,19 @@ import { sqlite } from "@heatbrothers/db";
 import {
   fetchEvents,
   countEvents,
-  earliestEventTimestamp,
+  monthlyEventCounts,
   SYNCED_EVENT_TYPES,
   RateLimitedError,
   type PostHogEvent,
 } from "./posthog-client.js";
 
 const BACKFILL_PAGE_SIZE = 50_000;
-const BACKFILL_WINDOW_S = 7 * 24 * 60 * 60; // 7d windows — same shape as full-sync
+const BACKFILL_WINDOW_S = 7 * 24 * 60 * 60; // 7d sub-windows inside a month
 const RETRY_DELAY_MS = 5 * 60 * 1000;
-const COMPLETENESS_THRESHOLD = 0.99;
+
+// Tolerated drift inside the current calendar month (real-time events keep arriving).
+// For *past* months we require an exact match.
+const CURRENT_MONTH_DRIFT_TOLERANCE = 50;
 
 interface SyncStateRow {
   event_type: string;
@@ -102,82 +105,108 @@ function getLocalCount(eventType: string): number {
   return r.c;
 }
 
+function getLocalMonthlyCounts(eventType: string): Map<number, number> {
+  // SQLite: bucket each event by its calendar month (UTC), expressed as unix seconds
+  // of the month's first day. Matches PostHog's toStartOfMonth grouping.
+  const rows = sqlite
+    .prepare(
+      `SELECT
+         CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'start of month')) AS INTEGER) as month,
+         COUNT(*) as cnt
+       FROM events
+       WHERE event_type = ?
+       GROUP BY month`,
+    )
+    .all(eventType) as { month: number; cnt: number }[];
+  const map = new Map<number, number>();
+  for (const r of rows) map.set(r.month, r.cnt);
+  return map;
+}
+
+function startOfCurrentMonthEpoch(): number {
+  const d = new Date();
+  const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+  return Math.floor(monthStart / 1000);
+}
+
 /**
  * Ensures a single event type has been backfilled from PostHog.
- * - If already marked complete in sync_state, returns immediately.
- * - Otherwise, queries PostHog count and compares to local.
- *   - If within 99%: marks complete, no fetch needed.
- *   - If gap detected: full-fetches from PostHog (no upper bound) using INSERT OR IGNORE.
- *     Persists a resume cursor between batches so a crash/restart can continue.
  *
- * Throws RateLimitedError if PostHog rate-limits; caller should retry.
+ * Uses per-month count comparison (not a single 99% total check) to detect
+ * structural drift that a total-count threshold would mask. For each month
+ * where local count < PostHog count, fetches that month in chunked windows.
+ * Past months must match exactly; the current month tolerates a small drift
+ * (real-time events keep arriving while we run).
+ *
+ * Idempotent — INSERT OR IGNORE dedupes against existing rows. Persists
+ * backfill_cursor between windows so a crash/restart resumes.
+ *
+ * Throws RateLimitedError on 429; caller should retry.
  */
 export async function ensureBackfilled(eventType: string): Promise<void> {
   const state = getSyncState(eventType);
   if (state?.initial_full_sync_completed_at) return;
 
-  const localCount = getLocalCount(eventType);
-  const phCount = await countEvents(eventType);
-
-  if (phCount > 0 && localCount >= phCount * COMPLETENESS_THRESHOLD) {
-    markInitialSyncComplete(eventType, localCount, phCount);
-    console.log(
-      `[backfill] ${eventType}: already complete (${localCount}/${phCount}) — marked done`,
-    );
-    return;
-  }
-
-  console.warn(
-    `[backfill] ${eventType}: gap detected (${localCount}/${phCount}) — backfilling`,
-  );
-
-  // Resume from saved cursor if present, else start from PostHog's earliest event.
-  // Chunk into bounded time windows so each query stays well under the timeout.
-  const resumeCursor = state?.backfill_cursor;
-  const startEpoch =
-    resumeCursor ?? (await earliestEventTimestamp(eventType));
-  if (startEpoch == null) {
-    markInitialSyncComplete(eventType, localCount, phCount);
+  const phMonthly = await monthlyEventCounts(eventType);
+  if (phMonthly.size === 0) {
+    markInitialSyncComplete(eventType, 0, 0);
     console.log(`[backfill] ${eventType}: PostHog has no events — marked done`);
     return;
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  let windowStart = resumeCursor != null ? resumeCursor : startEpoch - 1;
-  let total = 0;
+  const localMonthly = getLocalMonthlyCounts(eventType);
+  const currentMonthStart = startOfCurrentMonthEpoch();
 
-  while (windowStart < now) {
-    const windowEnd = Math.min(windowStart + BACKFILL_WINDOW_S, now + 3600);
-    let windowInserted = 0;
-
-    for await (const batch of fetchEvents(
-      eventType,
-      windowStart,
-      BACKFILL_PAGE_SIZE,
-      windowEnd,
-    )) {
-      const valid = batch.filter((e) => e.latitude != null && e.longitude != null);
-      if (valid.length > 0) {
-        const inserted = insertMany(valid);
-        windowInserted += inserted;
-        total += inserted;
-      }
+  const gapMonths: { monthStart: number; local: number; ph: number }[] = [];
+  for (const [monthStart, phCnt] of phMonthly) {
+    const localCnt = localMonthly.get(monthStart) ?? 0;
+    const tolerance = monthStart === currentMonthStart ? CURRENT_MONTH_DRIFT_TOLERANCE : 0;
+    if (phCnt - localCnt > tolerance) {
+      gapMonths.push({ monthStart, local: localCnt, ph: phCnt });
     }
-
-    setBackfillCursor(eventType, windowEnd);
-    if (windowInserted > 0) {
-      console.log(
-        `[backfill] ${eventType} window [${windowStart}..${windowEnd}]: +${windowInserted} (total=${total})`,
-      );
-    }
-    windowStart = windowEnd;
   }
 
-  const finalLocalCount = getLocalCount(eventType);
-  const finalPhCount = await countEvents(eventType);
-  markInitialSyncComplete(eventType, finalLocalCount, finalPhCount);
+  if (gapMonths.length === 0) {
+    const localTotal = getLocalCount(eventType);
+    const phTotal = [...phMonthly.values()].reduce((a, b) => a + b, 0);
+    markInitialSyncComplete(eventType, localTotal, phTotal);
+    console.log(`[backfill] ${eventType}: all months match — marked done`);
+    return;
+  }
+
+  console.warn(
+    `[backfill] ${eventType}: ${gapMonths.length} month(s) drifted — ` +
+      gapMonths
+        .map((g) => `${new Date(g.monthStart * 1000).toISOString().slice(0, 7)} (${g.local}/${g.ph})`)
+        .join(", "),
+  );
+
+  // Backfill each gapped month using 7d sub-windows. INSERT OR IGNORE handles dedup.
+  let totalInserted = 0;
+  for (const gap of gapMonths) {
+    const monthEnd = Math.min(gap.monthStart + 32 * 86400, Math.floor(Date.now() / 1000) + 3600);
+    let windowStart = gap.monthStart - 1; // -1 because fetchEvents is exclusive on the lower bound
+    while (windowStart < monthEnd) {
+      const windowEnd = Math.min(windowStart + BACKFILL_WINDOW_S, monthEnd);
+      for await (const batch of fetchEvents(
+        eventType,
+        windowStart,
+        BACKFILL_PAGE_SIZE,
+        windowEnd,
+      )) {
+        const valid = batch.filter((e) => e.latitude != null && e.longitude != null);
+        if (valid.length > 0) totalInserted += insertMany(valid);
+      }
+      setBackfillCursor(eventType, windowEnd);
+      windowStart = windowEnd;
+    }
+  }
+
+  const finalLocal = getLocalCount(eventType);
+  const finalPh = await countEvents(eventType);
+  markInitialSyncComplete(eventType, finalLocal, finalPh);
   console.log(
-    `[backfill] ${eventType} ✓ complete — local=${finalLocalCount}, posthog=${finalPhCount}`,
+    `[backfill] ${eventType} ✓ done — +${totalInserted} inserted, local=${finalLocal}, posthog=${finalPh}`,
   );
 }
 
