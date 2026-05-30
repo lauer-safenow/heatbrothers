@@ -14,6 +14,7 @@ import { beaconBoyRouter } from "./routes/beacon-boy.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { quizRouter } from "./routes/quiz.js";
 import { startCronSync } from "./sync/cron.js";
+import { ensureAllBackfilled } from "./sync/backfill.js";
 import { loadCache } from "./cache.js";
 import { initGeocoder } from "./geocode.js";
 import { sqlite } from "@heatbrothers/db";
@@ -99,6 +100,11 @@ const server = app.listen(port, async () => {
   console.log(`Heatbrothers running on http://localhost:${port}`);
   await loadCache();
   startCronSync();
+  // Background: verify each synced event type has been fully backfilled.
+  // No-op if all types are already marked complete in sync_state.
+  void ensureAllBackfilled().catch((err) => {
+    console.error("[backfill] loop crashed:", err);
+  });
 });
 
 function shutdown() {

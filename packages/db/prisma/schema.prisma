@@ -58,3 +58,13 @@ model SavedView {
   @@index([email], name: "idx_saved_view_email")
   @@map("saved_views")
 }
+
+model SyncState {
+  eventType                  String @id @map("event_type")
+  initialFullSyncCompletedAt Int?   @map("initial_full_sync_completed_at")
+  backfillCursor             Int?   @map("backfill_cursor")
+  localCountAtComplete       Int?   @map("local_count_at_complete")
+  posthogCountAtComplete     Int?   @map("posthog_count_at_complete")
+
+  @@map("sync_state")
+}

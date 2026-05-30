@@ -77,6 +77,36 @@ async function hogqlQuery(query: string): Promise<{
   };
 }
 
+/** Count geo-located prod events of a single type. One HogQL query. */
+export async function countEvents(eventType: string): Promise<number> {
+  const query = `
+    SELECT count() FROM events
+    WHERE properties.latitude IS NOT NULL
+      AND properties.longitude IS NOT NULL
+      AND properties.env = 'prod'
+      AND event = '${eventType}'
+  `;
+  const result = await hogqlQuery(query);
+  return Number(result.results[0]?.[0] ?? 0);
+}
+
+/**
+ * Earliest geo-located prod event timestamp (unix s) for a type. Null if none.
+ * Used to bound full-sync chunk iteration so we don't query empty time ranges.
+ */
+export async function earliestEventTimestamp(eventType: string): Promise<number | null> {
+  const query = `
+    SELECT min(toUnixTimestamp(timestamp)) FROM events
+    WHERE properties.latitude IS NOT NULL
+      AND properties.longitude IS NOT NULL
+      AND properties.env = 'prod'
+      AND event = '${eventType}'
+  `;
+  const result = await hogqlQuery(query);
+  const v = result.results[0]?.[0];
+  return v != null ? Number(v) : null;
+}
+
 /**
  * Fetch geo-located events of a single type from PostHog.
  * Uses timestamp-based cursor pagination (OFFSET gets slow at high values).

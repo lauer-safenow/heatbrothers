@@ -15,8 +15,21 @@ type Job = "fast" | "slow";
 const queue: Job[] = [];
 let running = false;
 let fastCooldown = 0;
+let paused = false;
+
+/** Pause/resume cron execution. Used during hard-reset to avoid races. */
+export function setCronPaused(value: boolean) {
+  paused = value;
+  console.log(`[cron] ${paused ? "paused" : "resumed"}`);
+}
+
+/** True while a cron job is mid-flight. */
+export function isCronRunning(): boolean {
+  return running;
+}
 
 function enqueue(job: Job) {
+  if (paused) return;
   if (queue.includes(job)) return; // already waiting, don't duplicate
   queue.push(job);
   void drain();
