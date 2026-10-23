@@ -18,7 +18,7 @@ export interface MapSettings {
   hideUI: boolean;
   settingsOpen: boolean;
   savedViewsOpen: boolean;
-  bottomPanel: "zones" | "date" | null;
+  bottomPanel: "zones" | "areas" | "date" | null;
   cinematicMode: boolean;
 }
 

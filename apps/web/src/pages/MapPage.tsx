@@ -7,7 +7,8 @@ import "react-datepicker/dist/react-datepicker.css";
 import "../datepicker-dark.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
-import { pointInPolygon } from "../utils/pointInPolygon";
+import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart } from "../utils/pointInPolygon";
+import { areaBorderUrl, parseAreaRef, type AreaKind } from "@heatbrothers/shared";
 import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterOrganic, JITTER_STYLES, JITTER_STYLE_HINTS, type JitterStyle, geohashPrecisionForType } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
 import { HideUIButton } from "../components/HideUIButton";
@@ -34,6 +35,7 @@ const OSM_STYLE: maplibregl.StyleSpecification = {
 
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type LngLat = [number, number];
+type AreaHit = { ref: string; name: string; detail: string }; // Areas tool search result
 type DrawingState = "idle" | "drawing" | "complete";
 
 const ZONE_AUTO_ZOOM = 13; // zoom level at which zones auto-appear in the viewport
@@ -269,6 +271,7 @@ export function MapPage() {
   const initTo = useRef(paramToDate(searchParams.get("to")));
   const initZones = useRef(searchParams.get("zones")?.split(",").filter(Boolean) ?? null);
   const initPoly = useRef(parsePolyParam(searchParams.get("poly")));
+  const initArea = useRef(searchParams.get("area"));
   const initZoom = useRef(searchParams.get("z") ? parseFloat(searchParams.get("z")!) : null);
   const initLat = useRef(searchParams.get("lat") ? parseFloat(searchParams.get("lat")!) : null);
   const initLng = useRef(searchParams.get("lng") ? parseFloat(searchParams.get("lng")!) : null);
@@ -284,6 +287,14 @@ export function MapPage() {
     initPoly.current ? "complete" : "idle"
   );
   const [vertices, setVertices] = useState<LngLat[]>(initPoly.current ?? []);
+  // country/city picked in the Areas tool: full border (parts = [outer, ...holes]);
+  // `mainland` keeps only the largest part. mainRing (the mainland's outer ring)
+  // is the same array reference as `vertices` while the area is active.
+  const [pickedArea, setPickedArea] = useState<{ ref: string; name: string; parts: LngLat[][][]; mainland: boolean; mainRing: LngLat[] } | null>(null);
+  const areaParts = useMemo(
+    () => (pickedArea ? (pickedArea.mainland ? [largestPart(pickedArea.parts)] : pickedArea.parts) : null),
+    [pickedArea],
+  );
   const [polyAnchorPx, setPolyAnchorPx] = useState<{ x: number; y: number } | null>(null);
 
   // zoom tracking for adaptive heatmap params (quantized to 0.5 steps to reduce re-renders)
@@ -608,6 +619,92 @@ export function MapPage() {
       .catch(() => {});
   };
 
+  // Areas tool: fuzzy-search a country or city (Photon), use its exact border as the area polygon
+  const [areaKind, setAreaKind] = useState<AreaKind>("country");
+  const [areaSearch, setAreaSearch] = useState("");
+  const [areaHits, setAreaHits] = useState<AreaHit[]>([]);
+  const [areaStatus, setAreaStatus] = useState<string | null>(null);
+  const areaSearchSeq = useRef(0);
+
+  // search as you type (debounced); only relations have a border, so drop nodes
+  useEffect(() => {
+    const q = areaSearch.trim();
+    const seq = ++areaSearchSeq.current;
+    if (q.length < 2) { setAreaHits([]); return; }
+    const timer = setTimeout(() => {
+      const tags = areaKind === "country" ? "&osm_tag=place:country" : "&osm_tag=place:city&osm_tag=place:town";
+      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=10&lang=en${tags}`)
+        .then((r) => r.json())
+        .then((data: { features: { properties: { osm_type: string; osm_id: number; name?: string; state?: string; country?: string } }[] }) => {
+          if (seq !== areaSearchSeq.current) return; // a newer search superseded this one
+          const hits: AreaHit[] = [];
+          for (const { properties: p } of data.features) {
+            const ref = `${areaKind}:R${p.osm_id}`;
+            if (p.osm_type !== "R" || !p.name || hits.some((h) => h.ref === ref)) continue;
+            hits.push({ ref, name: p.name, detail: areaKind === "city" ? [p.state, p.country].filter(Boolean).join(", ") : "" });
+          }
+          setAreaHits(hits);
+          setAreaStatus(hits.length === 0 ? "No matches" : null);
+        })
+        .catch(() => { if (seq === areaSearchSeq.current) setAreaStatus("Search failed"); });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [areaSearch, areaKind]);
+
+  const fitToParts = (parts: LngLat[][][]) => {
+    let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+    for (const [outer] of parts) {
+      for (const [x, y] of outer) {
+        if (x < w) w = x;
+        if (x > e) e = x;
+        if (y < s) s = y;
+        if (y > n) n = y;
+      }
+    }
+    map.current?.fitBounds([[w, s], [e, n]], { padding: 40, duration: 1500 });
+  };
+
+  const applyArea = (ref: string, fit = true) => {
+    const parsed = parseAreaRef(ref);
+    const url = areaBorderUrl(ref);
+    if (!parsed || !url) return;
+    setAreaStatus("Loading border...");
+    fetch(url)
+      .then((r) => r.json())
+      .then((results: { name: string; geojson?: { type: string; coordinates: unknown } }[]) => {
+        const parts = geojsonToParts(results[0]?.geojson);
+        if (!parts) { setAreaStatus("No border found"); return; }
+        // mainland's outer ring doubles as the regular area polygon (toolbar anchor etc.)
+        const mainRing = largestPart(parts)[0];
+        setPickedArea({ ref: `${parsed.kind}:${parsed.osmId}`, name: results[0].name, parts, mainland: parsed.mainland, mainRing });
+        setVertices(mainRing);
+        setDrawingState("complete");
+        setAreaSearch("");
+        setAreaHits([]);
+        setAreaStatus(`${results[0].name}: border set`);
+        if (fit) fitToParts(parsed.mainland ? [largestPart(parts)] : parts);
+      })
+      .catch(() => setAreaStatus("Loading border failed"));
+  };
+
+  const setAreaMainland = (mainland: boolean) => {
+    if (!pickedArea) return;
+    setPickedArea({ ...pickedArea, mainland });
+    fitToParts(mainland ? [largestPart(pickedArea.parts)] : pickedArea.parts);
+  };
+
+  // restore ?area= from a shared link
+  useEffect(() => {
+    if (initArea.current) applyArea(initArea.current, false);
+  }, []);
+
+  // any other edit of the area (clear, redraw, zone polygon) drops the picked area
+  useEffect(() => {
+    if (pickedArea && (drawingState !== "complete" || vertices !== pickedArea.mainRing)) {
+      setPickedArea(null);
+    }
+  }, [pickedArea, drawingState, vertices]);
+
   // histogram panel resize
   const [panelHeight, setPanelHeight] = useState(180);
   const dragging = useRef(false);
@@ -651,7 +748,10 @@ export function MapPage() {
 
     // polygon filter
     if (drawingState === "complete" && vertices.length >= 3) {
-      events = events.filter((e) => pointInPolygon([e[0], e[1]], vertices));
+      const inside = areaParts
+        ? multiPolygonContains(areaParts)
+        : (p: LngLat) => pointInPolygon(p, vertices);
+      events = events.filter((e) => inside([e[0], e[1]]));
     }
 
     // jitter: scatter geohash-center-snapped points within their cell
@@ -667,7 +767,7 @@ export function MapPage() {
     }
 
     return events;
-  }, [allEvents, timeFrom, timeUntil, drawingState, vertices, jitterEnabled, selected, jitterStyle]);
+  }, [allEvents, timeFrom, timeUntil, drawingState, vertices, areaParts, jitterEnabled, selected, jitterStyle]);
 
   const legendColors = useMemo(() => {
     if (colorOverride) return heatmapColors;
@@ -771,7 +871,9 @@ export function MapPage() {
     if (timeFrom) params.from = dateToDateParam(timeFrom);
     if (timeUntil) params.to = dateToDateParam(timeUntil);
     if (selectedZoneIds.size > 0) params.zones = [...selectedZoneIds].join(",");
-    if (drawingState === "complete" && vertices.length >= 3) {
+    if (pickedArea) {
+      params.area = pickedArea.ref + (pickedArea.mainland ? ":mainland" : "");
+    } else if (drawingState === "complete" && vertices.length >= 3) {
       params.poly = vertices
         .map(([lng, lat]) => `${lng.toFixed(4)},${lat.toFixed(4)}`)
         .join(",");
@@ -783,7 +885,7 @@ export function MapPage() {
       params.lng = center.lng.toFixed(4);
     }
     setSearchParams(params, { replace: true });
-  }, [selected, timeFrom, timeUntil, selectedZoneIds, drawingState, vertices, zoom, setSearchParams]);
+  }, [selected, timeFrom, timeUntil, selectedZoneIds, drawingState, vertices, pickedArea, zoom, setSearchParams]);
 
   // ---------- map init ----------
   useEffect(() => {
@@ -1057,8 +1159,9 @@ export function MapPage() {
       layers.push(
         new PolygonLayer({
           id: "polygon-fill",
-          data: [{ polygon: vertices }],
-          getPolygon: (d: { polygon: LngLat[] }) => d.polygon,
+          // picked area: one polygon per part, rings = [outer, ...holes]
+          data: areaParts ? areaParts.map((p) => ({ polygon: p })) : [{ polygon: vertices }],
+          getPolygon: (d: { polygon: LngLat[] | LngLat[][] }) => d.polygon,
           getFillColor: mapTheme === "dark" ? [255, 140, 0, 35] : [120, 120, 120, 40],
           getLineColor: mapTheme === "dark" ? [255, 140, 0, 200] : [100, 100, 100, 200],
           getLineWidth: 2,
@@ -1128,7 +1231,7 @@ export function MapPage() {
     }
 
     overlay.current.setProps({ layers });
-  }, [filteredEvents, drawingState, vertices, zoom, visibleZones, geohashEnabled, hoveredGeohash, mapTheme, heatmapColors, colorOverride]);
+  }, [filteredEvents, drawingState, vertices, areaParts, zoom, visibleZones, geohashEnabled, hoveredGeohash, mapTheme, heatmapColors, colorOverride]);
 
   // resize map after mount
   useEffect(() => {
@@ -1400,6 +1503,65 @@ export function MapPage() {
                   <div className="zone-dropdown-empty">No zones match</div>
                 )}
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="map-left-card">
+          <button
+            className="saved-views-toggle"
+            onClick={() => updateSettings({ bottomPanel: bottomPanel === "areas" ? null : "areas" })}
+          >
+            <span>Areas Tool</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: bottomPanel === "areas" ? "rotate(180deg)" : undefined, transition: "transform 0.2s" }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {bottomPanel === "areas" && (
+            <div className="saved-views-left-list">
+              <div className="geohash-precision-toggle">
+                {(["country", "city"] as const).map((k) => (
+                  <button
+                    key={k}
+                    className={`geohash-precision-btn${areaKind === k ? " active" : ""}`}
+                    onClick={() => setAreaKind(k)}
+                  >
+                    {k === "country" ? "Countries" : "Cities"}
+                  </button>
+                ))}
+              </div>
+              <input
+                className="zone-dropdown-search"
+                type="text"
+                placeholder={areaKind === "country" ? "Search country, e.g. Brazil" : "Search city, e.g. Munich"}
+                value={areaSearch}
+                onChange={(e) => { setAreaSearch(e.target.value); setAreaStatus(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && areaHits[0]) applyArea(areaHits[0].ref); }}
+                autoFocus
+              />
+              {areaHits.map((h) => (
+                <div key={h.ref} className="saved-view-item">
+                  <span className="saved-view-desc" title={h.detail || h.name} onClick={() => applyArea(h.ref)}>
+                    {h.name}
+                    {h.detail && <span className="zone-item-badge"> {h.detail}</span>}
+                  </span>
+                </div>
+              ))}
+              {areaStatus && <div className="zone-dropdown-empty">{areaStatus}</div>}
+              {pickedArea && pickedArea.parts.length > 1 && (
+                <div className="geohash-precision-toggle" title={`${pickedArea.name} has ${pickedArea.parts.length} separate parts`}>
+                  {([true, false] as const).map((m) => (
+                    <button
+                      key={String(m)}
+                      className={`geohash-precision-btn${pickedArea.mainland === m ? " active" : ""}`}
+                      title={m ? "Only the largest part (no islands / overseas territories)" : "Every part, including islands and overseas territories"}
+                      onClick={() => setAreaMainland(m)}
+                    >
+                      {m ? "Mainland" : "With islands"}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1922,7 +2084,8 @@ export function MapPage() {
                 if (selected) params.set("type", selected);
                 if (timeFrom) params.set("from", String(Math.floor(timeFrom.getTime() / 1000)));
                 if (timeUntil) params.set("to", String(Math.floor(timeUntil.getTime() / 1000) + 86400));
-                params.set("poly", JSON.stringify(vertices));
+                if (pickedArea) params.set("area", pickedArea.ref + (pickedArea.mainland ? ":mainland" : ""));
+                else params.set("poly", JSON.stringify(vertices));
                 const a = document.createElement("a");
                 a.href = `/api/events/export?${params.toString()}`;
                 a.download = "";

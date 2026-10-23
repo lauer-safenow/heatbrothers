@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { getEventsByType, type CachedEvent } from "../cache.js";
 import { geocode } from "../geocode.js";
-import { pointInPolygon } from "../pointInPolygon.js";
+import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart } from "../pointInPolygon.js";
 import { sqlite } from "@heatbrothers/db";
-import { REPLAY_MAX_EVENTS } from "@heatbrothers/shared";
+import { REPLAY_MAX_EVENTS, areaBorderUrl, parseAreaRef } from "@heatbrothers/shared";
 
 export const eventsRouter = Router();
 
@@ -95,7 +95,7 @@ function csvEscape(val: string | number | null | undefined): string {
   return s;
 }
 
-eventsRouter.get("/events/export", (req, res) => {
+eventsRouter.get("/events/export", async (req, res) => {
   const type = (req.query.type as string) || null;
   const from = req.query.from ? parseInt(req.query.from as string, 10) : null;
   const to = req.query.to ? parseInt(req.query.to as string, 10) : null;
@@ -105,6 +105,34 @@ eventsRouter.get("/events/export", (req, res) => {
     try {
       poly = JSON.parse(req.query.poly as string);
     } catch { /* ignore */ }
+  }
+
+  // Country/city area (map Areas tool): the border is too large for a query
+  // string, so fetch the same simplified border the map used.
+  let inArea: ((p: [number, number]) => boolean) | null = null;
+  if (req.query.area) {
+    const url = areaBorderUrl(req.query.area as string);
+    if (!url) {
+      res.status(400).json({ error: `Invalid area "${req.query.area}"` });
+      return;
+    }
+    try {
+      const r = await fetch(url, {
+        headers: { "User-Agent": "heatbrothers-export" }, // required by Nominatim usage policy
+        signal: AbortSignal.timeout(15_000),
+      });
+      const results = (await r.json()) as { geojson?: { type: string; coordinates: unknown } }[];
+      const parts = geojsonToParts(results[0]?.geojson);
+      if (!parts) {
+        res.status(404).json({ error: `No border found for "${req.query.area}"` });
+        return;
+      }
+      inArea = multiPolygonContains(parseAreaRef(req.query.area as string)!.mainland ? [largestPart(parts)] : parts);
+    } catch (err) {
+      console.error("[export] area border lookup failed:", err);
+      res.status(502).json({ error: "Area border lookup failed" });
+      return;
+    }
   }
 
   // Build SQL query with optional type + time filter
@@ -132,7 +160,9 @@ eventsRouter.get("/events/export", (req, res) => {
 
   // Apply polygon filter if provided
   let filtered = rows;
-  if (poly && poly.length >= 3) {
+  if (inArea) {
+    filtered = rows.filter((r) => inArea!([r.longitude, r.latitude]));
+  } else if (poly && poly.length >= 3) {
     filtered = rows.filter((r) => pointInPolygon([r.longitude, r.latitude], poly!));
   }
 
