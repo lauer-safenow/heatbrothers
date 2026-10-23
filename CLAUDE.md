@@ -53,9 +53,11 @@ pnpm dev              # starts API + Vite dev server on port 3001
 
 ### Two-tier cron (job queue, no skips)
 - **Fast** (`*/60 * * * * *`): syncs `DETAILED_ALARM_STARTED_PRIVATE_GROUP` every 60s
-- **Slow** (`0 0,5,10,...,55 * * * *`): syncs the other 4 types every 5 minutes
+- **Slow** (`30 0,5,10,...,55 * * * *`): syncs the other 4 types every 5 minutes, at second 30 so it never shares a tick with fast (second 0)
 - Jobs are queued, not dropped — slow job runs immediately after fast completes if they overlap
 - **node-cron 3.0.3 bug**: `*/N` step syntax in the minutes field is broken — it collapses to `0` only (fires at top of hour only). Fix: generate explicit minutes list `0,5,10,...,55`; never use `*/5 * * * *` style for minute-level schedules with this version
+- **node-cron 3.0.3 bug**: each tick only matches the current second. If the event loop is blocked across the scheduled second, the run is silently dropped (slow sync used to miss most slots this way). Slow uses `recoverMissedExecutions: true` to replay skipped seconds — but that option re-fires the same second on the next tick, so the callback ignores triggers within 60s of the last one. Keep both when touching the schedule
+- Sync cursor `MAX(timestamp) WHERE event_type = ?` relies on `idx_event_type_timestamp`; without it the query scans the whole type (~3s cold on 4M rows) and blocks the event loop
 
 ### Data consistency across environments
 - Each server (local/dev/prod) has its own SQLite — counts will differ by recent events

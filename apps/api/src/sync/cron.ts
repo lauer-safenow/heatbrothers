@@ -94,9 +94,23 @@ export function startCronSync() {
     { length: Math.floor(60 / SLOW_SYNC_INTERVAL_M) },
     (_, i) => i * SLOW_SYNC_INTERVAL_M,
   ).join(",");
-  cron.schedule(`0 ${slowMinutes} * * * *`, () => {
-    enqueue("slow");
-  });
+  // node-cron 3.0.3 only matches the current second on each tick. If the event
+  // loop is blocked across the scheduled second, the tick lands a second late
+  // and the run is silently dropped. Two mitigations:
+  //   - second 30, so slow never shares a tick with fast (second 0)
+  //   - recoverMissedExecutions replays skipped seconds; it also re-fires the
+  //     same second on the next tick (lastExecution is truncated to whole
+  //     seconds), so drop any trigger within 60s of the last one.
+  let lastSlowAt = 0;
+  cron.schedule(
+    `30 ${slowMinutes} * * * *`,
+    () => {
+      if (Date.now() - lastSlowAt < 60_000) return;
+      lastSlowAt = Date.now();
+      enqueue("slow");
+    },
+    { recoverMissedExecutions: true },
+  );
 
   // Daily drift audit at 04:00 Europe/Berlin. Catches per-month gaps that the
   // forward-only incremental cron can't repair. Cheap when clean (~5 queries).

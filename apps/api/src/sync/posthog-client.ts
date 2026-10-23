@@ -157,11 +157,14 @@ export async function* fetchEvents(
       `event = '${eventType}'`,
     ];
 
+    // Compare the raw column, not toUnixTimestamp(timestamp): `timestamp` there
+    // resolves to the SELECT alias, so ClickHouse can't prune by the time sort
+    // key and the query intermittently hits PostHog's max execution time (504).
     if (cursorEpoch != null) {
-      conditions.push(`toUnixTimestamp(timestamp) > ${cursorEpoch}`);
+      conditions.push(`events.timestamp > toDateTime(${cursorEpoch})`);
     }
     if (toEpoch != null) {
-      conditions.push(`toUnixTimestamp(timestamp) <= ${toEpoch}`);
+      conditions.push(`events.timestamp <= toDateTime(${toEpoch})`);
     }
 
     const whereClause = `WHERE ${conditions.join(" AND ")}`;
@@ -250,7 +253,7 @@ export async function* fetchAllEvents(
     ];
 
     if (pageCursor) {
-      conditions.push(`toUnixTimestamp(timestamp) > ${pageCursor}`);
+      conditions.push(`events.timestamp > toDateTime(${pageCursor})`);
     }
 
     const whereClause = `WHERE ${conditions.join(" AND ")}`;

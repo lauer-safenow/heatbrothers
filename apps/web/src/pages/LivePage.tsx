@@ -1471,6 +1471,18 @@ export function LivePage() {
             </div>
           )}
         </div>
+        {mode === "replay" && (
+          <button
+            className={`settings-btn replay-cal-btn${!replayMinimized ? " active" : ""}`}
+            title={replayMinimized ? "Show date picker" : "Hide date picker"}
+            onClick={() => setReplayMinimized((v) => !v)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="5" width="18" height="16" rx="3" />
+              <path d="M3 10h18M8 3v4M16 3v4" />
+            </svg>
+          </button>
+        )}
         <HideUIButton hidden={false} onToggle={(h) => updateSettings({ hideUI: h })} />
         <div ref={settingsRef} className="live-settings-wrap">
           <button
@@ -1624,16 +1636,7 @@ export function LivePage() {
       )}
 
       {/* Replay controls */}
-      {mode === "replay" && (
-        replayMinimized ? (
-          <button
-            className="replay-restore-btn"
-            onClick={() => setReplayMinimized(false)}
-            title="Show date picker"
-          >
-            {"\uD83D\uDCC5"}
-          </button>
-        ) : (
+      {mode === "replay" && !replayMinimized && (
         <div className={`replay-controls${!pickerOpen ? " mini" : ""}`}>
           <button
             className="replay-minimize-btn"
@@ -1798,7 +1801,6 @@ export function LivePage() {
             />
           </div>
         </div>
-        )
       )}
 
       {/* Queue list above stats */}

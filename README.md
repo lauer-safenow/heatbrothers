@@ -34,15 +34,19 @@ ssh -p 2222 ubuntu@91.99.152.244 'sleep 15 && journalctl --user -u heatbrothers 
 | `app_opening_ZONE` | App opened in a zone |
 | `DETAILED_ALARM_STARTED_ZONE` | Alarm triggered in a zone |
 | `DETAILED_ALARM_STARTED_PRIVATE_GROUP` | Alarm triggered in a private group |
+| `DETAILED_ATTENTION_STARTED_PRIVATE_GROUP` | Attention triggered in a private group |
 
 Events are filtered to `env='prod'` and must have app-reported `properties.latitude` / `properties.longitude`.
 
 ## Sync Engine
 
-- **Cursor pagination:** Uses `MAX(posthog_ts)` per event type as cursor — no OFFSET (times out at scale), no separate sync state table
+- **Cursor pagination:** Uses `MAX(timestamp) - 600s` per event type as cursor (10-min lookback for ingestion delay) — no OFFSET (times out at scale). Backed by the `idx_event_type_timestamp` index so the lookup doesn't block the event loop
 - **Bulk insert:** Raw better-sqlite3 `INSERT OR IGNORE` in transactions (Prisma's `createMany` has bugs with this adapter)
-- **Retry:** Exponential backoff (2s/4s/8s/16s) for 429 and 5xx errors, up to 5 attempts
-- **Cron:** Incremental sync every 5 minutes via node-cron
+- **Errors:** No retry. A 429 skips the run (fast cron then cools down for 2 cycles); other failures are logged and the next tick tries again
+- **Cron (node-cron 3.0.3), two tiers on one job queue:**
+  - Fast: `DETAILED_ALARM_STARTED_PRIVATE_GROUP` every 60s (second 0)
+  - Slow: the other 4 types every 5 minutes (second 30, with missed-tick recovery + dedup guard — see `CLAUDE.md` for the node-cron bugs this works around)
+  - Daily drift audit at 04:00 Europe/Berlin; per-month count check that backfills gaps
 - **Manual sync:** `POST /api/sync` or `pnpm sync`
 
 ## Environment Variables
@@ -89,3 +93,5 @@ pnpm bootstrap      # install + generate + deploy + dev
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/stats` | Event counts by type |
 | `POST` | `/api/sync` | Trigger manual sync |
+| `POST` | `/api/sync/audit` | Run the drift audit now (background) |
+| `POST` | `/api/sync/hard-reset` | Delete all events and re-sync from scratch (background, pauses cron) |

@@ -29,6 +29,7 @@ model Event {
 
   @@index([eventType], name: "idx_event_type")
   @@index([timestamp], name: "idx_timestamp")
+  @@index([eventType, timestamp], name: "idx_event_type_timestamp")
   @@index([latitude, longitude], name: "idx_geo")
   @@index([geohash], name: "idx_geohash")
   @@index([distinctId], name: "idx_distinct_id")

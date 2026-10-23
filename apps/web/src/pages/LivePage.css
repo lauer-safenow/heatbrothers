@@ -521,7 +521,7 @@
   position: absolute;
   top: 1rem;
   right: 1rem;
-  z-index: 10;
+  z-index: 11; /* above .replay-controls so dropdown/settings menus overlay it */
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
@@ -673,7 +673,6 @@
 .live-page.hide-ui .live-label,
 .live-page.hide-ui .live-mode-hint,
 .live-page.hide-ui .replay-controls,
-.live-page.hide-ui .replay-restore-btn,
 .live-page.hide-ui .live-queue-display,
 .live-page.hide-ui .live-pins,
 .live-page.hide-ui .maplibregl-ctrl-bottom-right,
@@ -1023,30 +1022,17 @@
   transform: scale(1.1);
 }
 
-.replay-restore-btn {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  z-index: 10;
-  background: var(--ctrl-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--ctrl-border-faint);
-  border-radius: 8px;
-  padding: 0.4rem 0.5rem;
-  font-size: 1.1rem;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.replay-restore-btn:hover {
+.live-page .replay-cal-btn.active {
   border-color: var(--accent-orange-hover);
+  color: var(--text);
 }
 
 /* ── replay controls ── */
+/* Sits under the top-right controls row (1rem + 40px button + 8px gap) */
 .replay-controls {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: calc(1rem + 48px);
+  right: 1rem;
   z-index: 10;
   background: var(--ctrl-bg);
   backdrop-filter: blur(12px);
