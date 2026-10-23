@@ -8,7 +8,7 @@ import "../datepicker-dark.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
 import { pointInPolygon } from "../utils/pointInPolygon";
-import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterWithinCell, geohashPrecisionForType } from "../utils/geohash";
+import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterOrganic, JITTER_STYLES, JITTER_STYLE_HINTS, type JitterStyle, geohashPrecisionForType } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
 import { HideUIButton } from "../components/HideUIButton";
 import { HomeLogo } from "../components/HomeLogo";
@@ -306,6 +306,22 @@ export function MapPage() {
   // persisted settings (localStorage)
   const [settings, updateSettings] = usePersistedSettings();
   const { mapTheme, osmStyle, geohashEnabled, geohashPrecision, zoneAutoDiscover, showZoomControls, colorOverride, heatmapColors, showActiveZones, jitterEnabled, hideUI, settingsOpen, savedViewsOpen, bottomPanel, cinematicMode } = settings;
+  // guard against stale/unknown values in localStorage
+  const jitterStyle: JitterStyle = JITTER_STYLES.includes(settings.jitterStyle) ? settings.jitterStyle : "cell";
+  const cycleJitterStyle = () =>
+    updateSettings({ jitterStyle: JITTER_STYLES[(JITTER_STYLES.indexOf(jitterStyle) + 1) % JITTER_STYLES.length] });
+
+  // "j" cycles the jitter style
+  useEffect(() => {
+    if (!jitterEnabled) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "j" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+      cycleJitterStyle();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [jitterEnabled, jitterStyle]);
 
   const zoneLabelRef = useRef<HTMLDivElement>(null);
 
@@ -644,14 +660,14 @@ export function MapPage() {
       const precision = geohashPrecisionForType(selected);
       if (precision !== null) {
         events = events.map((e, i): EventTuple => {
-          const [jLat, jLng] = jitterWithinCell(e[1], e[0], precision, i);
+          const [jLat, jLng] = jitterOrganic(e[1], e[0], precision, i, jitterStyle);
           return [jLng, jLat, e[2]];
         });
       }
     }
 
     return events;
-  }, [allEvents, timeFrom, timeUntil, drawingState, vertices, jitterEnabled, selected]);
+  }, [allEvents, timeFrom, timeUntil, drawingState, vertices, jitterEnabled, selected, jitterStyle]);
 
   const legendColors = useMemo(() => {
     if (colorOverride) return heatmapColors;
@@ -1580,6 +1596,23 @@ export function MapPage() {
                   onClick={() => updateSettings({ jitterEnabled: !jitterEnabled })}
                 />
               </div>
+              {jitterEnabled && (
+                <div className="settings-row">
+                  <span className="settings-label" title="Press j to cycle">Jitter style</span>
+                  <div className="geohash-precision-toggle">
+                    {JITTER_STYLES.map((s) => (
+                      <button
+                        key={s}
+                        className={`geohash-precision-btn${jitterStyle === s ? " active" : ""}`}
+                        title={`${JITTER_STYLE_HINTS[s]}\n\nPress j to cycle.`}
+                        onClick={() => updateSettings({ jitterStyle: s })}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="settings-row">
                 <span className="settings-label">Cinematic</span>
                 <img

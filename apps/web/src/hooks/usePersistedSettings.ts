@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import type { JitterStyle } from "../utils/geohash";
 
 export const DEFAULT_OVERRIDE_COLORS = ["#f58ca0", "#f0506e", "#f0093f", "#dc0750", "#cc0560", "#960046"];
 
@@ -13,6 +14,7 @@ export interface MapSettings {
   heatmapColors: string[];
   showActiveZones: boolean;
   jitterEnabled: boolean;
+  jitterStyle: JitterStyle;
   hideUI: boolean;
   settingsOpen: boolean;
   savedViewsOpen: boolean;
@@ -31,6 +33,7 @@ const DEFAULTS: MapSettings = {
   heatmapColors: DEFAULT_OVERRIDE_COLORS,
   showActiveZones: false,
   jitterEnabled: true,
+  jitterStyle: "cell",
   hideUI: false,
   settingsOpen: false,
   savedViewsOpen: false,

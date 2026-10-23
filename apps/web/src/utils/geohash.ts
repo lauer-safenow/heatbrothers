@@ -122,6 +122,48 @@ export function jitterWithinCell(
   ];
 }
 
+/**
+ * Jitter styles. "cell" keeps points inside their own geohash cell (hard
+ * square edges at some zooms). The others spread points around the cell
+ * center past the cell edge so neighbouring cells blend into an organic-
+ * looking heatmap. Display-only: stored/synced coordinates are unchanged.
+ */
+export type JitterStyle = "cell" | "soft" | "smooth" | "gauss";
+export const JITTER_STYLES: JitterStyle[] = ["cell", "soft", "smooth", "gauss"];
+export const JITTER_STYLE_HINTS: Record<JitterStyle, string> = {
+  cell: "Cell (today): points spread evenly inside their own geohash square. Never leaves the square, but shows hard square edges.",
+  soft: "Soft: points spill up to 1 square into neighbours. Density fades smoothly between square centres, so no hard edges.",
+  smooth: "Smooth: points spill up to 2 squares. Even gentler transitions, but less precise.",
+  gauss: "Gauss: round blur around each square's centre (mostly within 1 square, no hard limit). Looks like clouds rather than a grid.",
+};
+
+export function jitterOrganic(
+  lat: number, lng: number, precision: number, seed: number, style: JitterStyle,
+): [number, number] {
+  if (style === "cell") return jitterWithinCell(lat, lng, precision, seed);
+  const [latMin, lngMin, latMax, lngMax] = geohashBounds(geohashEncode(lat, lng, precision));
+  const cLat = (latMin + latMax) / 2, cLng = (lngMin + lngMax) / 2;
+  const hLat = latMax - latMin, hLng = lngMax - lngMin;
+  const r = (k: number) => seededRandom(seed + k * 99991);
+  let dLat: number, dLng: number;
+  if (style === "soft") {
+    // tent kernel (sum of 2 uniforms): ±1 cell, density blends linearly between cell centers
+    dLat = r(0) + r(1) - 1;
+    dLng = r(2) + r(3) - 1;
+  } else if (style === "smooth") {
+    // cubic B-spline kernel (sum of 4 uniforms): ±2 cells, smoothest blending
+    dLat = r(0) + r(1) + r(2) + r(3) - 2;
+    dLng = r(4) + r(5) + r(6) + r(7) - 2;
+  } else {
+    // gaussian, sigma = 0.5 cell (Box-Muller), round blobs
+    const rad = Math.sqrt(-2 * Math.log(Math.max(r(0), 1e-9))) * 0.5;
+    const ang = 2 * Math.PI * r(1);
+    dLat = rad * Math.cos(ang);
+    dLng = rad * Math.sin(ang);
+  }
+  return [cLat + dLat * hLat, cLng + dLng * hLng];
+}
+
 /** Choose geohash precision based on map zoom level. */
 export function precisionForZoom(zoom: number): number {
   if (zoom < 4) return 2;
