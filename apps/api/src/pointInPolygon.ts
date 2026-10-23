@@ -69,6 +69,20 @@ export function largestPart(parts: [number, number][][][]): [number, number][][]
   return parts.reduce((a, b) => (ringArea(b[0]) > ringArea(a[0]) ? b : a));
 }
 
+/** Bounding rectangle of all outer rings, as a single-part MultiPolygon. */
+export function bboxParts(parts: [number, number][][][]): [number, number][][][] {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const [outer] of parts) {
+    for (const [x, y] of outer) {
+      if (x < w) w = x;
+      if (x > e) e = x;
+      if (y < s) s = y;
+      if (y > n) n = y;
+    }
+  }
+  return [[[[w, s], [e, s], [e, n], [w, n]]]];
+}
+
 /** GeoJSON Polygon/MultiPolygon → MultiPolygon parts ([outer, ...holes] per part). */
 export function geojsonToParts(
   g: { type: string; coordinates: unknown } | undefined,

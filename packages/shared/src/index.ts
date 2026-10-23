@@ -20,14 +20,20 @@ export type AreaKind = "country" | "city";
 const AREA_SIMPLIFY: Record<AreaKind, number> = { country: 0.01, city: 0.001 };
 
 /**
- * Area ref: "<kind>:<osm type><osm id>[:mainland]", e.g. "city:R62428" or
- * "country:R2202162:mainland". `mainland` keeps only the largest part of a
- * multi-part border (drops islands / overseas territories).
+ * Area ref: "<kind>:<osm type><osm id>[:mainland][:bbox]", e.g. "city:R62428"
+ * or "country:R2202162:mainland". `mainland` keeps only the largest part of a
+ * multi-part border (drops islands / overseas territories); `bbox` replaces
+ * the border with its bounding rectangle.
  */
-export function parseAreaRef(ref: string): { kind: AreaKind; osmId: string; mainland: boolean } | null {
-  const m = /^(country|city):([RW]\d+)(:mainland)?$/.exec(ref);
+export function parseAreaRef(ref: string): { kind: AreaKind; osmId: string; mainland: boolean; bbox: boolean } | null {
+  const m = /^(country|city):([RW]\d+)(:mainland)?(:bbox)?$/.exec(ref);
   if (!m) return null;
-  return { kind: m[1] as AreaKind, osmId: m[2], mainland: !!m[3] };
+  return { kind: m[1] as AreaKind, osmId: m[2], mainland: !!m[3], bbox: !!m[4] };
+}
+
+/** Builds the ref back from its parts (inverse of parseAreaRef). */
+export function formatAreaRef(base: string, mainland: boolean, bbox: boolean): string {
+  return base + (mainland ? ":mainland" : "") + (bbox ? ":bbox" : "");
 }
 
 /**

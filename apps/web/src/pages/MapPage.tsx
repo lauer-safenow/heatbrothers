@@ -7,8 +7,8 @@ import "react-datepicker/dist/react-datepicker.css";
 import "../datepicker-dark.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
-import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart } from "../utils/pointInPolygon";
-import { areaBorderUrl, parseAreaRef, type AreaKind } from "@heatbrothers/shared";
+import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart, bboxParts } from "../utils/pointInPolygon";
+import { areaBorderUrl, parseAreaRef, formatAreaRef, type AreaKind } from "@heatbrothers/shared";
 import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterOrganic, JITTER_STYLES, JITTER_STYLE_HINTS, type JitterStyle, geohashPrecisionForType } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
 import { HideUIButton } from "../components/HideUIButton";
@@ -36,6 +36,12 @@ const OSM_STYLE: maplibregl.StyleSpecification = {
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type LngLat = [number, number];
 type AreaHit = { ref: string; name: string; detail: string }; // Areas tool search result
+
+/** Parts actually used for an Areas tool pick: optionally mainland only, optionally as bounding box. */
+function effectiveAreaParts(parts: LngLat[][][], mainland: boolean, bbox: boolean): LngLat[][][] {
+  const kept = mainland ? [largestPart(parts)] : parts;
+  return bbox ? bboxParts(kept) : kept;
+}
 type DrawingState = "idle" | "drawing" | "complete";
 
 const ZONE_AUTO_ZOOM = 13; // zoom level at which zones auto-appear in the viewport
@@ -288,11 +294,12 @@ export function MapPage() {
   );
   const [vertices, setVertices] = useState<LngLat[]>(initPoly.current ?? []);
   // country/city picked in the Areas tool: full border (parts = [outer, ...holes]);
-  // `mainland` keeps only the largest part. mainRing (the mainland's outer ring)
-  // is the same array reference as `vertices` while the area is active.
-  const [pickedArea, setPickedArea] = useState<{ ref: string; name: string; parts: LngLat[][][]; mainland: boolean; mainRing: LngLat[] } | null>(null);
+  // `mainland` keeps only the largest part, `bbox` swaps the border for its
+  // bounding rectangle. mainRing (the mainland's outer ring) is the same array
+  // reference as `vertices` while the area is active.
+  const [pickedArea, setPickedArea] = useState<{ ref: string; kind: AreaKind; name: string; parts: LngLat[][][]; mainland: boolean; bbox: boolean; mainRing: LngLat[] } | null>(null);
   const areaParts = useMemo(
-    () => (pickedArea ? (pickedArea.mainland ? [largestPart(pickedArea.parts)] : pickedArea.parts) : null),
+    () => (pickedArea ? effectiveAreaParts(pickedArea.parts, pickedArea.mainland, pickedArea.bbox) : null),
     [pickedArea],
   );
   const [polyAnchorPx, setPolyAnchorPx] = useState<{ x: number; y: number } | null>(null);
@@ -676,21 +683,22 @@ export function MapPage() {
         if (!parts) { setAreaStatus("No border found"); return; }
         // mainland's outer ring doubles as the regular area polygon (toolbar anchor etc.)
         const mainRing = largestPart(parts)[0];
-        setPickedArea({ ref: `${parsed.kind}:${parsed.osmId}`, name: results[0].name, parts, mainland: parsed.mainland, mainRing });
+        setPickedArea({ ref: `${parsed.kind}:${parsed.osmId}`, kind: parsed.kind, name: results[0].name, parts, mainland: parsed.mainland, bbox: parsed.bbox, mainRing });
         setVertices(mainRing);
         setDrawingState("complete");
         setAreaSearch("");
         setAreaHits([]);
         setAreaStatus(`${results[0].name}: border set`);
-        if (fit) fitToParts(parsed.mainland ? [largestPart(parts)] : parts);
+        if (fit) fitToParts(effectiveAreaParts(parts, parsed.mainland, parsed.bbox));
       })
       .catch(() => setAreaStatus("Loading border failed"));
   };
 
-  const setAreaMainland = (mainland: boolean) => {
+  const updateAreaShape = (patch: { mainland?: boolean; bbox?: boolean }) => {
     if (!pickedArea) return;
-    setPickedArea({ ...pickedArea, mainland });
-    fitToParts(mainland ? [largestPart(pickedArea.parts)] : pickedArea.parts);
+    const next = { ...pickedArea, ...patch };
+    setPickedArea(next);
+    fitToParts(effectiveAreaParts(next.parts, next.mainland, next.bbox));
   };
 
   // restore ?area= from a shared link
@@ -872,7 +880,7 @@ export function MapPage() {
     if (timeUntil) params.to = dateToDateParam(timeUntil);
     if (selectedZoneIds.size > 0) params.zones = [...selectedZoneIds].join(",");
     if (pickedArea) {
-      params.area = pickedArea.ref + (pickedArea.mainland ? ":mainland" : "");
+      params.area = formatAreaRef(pickedArea.ref, pickedArea.mainland, pickedArea.bbox);
     } else if (drawingState === "complete" && vertices.length >= 3) {
       params.poly = vertices
         .map(([lng, lat]) => `${lng.toFixed(4)},${lat.toFixed(4)}`)
@@ -1555,9 +1563,23 @@ export function MapPage() {
                       key={String(m)}
                       className={`geohash-precision-btn${pickedArea.mainland === m ? " active" : ""}`}
                       title={m ? "Only the largest part (no islands / overseas territories)" : "Every part, including islands and overseas territories"}
-                      onClick={() => setAreaMainland(m)}
+                      onClick={() => updateAreaShape({ mainland: m })}
                     >
                       {m ? "Mainland" : "With islands"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {pickedArea?.kind === "city" && (
+                <div className="geohash-precision-toggle">
+                  {([false, true] as const).map((b) => (
+                    <button
+                      key={String(b)}
+                      className={`geohash-precision-btn${pickedArea.bbox === b ? " active" : ""}`}
+                      title={b ? "Rectangle around the city border" : "Exact city border"}
+                      onClick={() => updateAreaShape({ bbox: b })}
+                    >
+                      {b ? "Bounding box" : "Border"}
                     </button>
                   ))}
                 </div>
@@ -2084,7 +2106,7 @@ export function MapPage() {
                 if (selected) params.set("type", selected);
                 if (timeFrom) params.set("from", String(Math.floor(timeFrom.getTime() / 1000)));
                 if (timeUntil) params.set("to", String(Math.floor(timeUntil.getTime() / 1000) + 86400));
-                if (pickedArea) params.set("area", pickedArea.ref + (pickedArea.mainland ? ":mainland" : ""));
+                if (pickedArea) params.set("area", formatAreaRef(pickedArea.ref, pickedArea.mainland, pickedArea.bbox));
                 else params.set("poly", JSON.stringify(vertices));
                 const a = document.createElement("a");
                 a.href = `/api/events/export?${params.toString()}`;

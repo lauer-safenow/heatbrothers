@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getEventsByType, type CachedEvent } from "../cache.js";
 import { geocode } from "../geocode.js";
-import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart } from "../pointInPolygon.js";
+import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart, bboxParts } from "../pointInPolygon.js";
 import { sqlite } from "@heatbrothers/db";
 import { REPLAY_MAX_EVENTS, areaBorderUrl, parseAreaRef } from "@heatbrothers/shared";
 
@@ -127,7 +127,9 @@ eventsRouter.get("/events/export", async (req, res) => {
         res.status(404).json({ error: `No border found for "${req.query.area}"` });
         return;
       }
-      inArea = multiPolygonContains(parseAreaRef(req.query.area as string)!.mainland ? [largestPart(parts)] : parts);
+      const ref = parseAreaRef(req.query.area as string)!;
+      const kept = ref.mainland ? [largestPart(parts)] : parts;
+      inArea = multiPolygonContains(ref.bbox ? bboxParts(kept) : kept);
     } catch (err) {
       console.error("[export] area border lookup failed:", err);
       res.status(502).json({ error: "Area border lookup failed" });
