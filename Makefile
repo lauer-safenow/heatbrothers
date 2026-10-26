@@ -1,5 +1,7 @@
 # Local dev server control. `pnpm dev` runs in the background; output goes to $(LOG).
-#   make start | stop | restart | status | logs
+# `make` or `make help` lists the targets (from the `## ` comments).
+
+.DEFAULT_GOAL := help
 
 SHELL := /bin/bash
 PID   := .dev.pid
@@ -13,10 +15,14 @@ define KILL_TREE
 kill_tree() { for c in $$(pgrep -P $$1); do kill_tree $$c; done; kill $$1 2>/dev/null || true; }
 endef
 
-.PHONY: start stop restart status logs
+.PHONY: help start stop restart status logs
+
+help: ## Show this help
+	@echo "Local dev server ($(URL), log: $(LOG))"; echo
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-9s %s\n", $$1, $$2}'
 
 # one shell for the whole recipe, so the "already running" exit really stops it
-start:
+start: ## Start pnpm dev in the background, wait until healthy
 	@if [ -f $(PID) ] && kill -0 $$(cat $(PID)) 2>/dev/null; then \
 		echo "already running (pid $$(cat $(PID))) on $(URL)"; exit 0; fi; \
 	nohup pnpm dev > $(LOG) 2>&1 & echo $$! > $(PID); \
@@ -27,7 +33,7 @@ start:
 		sleep 1; \
 	done; echo "not healthy after 60s, check: make logs"; exit 1
 
-stop:
+stop: ## Stop the server and everything it spawned
 	@$(KILL_TREE); \
 	if [ -f $(PID) ]; then kill_tree $$(cat $(PID)); rm -f $(PID); fi; \
 	pkill -f "$(CURDIR)/.*tsx" 2>/dev/null || true; \
@@ -35,11 +41,11 @@ stop:
 	if lsof -ti tcp:$(PORT) -sTCP:LISTEN >/dev/null; then echo "port $(PORT) still in use:"; lsof -i tcp:$(PORT) -sTCP:LISTEN; exit 1; fi; \
 	echo "stopped"
 
-restart: stop start
+restart: stop start ## Stop, then start
 
-status:
+status: ## Show whether it's running and the health check
 	@if [ -f $(PID) ] && kill -0 $$(cat $(PID)) 2>/dev/null; then echo "running (pid $$(cat $(PID)))"; else echo "not running"; fi
 	@curl -sf -m 2 $(URL)/api/health && echo " $(URL)" || echo "no response on $(URL)"
 
-logs:
+logs: ## Follow the log (Ctrl+C to quit)
 	@tail -f $(LOG)

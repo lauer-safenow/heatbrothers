@@ -2138,6 +2138,7 @@ export function MapPage() {
                     isClearable
                     placeholderText="Select date"
                     popperPlacement="top-start"
+                    fixedHeight // always 6 week rows, so the month arrows don't jump (popup opens upward)
                   />
                 </label>
                 <label>
@@ -2149,6 +2150,7 @@ export function MapPage() {
                     isClearable
                     placeholderText="Select date"
                     popperPlacement="top-end"
+                    fixedHeight
                   />
                 </label>
                 {(timeFrom || timeUntil) && (
