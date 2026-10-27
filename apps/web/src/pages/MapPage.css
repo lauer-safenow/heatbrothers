@@ -1855,3 +1855,68 @@
   opacity: 0.4;
   line-height: 1.4;
 }
+
+/* Areas tool: search results (dropdown under the input) vs picked list */
+.area-hits {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+  padding: 4px;
+  background: var(--ctrl-bg-solid);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.area-hit {
+  justify-content: flex-start;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.area-hit .saved-view-desc {
+  cursor: inherit;
+}
+
+.area-hit:hover .saved-view-desc,
+.area-hit:hover .area-hit-plus {
+  color: var(--accent-orange);
+}
+
+.area-hit-plus {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.area-picked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 4px;
+}
+
+.area-selected-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 4px;
+}
+
+.area-clear-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-family: "Inter", sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.area-clear-btn:hover {
+  border-color: var(--ctrl-border);
+  background: var(--subtle-bg);
+  color: var(--accent-orange);
+}

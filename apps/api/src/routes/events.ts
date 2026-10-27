@@ -3,7 +3,7 @@ import { getEventsByType, type CachedEvent } from "../cache.js";
 import { geocode } from "../geocode.js";
 import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart, bboxParts } from "../pointInPolygon.js";
 import { sqlite } from "@heatbrothers/db";
-import { REPLAY_MAX_EVENTS, areaBorderUrl, parseAreaRef } from "@heatbrothers/shared";
+import { REPLAY_MAX_EVENTS, areaBorderUrl, parseAreaRef, splitAreaRefs } from "@heatbrothers/shared";
 
 export const eventsRouter = Router();
 
@@ -107,34 +107,43 @@ eventsRouter.get("/events/export", async (req, res) => {
     } catch { /* ignore */ }
   }
 
-  // Country/city area (map Areas tool): the border is too large for a query
-  // string, so fetch the same simplified border the map used.
+  // Country/city areas (map Areas tool, `area=ref,ref,...`): borders are too
+  // large for a query string, so fetch the same simplified borders the map
+  // used. Several areas filter as their union.
   let inArea: ((p: [number, number]) => boolean) | null = null;
   if (req.query.area) {
-    const url = areaBorderUrl(req.query.area as string);
-    if (!url) {
-      res.status(400).json({ error: `Invalid area "${req.query.area}"` });
+    const refs = splitAreaRefs(req.query.area as string);
+    const invalid = refs.find((r) => !areaBorderUrl(r));
+    if (refs.length === 0 || invalid !== undefined) {
+      res.status(400).json({ error: `Invalid area "${invalid ?? req.query.area}"` });
       return;
     }
-    try {
-      const r = await fetch(url, {
-        headers: { "User-Agent": "heatbrothers-export" }, // required by Nominatim usage policy
-        signal: AbortSignal.timeout(15_000),
-      });
-      const results = (await r.json()) as { geojson?: { type: string; coordinates: unknown } }[];
-      const parts = geojsonToParts(results[0]?.geojson);
-      if (!parts) {
-        res.status(404).json({ error: `No border found for "${req.query.area}"` });
+    const allParts: [number, number][][][] = [];
+    for (const refStr of refs) {
+      try {
+        // one lookup at a time: Nominatim allows ~1 req/s
+        const r = await fetch(areaBorderUrl(refStr)!, {
+          headers: { "User-Agent": "heatbrothers-export" }, // required by Nominatim usage policy
+          signal: AbortSignal.timeout(15_000),
+        });
+        const results = (await r.json()) as { geojson?: { type: string; coordinates: unknown } }[];
+        // one result per OSM id: a single border for a country/city, one per country for a region
+        const members = results.map((x) => geojsonToParts(x.geojson)).filter((p) => p !== null);
+        if (members.length === 0) {
+          res.status(404).json({ error: `No border found for "${refStr}"` });
+          return;
+        }
+        const ref = parseAreaRef(refStr)!;
+        // mainland = each member's largest part (per country for a region)
+        const kept = ref.mainland ? members.map(largestPart) : members.flat();
+        allParts.push(...(ref.bbox ? bboxParts(kept) : kept));
+      } catch (err) {
+        console.error("[export] area border lookup failed:", err);
+        res.status(502).json({ error: "Area border lookup failed" });
         return;
       }
-      const ref = parseAreaRef(req.query.area as string)!;
-      const kept = ref.mainland ? [largestPart(parts)] : parts;
-      inArea = multiPolygonContains(ref.bbox ? bboxParts(kept) : kept);
-    } catch (err) {
-      console.error("[export] area border lookup failed:", err);
-      res.status(502).json({ error: "Area border lookup failed" });
-      return;
     }
+    inArea = multiPolygonContains(allParts);
   }
 
   // Build SQL query with optional type + time filter

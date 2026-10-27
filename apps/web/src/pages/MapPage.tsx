@@ -8,7 +8,7 @@ import "../datepicker-dark.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { HeatmapLayer, PolygonLayer, PathLayer, ScatterplotLayer, type Layer } from "deck.gl";
 import { pointInPolygon, multiPolygonContains, geojsonToParts, largestPart, bboxParts } from "../utils/pointInPolygon";
-import { areaBorderUrl, parseAreaRef, formatAreaRef, type AreaKind } from "@heatbrothers/shared";
+import { areaBorderUrl, parseAreaRef, formatAreaRef, splitAreaRefs, searchRegions, regionCountryNames, REGIONS, type AreaKind } from "@heatbrothers/shared";
 import { geohashEncode, geohashNeighbors, geohashToPolygon, jitterOrganic, JITTER_STYLES, JITTER_STYLE_HINTS, type JitterStyle, geohashPrecisionForType } from "../utils/geohash";
 import { TimeHistogram } from "../components/TimeHistogram";
 import { HideUIButton } from "../components/HideUIButton";
@@ -36,11 +36,26 @@ const OSM_STYLE: maplibregl.StyleSpecification = {
 type EventTuple = [number, number, number]; // [lng, lat, unixSeconds]
 type LngLat = [number, number];
 type AreaHit = { ref: string; name: string; detail: string }; // Areas tool search result
+// country/city/region picked in the Areas tool. `members` holds one border
+// per country (a region has several, a country/city exactly one), each a
+// MultiPolygon (part = [outer, ...holes]); `parts` is all of them flattened.
+// `mainland` keeps only each member's largest part, `bbox` swaps the border
+// for its bounding rectangle. mainRing is the first member's mainland outer
+// ring (used as the regular polygon's vertices while areas are active).
+type PickedArea = { ref: string; kind: AreaKind; name: string; members: LngLat[][][][]; parts: LngLat[][][]; mainland: boolean; bbox: boolean; mainRing: LngLat[] };
 
 /** Parts actually used for an Areas tool pick: optionally mainland only, optionally as bounding box. */
-function effectiveAreaParts(parts: LngLat[][][], mainland: boolean, bbox: boolean): LngLat[][][] {
-  const kept = mainland ? [largestPart(parts)] : parts;
-  return bbox ? bboxParts(kept) : kept;
+function effectiveAreaParts(a: Pick<PickedArea, "members" | "parts" | "mainland" | "bbox">): LngLat[][][] {
+  const kept = a.mainland ? a.members.map(largestPart) : a.parts;
+  return a.bbox ? bboxParts(kept) : kept;
+}
+const areaUrlParam = (areas: PickedArea[]) => areas.map((a) => formatAreaRef(a.ref, a.mainland, a.bbox)).join(",");
+/** Tooltip for an area ref: the member countries for a region, else the given fallback. */
+function areaTooltip(ref: string, fallback: string): string {
+  const parsed = parseAreaRef(ref);
+  if (parsed?.kind !== "region") return fallback;
+  const names = regionCountryNames(parsed.id);
+  return `${REGIONS[parsed.id].name} (${names.length} countries):\n${names.join(", ")}`;
 }
 type DrawingState = "idle" | "drawing" | "complete";
 
@@ -293,14 +308,14 @@ export function MapPage() {
     initPoly.current ? "complete" : "idle"
   );
   const [vertices, setVertices] = useState<LngLat[]>(initPoly.current ?? []);
-  // country/city picked in the Areas tool: full border (parts = [outer, ...holes]);
-  // `mainland` keeps only the largest part, `bbox` swaps the border for its
-  // bounding rectangle. mainRing (the mainland's outer ring) is the same array
-  // reference as `vertices` while the area is active.
-  const [pickedArea, setPickedArea] = useState<{ ref: string; kind: AreaKind; name: string; parts: LngLat[][][]; mainland: boolean; bbox: boolean; mainRing: LngLat[] } | null>(null);
+  // countries/cities picked in the Areas tool (additive: the filter is their
+  // union). The first area's mainRing is the same array reference as
+  // `vertices` while areas are active.
+  const [pickedAreas, setPickedAreas] = useState<PickedArea[]>([]);
+  const [activeAreaRef, setActiveAreaRef] = useState<string | null>(null); // row whose shape options are shown
   const areaParts = useMemo(
-    () => (pickedArea ? effectiveAreaParts(pickedArea.parts, pickedArea.mainland, pickedArea.bbox) : null),
-    [pickedArea],
+    () => (pickedAreas.length ? pickedAreas.flatMap(effectiveAreaParts) : null),
+    [pickedAreas],
   );
   const [polyAnchorPx, setPolyAnchorPx] = useState<{ x: number; y: number } | null>(null);
 
@@ -633,18 +648,23 @@ export function MapPage() {
   const [areaStatus, setAreaStatus] = useState<string | null>(null);
   const areaSearchSeq = useRef(0);
 
-  // search as you type (debounced); only relations have a border, so drop nodes
+  // search as you type (debounced); only relations have a border, so drop nodes.
+  // Countries mode also matches the predefined regions (shown first, instantly).
   useEffect(() => {
     const q = areaSearch.trim();
     const seq = ++areaSearchSeq.current;
     if (q.length < 2) { setAreaHits([]); return; }
+    const regionHits: AreaHit[] = areaKind === "country"
+      ? searchRegions(q).map(({ key, region }) => ({ ref: `region:${key}`, name: region.name, detail: `${region.countries.length} countries` }))
+      : [];
+    setAreaHits(regionHits);
     const timer = setTimeout(() => {
       const tags = areaKind === "country" ? "&osm_tag=place:country" : "&osm_tag=place:city&osm_tag=place:town";
       fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=10&lang=en${tags}`)
         .then((r) => r.json())
         .then((data: { features: { properties: { osm_type: string; osm_id: number; name?: string; state?: string; country?: string } }[] }) => {
           if (seq !== areaSearchSeq.current) return; // a newer search superseded this one
-          const hits: AreaHit[] = [];
+          const hits: AreaHit[] = [...regionHits];
           for (const { properties: p } of data.features) {
             const ref = `${areaKind}:R${p.osm_id}`;
             if (p.osm_type !== "R" || !p.name || hits.some((h) => h.ref === ref)) continue;
@@ -653,7 +673,7 @@ export function MapPage() {
           setAreaHits(hits);
           setAreaStatus(hits.length === 0 ? "No matches" : null);
         })
-        .catch(() => { if (seq === areaSearchSeq.current) setAreaStatus("Search failed"); });
+        .catch(() => { if (seq === areaSearchSeq.current && regionHits.length === 0) setAreaStatus("Search failed"); });
     }, 300);
     return () => clearTimeout(timer);
   }, [areaSearch, areaKind]);
@@ -671,47 +691,83 @@ export function MapPage() {
     map.current?.fitBounds([[w, s], [e, n]], { padding: 40, duration: 1500 });
   };
 
-  const applyArea = (ref: string, fit = true) => {
+  /** Adds an area to the selection (or re-selects it if already picked). Resolves when done. */
+  const applyArea = (ref: string, fit = true): Promise<void> => {
     const parsed = parseAreaRef(ref);
     const url = areaBorderUrl(ref);
-    if (!parsed || !url) return;
-    setAreaStatus("Loading border...");
-    fetch(url)
+    if (!parsed || !url) return Promise.resolve();
+    const base = `${parsed.kind}:${parsed.id}`;
+    setAreaStatus(parsed.kind === "region" ? `Loading ${REGIONS[parsed.id].countries.length} borders...` : "Loading border...");
+    return fetch(url)
       .then((r) => r.json())
       .then((results: { name: string; geojson?: { type: string; coordinates: unknown } }[]) => {
-        const parts = geojsonToParts(results[0]?.geojson);
-        if (!parts) { setAreaStatus("No border found"); return; }
-        // mainland's outer ring doubles as the regular area polygon (toolbar anchor etc.)
-        const mainRing = largestPart(parts)[0];
-        setPickedArea({ ref: `${parsed.kind}:${parsed.osmId}`, kind: parsed.kind, name: results[0].name, parts, mainland: parsed.mainland, bbox: parsed.bbox, mainRing });
-        setVertices(mainRing);
-        setDrawingState("complete");
+        // one result per OSM id: a single border for a country/city, one per country for a region
+        const members = results.map((r) => geojsonToParts(r.geojson)).filter((p): p is LngLat[][][] => p !== null);
+        if (members.length === 0) { setAreaStatus("No border found"); return; }
+        const name = parsed.kind === "region" ? REGIONS[parsed.id].name : results[0].name;
+        const parts = members.flat();
+        const area: PickedArea = { ref: base, kind: parsed.kind, name, members, parts, mainland: parsed.mainland, bbox: parsed.bbox, mainRing: largestPart(members[0])[0] };
+        setPickedAreas((prev) => (prev.some((a) => a.ref === base) ? prev : [...prev, area]));
+        setActiveAreaRef(base);
         setAreaSearch("");
         setAreaHits([]);
-        setAreaStatus(`${results[0].name}: border set`);
-        if (fit) fitToParts(effectiveAreaParts(parts, parsed.mainland, parsed.bbox));
+        setAreaStatus(`Added ${name}`);
+        if (fit) fitToParts(effectiveAreaParts(area));
       })
       .catch(() => setAreaStatus("Loading border failed"));
   };
 
-  const updateAreaShape = (patch: { mainland?: boolean; bbox?: boolean }) => {
-    if (!pickedArea) return;
-    const next = { ...pickedArea, ...patch };
-    setPickedArea(next);
-    fitToParts(effectiveAreaParts(next.parts, next.mainland, next.bbox));
+  const removeArea = (ref: string) => {
+    setPickedAreas((prev) => prev.filter((a) => a.ref !== ref));
+    setActiveAreaRef((cur) => (cur === ref ? null : cur));
+    setAreaStatus(null);
   };
 
-  // restore ?area= from a shared link
+  const clearAreas = () => {
+    setPickedAreas([]);
+    setActiveAreaRef(null);
+    setAreaStatus(null);
+  };
+
+  const activeArea = pickedAreas.find((a) => a.ref === activeAreaRef) ?? pickedAreas[pickedAreas.length - 1] ?? null;
+
+  const updateAreaShape = (ref: string, patch: { mainland?: boolean; bbox?: boolean }) => {
+    const cur = pickedAreas.find((a) => a.ref === ref);
+    if (!cur) return;
+    const next = { ...cur, ...patch };
+    setPickedAreas((prev) => prev.map((a) => (a.ref === ref ? next : a)));
+    fitToParts(effectiveAreaParts(next));
+  };
+
+  // restore ?area=ref,ref,... from a shared link (one lookup at a time: Nominatim allows ~1 req/s)
   useEffect(() => {
-    if (initArea.current) applyArea(initArea.current, false);
+    if (!initArea.current) return;
+    splitAreaRefs(initArea.current).reduce((p, ref) => p.then(() => applyArea(ref, false)), Promise.resolve());
   }, []);
 
-  // any other edit of the area (clear, redraw, zone polygon) drops the picked area
+  // Keep the regular polygon in step with the picked areas: the first area's
+  // mainRing is pushed into `vertices` (toolbar anchor etc.). Any other edit of
+  // the polygon (clear, redraw, zone polygon) drops all picked areas.
+  const syncedAreaRing = useRef<LngLat[] | null>(null);
   useEffect(() => {
-    if (pickedArea && (drawingState !== "complete" || vertices !== pickedArea.mainRing)) {
-      setPickedArea(null);
+    const ring = pickedAreas[0]?.mainRing ?? null;
+    const prev = syncedAreaRing.current;
+    if (ring !== prev) {
+      syncedAreaRing.current = ring;
+      if (ring) {
+        setVertices(ring);
+        setDrawingState("complete");
+      } else if (prev && vertices === prev) {
+        // last area removed from the list: the polygon goes with it
+        setVertices([]);
+        setDrawingState("idle");
+      }
+      return;
     }
-  }, [pickedArea, drawingState, vertices]);
+    if (ring && (drawingState !== "complete" || vertices !== ring)) {
+      setPickedAreas([]);
+    }
+  }, [pickedAreas, drawingState, vertices]);
 
   // histogram panel resize
   const [panelHeight, setPanelHeight] = useState(180);
@@ -879,8 +935,8 @@ export function MapPage() {
     if (timeFrom) params.from = dateToDateParam(timeFrom);
     if (timeUntil) params.to = dateToDateParam(timeUntil);
     if (selectedZoneIds.size > 0) params.zones = [...selectedZoneIds].join(",");
-    if (pickedArea) {
-      params.area = formatAreaRef(pickedArea.ref, pickedArea.mainland, pickedArea.bbox);
+    if (pickedAreas.length) {
+      params.area = areaUrlParam(pickedAreas);
     } else if (drawingState === "complete" && vertices.length >= 3) {
       params.poly = vertices
         .map(([lng, lat]) => `${lng.toFixed(4)},${lat.toFixed(4)}`)
@@ -893,7 +949,7 @@ export function MapPage() {
       params.lng = center.lng.toFixed(4);
     }
     setSearchParams(params, { replace: true });
-  }, [selected, timeFrom, timeUntil, selectedZoneIds, drawingState, vertices, pickedArea, zoom, setSearchParams]);
+  }, [selected, timeFrom, timeUntil, selectedZoneIds, drawingState, vertices, pickedAreas, zoom, setSearchParams]);
 
   // ---------- map init ----------
   useEffect(() => {
@@ -1541,43 +1597,82 @@ export function MapPage() {
               <input
                 className="zone-dropdown-search"
                 type="text"
-                placeholder={areaKind === "country" ? "Search country, e.g. Brazil" : "Search city, e.g. Munich"}
+                placeholder={areaKind === "country" ? "Country or region, e.g. Balkans" : "Search city, e.g. Munich"}
                 value={areaSearch}
                 onChange={(e) => { setAreaSearch(e.target.value); setAreaStatus(null); }}
                 onKeyDown={(e) => { if (e.key === "Enter" && areaHits[0]) applyArea(areaHits[0].ref); }}
                 autoFocus
               />
-              {areaHits.map((h) => (
-                <div key={h.ref} className="saved-view-item">
-                  <span className="saved-view-desc" title={h.detail || h.name} onClick={() => applyArea(h.ref)}>
-                    {h.name}
-                    {h.detail && <span className="zone-item-badge"> {h.detail}</span>}
-                  </span>
+              {areaHits.length > 0 && (
+                <div className="area-hits">
+                  {areaHits.map((h) => (
+                    <div key={h.ref} className="saved-view-item area-hit" title={areaTooltip(h.ref, `Add ${h.name}`)} onClick={() => applyArea(h.ref)}>
+                      <svg className="area-hit-plus" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      <span className="saved-view-desc">
+                        {h.name}
+                        {h.detail && <span className="zone-item-badge"> {h.detail}</span>}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               {areaStatus && <div className="zone-dropdown-empty">{areaStatus}</div>}
-              {pickedArea && pickedArea.parts.length > 1 && (
-                <div className="geohash-precision-toggle" title={`${pickedArea.name} has ${pickedArea.parts.length} separate parts`}>
+              {pickedAreas.length > 0 && (
+                <div className="area-picked-list">
+                  <div className="saved-views-divider" />
+                  <div className="area-selected-head">
+                    <span className="saved-views-section-label">Selected ({pickedAreas.length})</span>
+                    <button className="area-clear-btn" title="Remove all selected areas" onClick={clearAreas}>Clear</button>
+                  </div>
+                  {pickedAreas.map((a) => (
+                    <div
+                      key={a.ref}
+                      className={`saved-view-item${activeArea?.ref === a.ref ? " is-active" : ""}`}
+                      title={areaTooltip(a.ref, a.kind === "city" ? "City" : "Country")}
+                    >
+                      <span className="saved-view-desc" onClick={() => { setActiveAreaRef(a.ref); fitToParts(effectiveAreaParts(a)); }}>
+                        {a.name}
+                        {(a.mainland || a.bbox) && (
+                          <span className="zone-item-badge"> {[a.mainland && "mainland", a.bbox && "bbox"].filter(Boolean).join(", ")}</span>
+                        )}
+                      </span>
+                      <div className="saved-view-actions">
+                        <button title={`Remove ${a.name}`} onClick={() => removeArea(a.ref)}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {activeArea && activeArea.parts.length > activeArea.members.length && (
+                <div className="geohash-precision-toggle" title={`${activeArea.name} has ${activeArea.parts.length} separate parts`}>
                   {([true, false] as const).map((m) => (
                     <button
                       key={String(m)}
-                      className={`geohash-precision-btn${pickedArea.mainland === m ? " active" : ""}`}
-                      title={m ? "Only the largest part (no islands / overseas territories)" : "Every part, including islands and overseas territories"}
-                      onClick={() => updateAreaShape({ mainland: m })}
+                      className={`geohash-precision-btn${activeArea.mainland === m ? " active" : ""}`}
+                      title={`${activeArea.name}: ${m ? `only the largest part${activeArea.kind === "region" ? " of each country" : ""} (no islands / overseas territories)` : "every part, including islands and overseas territories"}`}
+                      onClick={() => updateAreaShape(activeArea.ref, { mainland: m })}
                     >
                       {m ? "Mainland" : "With islands"}
                     </button>
                   ))}
                 </div>
               )}
-              {pickedArea?.kind === "city" && (
+              {activeArea?.kind === "city" && (
                 <div className="geohash-precision-toggle">
                   {([false, true] as const).map((b) => (
                     <button
                       key={String(b)}
-                      className={`geohash-precision-btn${pickedArea.bbox === b ? " active" : ""}`}
-                      title={b ? "Rectangle around the city border" : "Exact city border"}
-                      onClick={() => updateAreaShape({ bbox: b })}
+                      className={`geohash-precision-btn${activeArea.bbox === b ? " active" : ""}`}
+                      title={`${activeArea.name}: ${b ? "rectangle around the city border" : "exact city border"}`}
+                      onClick={() => updateAreaShape(activeArea.ref, { bbox: b })}
                     >
                       {b ? "Bounding box" : "Border"}
                     </button>
@@ -2106,7 +2201,7 @@ export function MapPage() {
                 if (selected) params.set("type", selected);
                 if (timeFrom) params.set("from", String(Math.floor(timeFrom.getTime() / 1000)));
                 if (timeUntil) params.set("to", String(Math.floor(timeUntil.getTime() / 1000) + 86400));
-                if (pickedArea) params.set("area", formatAreaRef(pickedArea.ref, pickedArea.mainland, pickedArea.bbox));
+                if (pickedAreas.length) params.set("area", areaUrlParam(pickedAreas));
                 else params.set("poly", JSON.stringify(vertices));
                 const a = document.createElement("a");
                 a.href = `/api/events/export?${params.toString()}`;
