@@ -11,6 +11,7 @@ interface EventTrailProps {
   events: EventTuple[];
   avatars?: boolean;
   theme?: "light" | "dark";
+  lite?: boolean;
 }
 
 interface AuditEntry {
@@ -55,7 +56,20 @@ const AVATAR_W_SAME_USER = 32;
 const AVATAR_H_SAME_USER = 42;
 const LEAVE_DELAY = 300; // ms grace period to move from dot to card
 
-export function EventTrail({ map, events, avatars = false, theme = "light" }: EventTrailProps) {
+// Padded geographic bounds, used to skip world-wrap ghost dots
+function paddedBounds(map: maplibregl.Map) {
+  const b = map.getBounds();
+  const lngPad = (b.getEast() - b.getWest()) * 0.1;
+  const latPad = (b.getNorth() - b.getSouth()) * 0.1;
+  return {
+    minLng: b.getWest() - lngPad,
+    maxLng: b.getEast() + lngPad,
+    minLat: b.getSouth() - latPad,
+    maxLat: b.getNorth() + latPad,
+  };
+}
+
+export function EventTrail({ map, events, avatars = false, theme = "light", lite = false }: EventTrailProps) {
   // Blue for light/day, orange for dark/night
   const accent = theme === "dark" ? "255, 140, 0" : "74, 158, 255";
   const positionsRef = useRef<{ x: number; y: number }[]>([]);
@@ -91,6 +105,11 @@ export function EventTrail({ map, events, avatars = false, theme = "light" }: Ev
     : baseIdx;
 
   const dotsCanvasRef = useRef<HTMLCanvasElement>(null);
+  const drawRef = useRef<() => void>(() => {});
+  const liteRef = useRef(lite);
+  liteRef.current = lite;
+  const activeIdxRef = useRef(activeIdx);
+  activeIdxRef.current = activeIdx;
 
   const updatePositions = useCallback(() => {
     if (!map || eventsRef.current.length === 0) {
@@ -98,18 +117,32 @@ export function EventTrail({ map, events, avatars = false, theme = "light" }: Ev
       forceRender((n) => n + 1);
       return;
     }
-    const newPos = eventsRef.current.map((e) => {
-      const pt = map.project([e[0], e[1]]);
-      return { x: pt.x, y: pt.y };
-    });
-    positionsRef.current = newPos;
+    if (liteRef.current) {
+      // Off-screen points get NaN so draw and hit-test skip them without projecting
+      const { minLng, maxLng, minLat, maxLat } = paddedBounds(map);
+      positionsRef.current = eventsRef.current.map((e) => {
+        if (e[0] < minLng || e[0] > maxLng || e[1] < minLat || e[1] > maxLat) return { x: NaN, y: NaN };
+        const pt = map.project([e[0], e[1]]);
+        return { x: pt.x, y: pt.y };
+      });
+      // An open card is positioned by React, so it still needs a render
+      if (activeIdxRef.current === null) {
+        drawRef.current();
+        return;
+      }
+    } else {
+      positionsRef.current = eventsRef.current.map((e) => {
+        const pt = map.project([e[0], e[1]]);
+        return { x: pt.x, y: pt.y };
+      });
+    }
     forceRender((n) => n + 1);
   }, [map]);
 
   // Recalculate positions when events change
   useEffect(() => {
     updatePositions();
-  }, [events, updatePositions]);
+  }, [events, lite, updatePositions]);
 
   // Recalculate on map move
   useEffect(() => {
@@ -129,14 +162,7 @@ export function EventTrail({ map, events, avatars = false, theme = "light" }: Ev
       const my = e.clientY - rect.top;
       const positions = positionsRef.current;
       const evts = eventsRef.current;
-      // Geographic bounds to ignore world-wrap ghost dots
-      const bounds = map!.getBounds();
-      const lngPad = (bounds.getEast() - bounds.getWest()) * 0.1;
-      const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.1;
-      const minLng = bounds.getWest() - lngPad;
-      const maxLng = bounds.getEast() + lngPad;
-      const minLat = bounds.getSouth() - latPad;
-      const maxLat = bounds.getNorth() + latPad;
+      const { minLng, maxLng, minLat, maxLat } = paddedBounds(map!);
 
       let bestIdx: number | null = null;
       let bestDist = HIT_RADIUS * HIT_RADIUS;
@@ -296,35 +322,33 @@ export function EventTrail({ map, events, avatars = false, theme = "light" }: Ev
   const hoveredDistinctId = hoveredEvent ? hoveredEvent[6] : null;
 
   // Draw dots on canvas for performance (thousands of dots)
-  useEffect(() => {
+  const draw = () => {
     const cvs = dotsCanvasRef.current;
     const mapCanvas = map?.getCanvas();
     if (!cvs || !mapCanvas) return;
     const dpr = window.devicePixelRatio || 1;
     const w = mapCanvas.clientWidth;
     const h = mapCanvas.clientHeight;
-    cvs.width = w * dpr;
-    cvs.height = h * dpr;
-    cvs.style.width = `${w}px`;
-    cvs.style.height = `${h}px`;
+    // Assigning width/height reallocates the backing store; lite mode only does it on resize
+    if (!lite || cvs.width !== Math.round(w * dpr) || cvs.height !== Math.round(h * dpr)) {
+      cvs.width = Math.round(w * dpr);
+      cvs.height = Math.round(h * dpr);
+      cvs.style.width = `${w}px`;
+      cvs.style.height = `${h}px`;
+    }
     const ctx = cvs.getContext("2d");
     if (!ctx) return;
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
     const pad = 50;
     const pos = positionsRef.current;
     const evts = eventsRef.current;
     const hDid = hoveredDistinctId;
+    // Canvas shadowBlur and clip are slow on weak hardware
+    const glow = !lite;
 
-    // Geographic bounds filter to prevent world-wrap ghost dots
-    const bounds = map!.getBounds();
-    const lngPad = (bounds.getEast() - bounds.getWest()) * 0.1;
-    const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.1;
-    const minLng = bounds.getWest() - lngPad;
-    const maxLng = bounds.getEast() + lngPad;
-    const minLat = bounds.getSouth() - latPad;
-    const maxLat = bounds.getNorth() + latPad;
+    const { minLng, maxLng, minLat, maxLat } = paddedBounds(map!);
 
     let hasUnloaded = false;
 
@@ -364,14 +388,18 @@ export function EventTrail({ map, events, avatars = false, theme = "light" }: Ev
       if (img) {
         ctx.save();
         if (isSameUser) {
-          ctx.shadowColor = `rgba(${accent}, 0.7)`;
-          ctx.shadowBlur = 8;
+          if (glow) {
+            ctx.shadowColor = `rgba(${accent}, 0.7)`;
+            ctx.shadowBlur = 8;
+          }
           ctx.globalAlpha = 1;
         } else {
           ctx.globalAlpha = 0.85;
         }
-        roundedRect(ctx, x - aw / 2, y - ah / 2, aw, ah, aw * 0.2);
-        ctx.clip();
+        if (glow) {
+          roundedRect(ctx, x - aw / 2, y - ah / 2, aw, ah, aw * 0.2);
+          ctx.clip();
+        }
         ctx.drawImage(img, x - aw / 2, y - ah / 2, aw, ah);
         ctx.restore();
       } else {
@@ -379,7 +407,7 @@ export function EventTrail({ map, events, avatars = false, theme = "light" }: Ev
         const dotRadius = isSameUser ? 5 : 3.5;
         ctx.globalAlpha = isSameUser ? 1 : 0.5;
         ctx.fillStyle = `rgba(${accent}, 1)`;
-        if (isSameUser) {
+        if (isSameUser && glow) {
           ctx.shadowColor = `rgba(${accent}, 0.7)`;
           ctx.shadowBlur = 8;
         }
@@ -429,7 +457,9 @@ export function EventTrail({ map, events, avatars = false, theme = "light" }: Ev
     if (hasUnloaded) {
       setTimeout(() => forceRender((n) => n + 1), 100);
     }
-  });
+  };
+  drawRef.current = draw;
+  useEffect(draw);
 
   if (positions.length === 0) return null;
 

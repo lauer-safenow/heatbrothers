@@ -33,6 +33,14 @@
 }
 
 /* ── Light theme ── */
+/* Lite mode: backdrop blur re-renders every frame while the map moves underneath */
+.live-page.lite-mode *,
+.live-page.lite-mode *::before,
+.live-page.lite-mode *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 .live-page[data-theme="light"] {
   --ctrl-bg: rgba(255, 255, 255, 0.9);
   --ctrl-bg-solid: #f5f5f5;
