@@ -20,6 +20,7 @@ export interface MapSettings {
   savedViewsOpen: boolean;
   bottomPanel: "zones" | "areas" | "date" | null;
   cinematicMode: boolean;
+  liteMode: boolean;
 }
 
 const DEFAULTS: MapSettings = {
@@ -39,6 +40,7 @@ const DEFAULTS: MapSettings = {
   savedViewsOpen: false,
   bottomPanel: null,
   cinematicMode: false,
+  liteMode: false,
 };
 
 const STORAGE_KEY = "heatbrothers-map-settings";

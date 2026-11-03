@@ -11,6 +11,7 @@ import { LIVE_EVENT_TYPE, ZONE_EVENT_TYPE } from "@heatbrothers/shared";
 import { pointInPolygon } from "../utils/pointInPolygon";
 import { PolygonToolbar } from "../components/PolygonToolbar";
 import { EventTrail } from "../components/EventTrail";
+import { FpsCounter } from "../components/FpsCounter";
 import { HideUIButton } from "../components/HideUIButton";
 import { HomeLogo } from "../components/HomeLogo";
 import { usePersistedSettings } from "../hooks/usePersistedSettings";
@@ -78,23 +79,36 @@ const DISPLAY_DURATION = 3_000;
 const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 const LIGHT_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
 
-function applySky(m: maplibregl.Map, _theme: "dark" | "light") {
+function applySky(m: maplibregl.Map, _theme: "dark" | "light", lite: boolean) {
   // Sky/atmosphere always stays dark (space void) regardless of theme
   void _theme;
   m.setSky({
     "sky-color": "#050510",
-    "sky-horizon-blend": 0.7,
+    "sky-horizon-blend": lite ? 0 : 0.7,
     "horizon-color": "#2a5aaa",
-    "horizon-fog-blend": 0.9,
+    "horizon-fog-blend": lite ? 0 : 0.9,
     "fog-color": "#050510",
-    "fog-ground-blend": 0.02,
-    "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 5, 1.2, 7, 0],
+    "fog-ground-blend": lite ? 0 : 0.02,
+    // 0 makes MapLibre skip the full-screen atmosphere pass entirely
+    "atmosphere-blend": lite ? 0 : ["interpolate", ["linear"], ["zoom"], 0, 1.2, 5, 1.2, 7, 0],
   });
 }
 
-function applyStylePostLoad(m: maplibregl.Map, theme: "dark" | "light") {
+// Roads, buildings, POIs and minor labels: most of the style's layers, not needed for the event story
+const LITE_HIDDEN_LAYERS = /^(tunnel_|road_|bridge_|rail|aeroway|building|roadname_|housenumber|poi_|waterway|watername_lake|place_(hamlet|suburbs|villages|town))/;
+
+function applyLite(m: maplibregl.Map, theme: "dark" | "light", lite: boolean) {
+  applySky(m, theme, lite);
+  for (const layer of m.getStyle()?.layers ?? []) {
+    if (LITE_HIDDEN_LAYERS.test(layer.id)) {
+      m.setLayoutProperty(layer.id, "visibility", lite ? "none" : "visible");
+    }
+  }
+}
+
+function applyStylePostLoad(m: maplibregl.Map, theme: "dark" | "light", lite: boolean) {
   m.setProjection({ type: "globe" });
-  applySky(m, theme);
+  applyLite(m, theme, lite);
   // Hide sub-national boundary lines
   const style = m.getStyle();
   if (style?.layers) {
@@ -222,6 +236,13 @@ export function LivePage() {
   // Settings gear
   const [settings, updateSettings] = usePersistedSettings();
   const { mapTheme, hideUI } = settings;
+  const liteModeRef = useRef(settings.liteMode);
+  liteModeRef.current = settings.liteMode;
+  useEffect(() => {
+    const m = map.current;
+    if (m?.isStyleLoaded()) applyLite(m, mapTheme, settings.liteMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.liteMode]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -314,6 +335,8 @@ export function LivePage() {
   const [todayMode, setTodayMode] = useState(initIsToday.current);
   const todayModeRef = useRef(initIsToday.current);
   const initLoop = useRef(searchParams.get("loop") === "1");
+  // Read once: updateUrl rebuilds the query string without it
+  const showFps = useRef(searchParams.get("fps") === "1").current;
   const [loop, setLoop] = useState(initLoop.current);
   const loopRef = useRef(initLoop.current);
   const [mode, setMode] = useState<Mode>(initMode.current);
@@ -518,7 +541,7 @@ export function LivePage() {
     map.current.addControl(overlay.current);
 
     map.current.on("load", () => {
-      applyStylePostLoad(map.current!, mapTheme);
+      applyStylePostLoad(map.current!, mapTheme, liteModeRef.current);
     });
 
     map.current.on("move", updateBlinkPosition);
@@ -1422,10 +1445,11 @@ export function LivePage() {
   }
 
   return (
-    <div className={`live-page${hideUI ? " hide-ui" : ""}`} data-theme={mapTheme === "light" ? "light" : undefined}>
+    <div className={`live-page${hideUI ? " hide-ui" : ""}${settings.liteMode ? " lite-mode" : ""}`} data-theme={mapTheme === "light" ? "light" : undefined}>
       {hideUI && <HideUIButton hidden onToggle={(h) => updateSettings({ hideUI: h })} />}
+      {showFps && <FpsCounter />}
       <div ref={mapContainer} className="live-map" />
-      <EventTrail map={map.current} events={trailEvents} avatars={avatarsEnabled} theme={settings.mapTheme} />
+      <EventTrail map={map.current} events={trailEvents} avatars={avatarsEnabled} theme={settings.mapTheme} lite={settings.liteMode} />
       <div ref={blinkRef} className="live-blink-marker" style={{ display: "none" }} />
       <div ref={blinkLabelRef} className="live-blink-label" style={{ display: "none" }} />
 
@@ -1507,7 +1531,7 @@ export function LivePage() {
                     if (map.current) {
                       map.current.setStyle(next === "dark" ? DARK_STYLE : LIGHT_STYLE);
                       map.current.once("style.load", () => {
-                        applyStylePostLoad(map.current!, next);
+                        applyStylePostLoad(map.current!, next, liteModeRef.current);
                       });
                     }
                   }}
@@ -1601,6 +1625,24 @@ export function LivePage() {
                     onClick={() => toggleFlyMode()}
                   >
                     FREE
+                  </button>
+                </div>
+              </div>
+              {/* Lite mode: cheaper rendering for weak devices (e.g. TV browsers) */}
+              <div className="settings-row">
+                <span className="settings-label">Lite mode</span>
+                <div className="live-mode-toggle">
+                  <button
+                    className={`mode-btn${settings.liteMode ? " active" : ""}`}
+                    onClick={() => updateSettings({ liteMode: true })}
+                  >
+                    ON
+                  </button>
+                  <button
+                    className={`mode-btn${!settings.liteMode ? " active" : ""}`}
+                    onClick={() => updateSettings({ liteMode: false })}
+                  >
+                    OFF
                   </button>
                 </div>
               </div>
